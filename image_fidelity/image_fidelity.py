@@ -1,5 +1,4 @@
 import json
-import pyfits
 import argparse
 import numpy as np
 from scipy import stats
@@ -8,15 +7,39 @@ from astLib.astWCS import WCS
 from astropy.io import fits as fitsio
 
 
-def json_dump(data_dict, root):
-    """Dumps the computed dictionary into a json file"""
+def json_dump(data_dict, root='.'):
+    """Dumps the computed dictionary into a json file
+
+    Parameters
+    ----------
+    data_dict: dict
+        dictionary with output results to save
+    root: str
+        directory to save output json file (default is current directory)
+    """
     with open('%s/results.json' % root, 'w') as f:
         json.dump(data_dict, f)
 
 
 def fitsInfo(fitsname=None):
-    """Get fits header info"""
-    hdu = pyfits.open(fitsname)
+    """Get fits header info
+
+    Parameters
+    ----------
+    fitsname: fits file
+        restored image (cube)
+
+    Returns
+    -------
+    fitsinfo: dict
+        dictionary of fits information
+        e.g. {
+              'wcs': wcs, 'ra': ra, 'dec': dec,
+              'dra': dra, 'ddec': ddec, 'raPix': raPix,
+              'decPix': decPix,  'b_scale': beam_scale
+             }
+    """
+    hdu = fitsio.open(fitsname)
     hdr = hdu[0].header
     ra = hdr['CRVAL1']
     dra = abs(hdr['CDELT1'])
@@ -25,36 +48,41 @@ def fitsInfo(fitsname=None):
     ddec = abs(hdr['CDELT2'])
     decPix = hdr['CRPIX2']
     wcs = WCS(hdr, mode='pyfits')
-    return {'wcs': wcs, 'ra': ra, 'dec': dec, 'dra': dra,
-            'ddec': ddec, 'raPix': raPix, 'decPix': decPix}
+    beam_size = (hdr['BMAJ'], hdr['BMIN'], hdr['BMIN'], hdr['BPA'])
+    fitsinfo = {'wcs': wcs, 'ra': ra, 'dec': dec,
+                'dra': dra, 'ddec': ddec, 'raPix': raPix,
+                'decPix': decPix,  'b_size': beam_size}
+    return fitsinfo
 
 
-def residual_image_stats(residual_image):
+def residual_image_stats(fitsname):
     """Gets statistcal properties of a residual image
 
     Parameters
     ----------
-    image: fits file
+    fitsname: fits file
         residual image (cube)
 
     Returns
     -------
     stats_props: dict
         dictionary of stats props
-        e.g. {'MEAN': 0.0,
-              'STDD': 0.1,
+        e.g. {
+              'MEAN': 0.0,
+              'STDDev': 0.1,
               'SKEW': 0.2,
-              'KURT': 0.3}
+              'KURT': 0.3
+             }
     """
     stats_props = dict()
     # Open the residual image
-    residual_hdu = fitsio.open(residual_image)
+    residual_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
     residual_data = residual_hdu[0].data
     # Get the mean value
     stats_props['MEAN'] = round(abs(residual_data.mean()), 10)
     # Get the sigma value
-    stats_props['STDD'] = float("{0:.6f}".format(residual_data.std()))
+    stats_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
     # Flatten image
     res_data = residual_data.flatten()
     # Compute the skewness of the residual
@@ -64,22 +92,25 @@ def residual_image_stats(residual_image):
     return stats_props
 
 
-def dynamic_range(restored_image, beam_size=6, area_beams=5):
+def dynamic_range(fitsname, area_factor=6):
     """Gets the dynamic range in a restored image
 
     Parameters
     ----------
-    image: fits file
-        residual image (cube)
+    fitsname: fits file
+        restored image (cube)
+    area_factor: int
+        Factor to multiply the beam area
 
     Returns
     -------
     DR: float
         dynamic range value
     """
-    beam_deg = (beam_size/3600.0, beam_size/3600.0, 0)
+    fits_info = fitsInfo(fitsname)
+    beam_deg = fits_info['b_size']
     # Open the restored image
-    restored_hdu = fitsio.open(restored_image)
+    restored_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
     restored_data = restored_hdu[0].data
     # Get the max value
@@ -88,10 +119,9 @@ def dynamic_range(restored_image, beam_size=6, area_beams=5):
     pix_coord = np.argwhere(restored_data == peak_flux)[0]
     nchan = (restored_data.shape[1] if restored_data.shape[0] == 1
              else restored_data.shape[0])
-    fits_info = fitsInfo(restored_image)
-    # Compute number of pixel in beam and extend by factor area_beams
-    ra_num_pix = round((beam_deg[0]*area_beams)/fits_info['dra'])
-    dec_num_pix = round((beam_deg[1]*area_beams)/fits_info['ddec'])
+    # Compute number of pixel in beam and extend by factor area_factor
+    ra_num_pix = round((beam_deg[0]*area_factor)/fits_info['dra'])
+    dec_num_pix = round((beam_deg[1]*area_factor)/fits_info['ddec'])
     # Create target image slice
     imslice = np.array([pix_coord[2]-ra_num_pix/2, pix_coord[2]+ra_num_pix/2,
                         pix_coord[3]-dec_num_pix/2, pix_coord[3]+dec_num_pix/2])
@@ -119,15 +149,13 @@ def get_argparser():
                  description="Examine radio image fidelity by obtaining: \n"
                              "- The four (4) moments of a residual image \n"
                              "- The Dynamic range in restored image")
-    required_argument = partial(parser.add_argument, required=True)
-    optional_argument = partial(parser.add_argument, required=False)
-    required_argument('--mode',  dest='mode', help='Choose examination mode',
-                      choices=['restored', 'residual'])
-    required_argument('--fitsname',  dest='fitsname', help='Name of the image fits file')
-    optional_argument('--beam_size', dest='beam', type=float,
-                      help='Beam size in units of arcsec')
-    optional_argument('--area_factor', dest='factor', type=float,
-                      help='Factor to multiply the beam area to get target peak area')
+    argument = partial(parser.add_argument)
+    argument('--restored-image',  dest='restored',
+             help='Name of the restored image fits file')
+    argument('--residual-image',  dest='residual',
+             help='Name of the residual image fits file')
+    argument('-af', '--area-factor', dest='factor', type=float, default=6,
+             help='Factor to multiply the beam area to get target peak area')
     return parser
 
 
@@ -135,14 +163,22 @@ def main():
     parser = get_argparser()
     args = parser.parse_args()
     output_dict = dict()
-    if args.mode == 'residual':
-        stats = residual_image_stats(args.fitsname)
-        output_dict[args.fitsname] = stats
-    else:
-        DR = dynamic_range(args.fitsname, beam_size=args.beam, area_beams=args.factor)
-        output_dict[args.fitsname] = {'DR': DR}
+    if args.residual:
+        stats = residual_image_stats(args.residual)
+        output_dict[args.residual] = stats
+    if args.restored:
+        if args.factor:
+            DR = dynamic_range(args.restored, area_factor=args.factor)
+        else:
+            DR = dynamic_range(args.restored)
+        output_dict[args.restored] = {'DR': DR}
+    if not args.residual and not args.restored:
+        R = '\033[31m'  # red
+        W = '\033[0m'   # white (normal)
+        print("%sPlease provide fits file name(s)."
+              "\nOr\nimage_fidelity -h for arguments%s" % (R, W))
     print output_dict
-    json_dump(output_dict, '.')
+    json_dump(output_dict)
 
 if __name__ == "__main__":
     main()

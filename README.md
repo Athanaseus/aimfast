@@ -16,14 +16,19 @@ $ pip install .
 ```
 
 # Command line usage
-Get the four (4) moments of the residual image
+Get the four (4) statistical moments of the residual image
 ```
-$ image_fidelity --mode residual --fitsname meerkat_ddfacet-cube.residual.fits
+$ image_fidelity --residual-image meerkat_ddfacet-cube.residual.fits
 ```
 Get the dynamic range of the restored image
 ```
-$ image_fidelity --mode restored --fitsname meerkat_ddfacet.cube.image.fits --beam 6 --area_factor 5
+$ image_fidelity --restored-image meerkat_ddfacet.cube.image.fits -af 5
 ```
+Get combination of the four (4) moments and dynamic range
+```
+$ image_fidelity --residual-image meerkat_ddfacet-cube.residual.fits --restored-image meerkat_ddfacet.cube.image.fits -af 5
+```
+
 NB: Outputs will be printed on the terminal and dumped into `results.json` file.
 
 ## License
