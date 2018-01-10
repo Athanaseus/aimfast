@@ -92,7 +92,7 @@ def residual_image_stats(fitsname):
     return stats_props
 
 
-def dynamic_range(fitsname, area_factor=5):
+def dynamic_range(fitsname, area_factor=6):
     """Gets the dynamic range in a restored image
 
     Parameters
