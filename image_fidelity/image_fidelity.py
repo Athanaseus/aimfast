@@ -38,7 +38,6 @@ def fitsInfo(fitsname=None):
               'dra': dra, 'ddec': ddec, 'raPix': raPix,
               'decPix': decPix,  'b_scale': beam_scale
              }
-
     """
     hdu = fitsio.open(fitsname)
     hdr = hdu[0].header
