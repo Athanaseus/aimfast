@@ -52,7 +52,7 @@ def residual_image_stats(residual_image):
     # Get the header data unit for the residual rms
     residual_data = residual_hdu[0].data
     # Get the mean value
-    stats_props['MEAN'] = abs(residual_data.mean())
+    stats_props['MEAN'] = round(abs(residual_data.mean()), 10)
     # Get the sigma value
     stats_props['STDD'] = float("{0:.6f}".format(residual_data.std()))
     # Flatten image
@@ -134,14 +134,15 @@ def get_argparser():
 def main():
     parser = get_argparser()
     args = parser.parse_args()
+    output_dict = dict()
     if args.mode == 'residual':
         stats = residual_image_stats(args.fitsname)
-        output_dict = {args.fitsname: stats}
+        output_dict[args.fitsname] = stats
     else:
         DR = dynamic_range(args.fitsname, beam_size=args.beam, area_beams=args.factor)
-        output_dict = {args.fitsname: {'DR': DR}}
+        output_dict[args.fitsname] = {'DR': DR}
     print output_dict
-#    json_dump(output_dict, '.')
+    json_dump(output_dict, '.')
 
 if __name__ == "__main__":
     main()
