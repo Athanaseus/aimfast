@@ -14,3 +14,24 @@ working directory where source is checked out
 ```
 $ pip install .
 ```
+
+# Command line usage
+Get the four (4) moments of the residual image
+```
+$ image_fidelity --mode residual --fitsname meerkat_ddfacet-cube.residual.fits
+```
+Get the dynamic range of the restored image
+```
+$ image_fidelity --mode restored --fitsname meerkat_ddfacet.cube.image.fits --beam 6 --area_factor 5
+```
+NB: Outputs will be printed on the terminal and dumped into `results.json` file.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 - see
+[license](https://github.com/Athanaseus/examine-image-fidelity/blob/master/LICENSE) for details.
+
+## Contribute
+
+Contributions are always welcome! Please ensure that you adhere to our coding standards
+[pep8](https://www.python.org/dev/peps/pep-0008).
