@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name="aimfast",
-      description="An Astronomical Image Fildelity Assessment Tool.",
+      description="An Astronomical Image Fidelity Assessment Tool.",
       author="Athanaseus Ramaila",
       author_email="aramaila@ska.ac.za",
       packages=find_packages(),
