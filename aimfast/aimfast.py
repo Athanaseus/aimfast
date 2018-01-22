@@ -179,6 +179,3 @@ def main():
               "\nOr\nimage_fidelity -h for arguments%s" % (R, W))
     print output_dict
     json_dump(output_dict)
-
-if __name__ == "__main__":
-    main()
