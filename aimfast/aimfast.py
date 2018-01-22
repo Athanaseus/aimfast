@@ -177,8 +177,6 @@ def main():
         W = '\033[0m'   # white (normal)
         print("%sPlease provide fits file name(s)."
               "\nOr\nimage_fidelity -h for arguments%s" % (R, W))
-    print output_dict
-    json_dump(output_dict)
-
-if __name__ == "__main__":
-    main()
+    else:
+        json_dump(output_dict)
+        print output_dict
