@@ -16,6 +16,7 @@ def json_dump(data_dict, root='.'):
         dictionary with output results to save
     root: str
         directory to save output json file (default is current directory)
+
     """
     with open('%s/results.json' % root, 'w') as f:
         json.dump(data_dict, f)
@@ -38,6 +39,7 @@ def fitsInfo(fitsname=None):
               'dra': dra, 'ddec': ddec, 'raPix': raPix,
               'decPix': decPix,  'b_scale': beam_scale
              }
+
     """
     hdu = fitsio.open(fitsname)
     hdr = hdu[0].header
@@ -73,6 +75,7 @@ def residual_image_stats(fitsname):
               'SKEW': 0.2,
               'KURT': 0.3
              }
+
     """
     stats_props = dict()
     # Open the residual image
@@ -106,6 +109,7 @@ def dynamic_range(fitsname, area_factor=6):
     -------
     DR: float
         dynamic range value
+
     """
     fits_info = fitsInfo(fitsname)
     beam_deg = fits_info['b_size']
