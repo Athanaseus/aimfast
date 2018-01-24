@@ -15,5 +15,4 @@ setup(name="aimfast",
                         "scipy",
                         "astropy",
                         "astLib"],
-      entry_points={'console_scripts':
-                    ['aimfast = aimfast.aimfast:main']})
+      scripts=['aimfast/bin/aimfast'])
