@@ -17,9 +17,23 @@ def json_dump(data_dict, root='.'):
     root: str
         directory to save output json file (default is current directory)
 
+    Note
+    ----
+    If the fidelity_results.json file exists, it will be append, and only
+    repeated image assessments will be replaced.
+
     """
-    with open('%s/fidelity_results.json' % root, 'w') as f:
-        json.dump(data_dict, f)
+    filename = 'fidelity_results.json'
+    try:
+        # Extract data from the json data file
+        with open(filename) as data_file:
+            data_existing = json.load(data_file)
+            data = dict(data_existing.items() + data_dict.items())
+    except IOError:
+        data = data_dict
+    if data:
+        with open('%s/%s' % (root, filename), 'w') as f:
+            json.dump(data, f)
 
 
 def fitsInfo(fitsname=None):
