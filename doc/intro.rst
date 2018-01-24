@@ -104,7 +104,7 @@ Smaller values (in magnitude) indicate a flatter, more uniform distribution.
     :alt: alternate text
     :figclass: align-center
 
-    Figure 1. Kurtosis of a distribution.
+    Figure 2. Kurtosis of a distribution.
 
 ============
 Installation
