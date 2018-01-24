@@ -82,6 +82,14 @@ The coefficient of skewness, the 3-rd moment, is obtained by
 If there is a long tail in the positive directin, skewness will be positive,
 while if there is a long tail in the negative direction, skewness will be negative.
 
+   .. figure:: https://user-images.githubusercontent.com/16665629/35336554-7ce4953e-0121-11e8-8a14-ce1fbf3eece4.jpg
+    :width: 60%
+    :align: center
+    :alt: alternate text
+    :figclass: align-center
+
+    Figure 1. Skewness of a distribution.
+
 The coefficient kurtosis, the 4-th moment, is obtained by
 
 .. math::
@@ -89,6 +97,14 @@ The coefficient kurtosis, the 4-th moment, is obtained by
     KURTOSIS = \frac{m_4}{{m_2}^{2}}
 
 Smaller values (in magnitude) indicate a flatter, more uniform distribution.
+
+   .. figure:: https://user-images.githubusercontent.com/16665629/35336737-069c6086-0122-11e8-80e7-1e674d52c270.jpg
+    :width: 60%
+    :align: center
+    :alt: alternate text
+    :figclass: align-center
+
+    Figure 1. Kurtosis of a distribution.
 
 ============
 Installation
