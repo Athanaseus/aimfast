@@ -3,7 +3,7 @@
 =======
 aimfast
 =======
-aimfast is an Astronomical Image Fidelity Assessment Tool
+An Astronomical Image Fidelity Assessment Tool
 
 ============
 Introduction
@@ -30,12 +30,12 @@ Image dynamic range
 Dynamic range is a measure of the degree to which imaging artifacts around
 strong sources are suppressed, which in turn implies a higher fidelity of
 the on-source reconstruction. It is calculated by obtaining the quotient of
-highest peak flux (:math: `flux_{peak}`) and the absolute of the negative
-flux (:math: `flux_{neg}`) around the peak in the restored image.
+highest peak flux (:math:`flux_{peak}`) and the absolute of the minimum
+flux (:math:`flux_{min}`) around the peak in the restored image.
 
 .. math::
 
-    DR = \frac{flux_{peak}}{\abs{flux_{neg}}}
+    DR = \frac{flux_{peak}}{\left | {flux_{min}} \right | }
 
 
 Statistical moments of distribution
@@ -61,7 +61,7 @@ whereby
 
 .. math::
 
-    STD_DEV = \sqrt{VARIANCE}
+    STD\_DEV = \sqrt{VARIANCE}
 
 The third and fourth moments are the skewness and kurtosis respectively. The
 skewness is the measure of the symmetry of the shape and kurtosis is a measure
@@ -107,18 +107,18 @@ Get the four (4) statistical moments of the residual image
 
 .. code-block:: bash
 
-    $ image_fidelity --residual-image meerkat_ddfacet-cube.residual.fits
+    $ image_fidelity --residual-image cube.residual.fits
 
 Get the dynamic range of the restored image
 
 .. code-block:: bash
     
-    $ image_fidelity --restored-image meerkat_ddfacet.cube.image.fits -af 5
+    $ image_fidelity --restored-image cube.image.fits -af 5
 
 Get combination of the four (4) moments and dynamic range
 
 .. code-block:: bash
-    $ image_fidelity --residual-image meerkat_ddfacet-cube.residual.fits \
-                     --restored-image meerkat_ddfacet.cube.image.fits -af 5
+
+    $ image_fidelity --residual-image cube.residual.fits --restored-image cube.image.fits -af 5
 
 NB: Outputs will be printed on the terminal and dumped into `fidelity_results.json` file.
