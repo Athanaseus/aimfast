@@ -48,11 +48,9 @@ def fitsInfo(fitsname=None):
     -------
     fitsinfo: dict
         dictionary of fits information
-        e.g. {
-              'wcs': wcs, 'ra': ra, 'dec': dec,
-              'dra': dra, 'ddec': ddec, 'raPix': raPix,
-              'decPix': decPix,  'b_scale': beam_scale
-             }
+        e.g. {'wcs': wcs, 'ra': ra, 'dec': dec,
+        'dra': dra, 'ddec': ddec, 'raPix': raPix,
+        'decPix': decPix,  'b_scale': beam_scale}
 
     """
     hdu = fitsio.open(fitsname)
@@ -83,12 +81,10 @@ def residual_image_stats(fitsname):
     -------
     stats_props: dict
         dictionary of stats props
-        e.g. {
-              'MEAN': 0.0,
-              'STDDev': 0.1,
-              'SKEW': 0.2,
-              'KURT': 0.3
-             }
+        e.g. {'MEAN': 0.0,
+        'STDDev': 0.1,
+        'SKEW': 0.2,
+        'KURT': 0.3}
 
     """
     stats_props = dict()
