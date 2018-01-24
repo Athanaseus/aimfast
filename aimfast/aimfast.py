@@ -18,7 +18,7 @@ def json_dump(data_dict, root='.'):
         directory to save output json file (default is current directory)
 
     """
-    with open('%s/results.json' % root, 'w') as f:
+    with open('%s/fidelity_results.json' % root, 'w') as f:
         json.dump(data_dict, f)
 
 
