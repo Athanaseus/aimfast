@@ -15,4 +15,7 @@ setup(name="aimfast",
                         "scipy",
                         "astropy",
                         "astLib"],
+      extras_require={'docs': ["sphinx-pypi-upload",
+                               "numpydoc",
+                               "Sphinx"]},
       scripts=['aimfast/bin/aimfast'])
