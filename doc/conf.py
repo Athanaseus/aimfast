@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.abspath('../'))
 # any modules that are needed for your code, but this won’t work for any
 # modules
 # that include C code
-MOCK_MODULES = ['numpy', 'scipy', 'astropy', 'astLib']
+MOCK_MODULES = ['numpy', 'numpydoc', 'scipy', 'astropy', 'astLib']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 
@@ -41,7 +41,6 @@ for mod_name in MOCK_MODULES:
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.doctest',
               'sphinx.ext.intersphinx',
-              'numpydoc',
               'sphinx.ext.todo',
               'sphinx.ext.coverage',
               'sphinx.ext.mathjax',
