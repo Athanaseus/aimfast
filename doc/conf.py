@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.abspath('../'))
 # any modules that are needed for your code, but this won’t work for any
 # modules
 # that include C code
-MOCK_MODULES = ['numpy', 'scipy', 'numpydoc', 'astropy.io', 'astLib.astWSC']
+MOCK_MODULES = ['numpy', 'scipy', 'astropy', 'astropy.io', 'astLib', 'astLib.astWSC']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 
