@@ -17,9 +17,23 @@ def json_dump(data_dict, root='.'):
     root: str
         directory to save output json file (default is current directory)
 
+    Note
+    ----
+    If the fidelity_results.json file exists, it will be append, and only
+    repeated image assessments will be replaced.
+
     """
-    with open('%s/results.json' % root, 'w') as f:
-        json.dump(data_dict, f)
+    filename = 'fidelity_results.json'
+    try:
+        # Extract data from the json data file
+        with open(filename) as data_file:
+            data_existing = json.load(data_file)
+            data = dict(data_existing.items() + data_dict.items())
+    except IOError:
+        data = data_dict
+    if data:
+        with open('%s/%s' % (root, filename), 'w') as f:
+            json.dump(data, f)
 
 
 def fitsInfo(fitsname=None):
@@ -34,11 +48,9 @@ def fitsInfo(fitsname=None):
     -------
     fitsinfo: dict
         dictionary of fits information
-        e.g. {
-              'wcs': wcs, 'ra': ra, 'dec': dec,
-              'dra': dra, 'ddec': ddec, 'raPix': raPix,
-              'decPix': decPix,  'b_scale': beam_scale
-             }
+        e.g. {'wcs': wcs, 'ra': ra, 'dec': dec,
+        'dra': dra, 'ddec': ddec, 'raPix': raPix,
+        'decPix': decPix,  'b_scale': beam_scale}
 
     """
     hdu = fitsio.open(fitsname)
@@ -69,12 +81,10 @@ def residual_image_stats(fitsname):
     -------
     stats_props: dict
         dictionary of stats props
-        e.g. {
-              'MEAN': 0.0,
-              'STDDev': 0.1,
-              'SKEW': 0.2,
-              'KURT': 0.3
-             }
+        e.g. {'MEAN': 0.0,
+        'STDDev': 0.1,
+        'SKEW': 0.2,
+        'KURT': 0.3}
 
     """
     stats_props = dict()

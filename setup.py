@@ -14,6 +14,9 @@ setup(name="aimfast",
       install_requires=["numpy",
                         "scipy",
                         "astropy",
+                        "future",
                         "astLib"],
-      entry_points={'console_scripts':
-                    ['aimfast = aimfast.aimfast:main']})
+      extras_require={'docs': ["sphinx-pypi-upload",
+                               "numpydoc",
+                               "Sphinx"]},
+      scripts=['aimfast/bin/aimfast'])
