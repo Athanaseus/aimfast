@@ -190,7 +190,7 @@ def main():
         R = '\033[31m'  # red
         W = '\033[0m'   # white (normal)
         print("%sPlease provide fits file name(s)."
-              "\nOr\nimage_fidelity -h for arguments%s" % (R, W))
+              "\nOr\naimfast -h for arguments%s" % (R, W))
     else:
         json_dump(output_dict)
-        print output_dict
+        print(output_dict)
