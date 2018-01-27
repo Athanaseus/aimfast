@@ -53,7 +53,7 @@ and
 
 .. math::
 
-    VARIANCE = \sum_{i=1}^{n}(x_{i} - \overline{x})^2
+    VARIANCE = \frac{1}{n}\sum_{i=1}^{n}(x_{i} - \overline{x})^2
 
 whereby
 
