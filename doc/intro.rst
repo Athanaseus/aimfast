@@ -114,6 +114,12 @@ Installation from source_, working directory where source is checked out
 
     $ pip install .
 
+This package is available on *PYPI*, allowing
+
+.. code-block:: bash
+  
+    $ pip install aimfast
+
 Command line usage
 ------------------
 
@@ -121,18 +127,23 @@ Get the four (4) statistical moments of the residual image
 
 .. code-block:: bash
 
-    $ image_fidelity --residual-image cube.residual.fits
+    $ aimfast --residual-image cube.residual.fits
 
-Get the dynamic range of the restored image
+Get the dynamic range of the restored image, where argument -af is the multiplying factor of the peak source area  
 
 .. code-block:: bash
     
-    $ image_fidelity --restored-image cube.image.fits -af 5
+    $ aimfast --restored-image cube.image.fits -af 5
 
 Get combination of the four (4) moments and dynamic range
 
 .. code-block:: bash
 
-    $ image_fidelity --residual-image cube.residual.fits --restored-image cube.image.fits -af 5
+    $ aimfast --residual-image cube.residual.fits --restored-image cube.image.fits -af 5
 
 NB: Outputs will be printed on the terminal and dumped into `fidelity_results.json` file.
+
+.. code-block:: bash
+
+    $ cat fidelity_results.json
+    $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05, "MEAN": 4.747e-07}, "cube.image.fits": {"DR": 53.868}}
