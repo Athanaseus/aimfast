@@ -77,7 +77,7 @@ The coefficient of skewness, the 3-rd moment, is obtained by
 
     SKEWNESS = \frac{m_3}{{m_2}^{\frac{3}{2}}}
 
-If there is a long tail in the positive directin, skewness will be positive,
+If there is a long tail in the positive direction, skewness will be positive,
 while if there is a long tail in the negative direction, skewness will be negative.
 
    .. figure:: https://user-images.githubusercontent.com/16665629/35336554-7ce4953e-0121-11e8-8a14-ce1fbf3eece4.jpg
