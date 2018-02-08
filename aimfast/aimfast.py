@@ -1,4 +1,5 @@
 import json
+import Tigger
 import argparse
 import numpy as np
 from scipy import stats
@@ -69,6 +70,22 @@ def fitsInfo(fitsname=None):
     return fitsinfo
 
 
+def sky2px(wcs, ra, dec, dra, ddec, cell, beam):
+    """convert a sky region to pixel positions"""
+    # assume every source is at least as large as the psf
+    dra = beam if dra < beam else dra
+    ddec = beam if ddec < beam else ddec
+    offsetDec = int((ddec/2.)/cell)
+    offsetRA = int((dra/2.)/cell)
+    if offsetDec % 2 == 1:
+        offsetDec += 1
+    if offsetRA % 2 == 1:
+        offsetRA += 1
+    raPix, decPix = map(int, wcs.wcs2pix(ra, dec))
+    return np.array([raPix-offsetRA, raPix+offsetRA,
+                    decPix-offsetDec, decPix+offsetDec])
+
+
 def residual_image_stats(fitsname):
     """Gets statistcal properties of a residual image
 
@@ -105,7 +122,64 @@ def residual_image_stats(fitsname):
     return stats_props
 
 
-def dynamic_range(fitsname, area_factor=6):
+def model_dynamic_range(lsmname, fitsname, area_factor=6):
+    """Gets the dynamic range using model lsm and residual fits
+
+    Parameters
+    ----------
+    fitsname: fits file
+        residual image (cube)
+    lsmname: lsm.html or .txt file
+        model .lsm.html from pybdsm (or .txt converted tigger file)
+    area_factor: int
+        Factor to multiply the beam area
+
+    Returns
+    -------
+    DR: float
+        dynamic range value
+
+    Note
+    ----
+    DR = Peak source from model / deepest negative around source position in residual
+
+    """
+    fits_info = fitsInfo(fitsname)
+    beam_deg = fits_info['b_size']
+    rad2dec = lambda x: x*(180/np.pi)  # convert radians to degrees
+    # Open the residual image
+    residual_hdu = fitsio.open(fitsname)
+    residual_data = residual_hdu[0].data
+    # Load model file
+    model_lsm = Tigger.load(lsmname)
+    # Get detected sources
+    model_sources = model_lsm.sources
+    # Compute number of pixel in beam and extend by factor area_factor
+    ra_num_pix = round((beam_deg[0]*area_factor)/fits_info['dra'])
+    dec_num_pix = round((beam_deg[1]*area_factor)/fits_info['ddec'])
+    emin, emaj = sorted([ra_num_pix, dec_num_pix])
+    # Obtain peak flux source
+    sources_flux = dict([(model_source, model_source.flux.I)
+                        for model_source in model_sources])
+    peak_source_flux = [(_model_source, flux)
+                        for _model_source, flux in sources_flux.items()
+                        if flux == max(sources_flux.values())][0][0]
+    peak_flux = peak_source_flux.flux.I
+    # Get astrometry of the source
+    RA = rad2dec(peak_source_flux.pos.ra)
+    DEC = rad2dec(peak_source_flux.pos.dec)
+    # Get source region and slice
+    rgn = sky2px(fits_info["wcs"], RA, DEC, ra_num_pix, dec_num_pix,
+                 fits_info["dra"], beam_deg[1])
+    imslice = slice(rgn[2], rgn[3]), slice(rgn[0], rgn[1])
+    source_res_area = np.array(residual_data[0, 0, :, :][imslice])
+    min_flux = source_res_area.min()
+    # Compute dynamic range
+    DR = peak_flux/abs(min_flux)
+    return DR
+
+
+def image_dynamic_range(fitsname, area_factor=6):
     """Gets the dynamic range in a restored image
 
     Parameters
@@ -119,6 +193,10 @@ def dynamic_range(fitsname, area_factor=6):
     -------
     DR: float
         dynamic range value
+
+    Note
+    ----
+    DR = Peak source / deepest negative around source position
 
     """
     fits_info = fitsInfo(fitsname)
@@ -164,6 +242,8 @@ def get_argparser():
                              "- The four (4) moments of a residual image \n"
                              "- The Dynamic range in restored image")
     argument = partial(parser.add_argument)
+    argument('--tigger-model',  dest='model',
+             help='Name of the tigger model lsm.html file')
     argument('--restored-image',  dest='restored',
              help='Name of the restored image fits file')
     argument('--residual-image',  dest='residual',
@@ -177,20 +257,33 @@ def main():
     parser = get_argparser()
     args = parser.parse_args()
     output_dict = dict()
+    R = '\033[31m'  # red
+    W = '\033[0m'   # white (normal)
+    if not args.residual and not args.restored and not args.model:
+        print("%sPlease provide lsm.html/fits file name(s)."
+              "\nOr\naimfast -h for arguments%s" % (R, W))
+    if args.model:
+        if not args.residual:
+            print("%sPlease provide residual fits file%s" % (R, W))
+        else:
+            if args.factor:
+                DR = model_dynamic_range(args.model, args.residual,
+                                         area_factor=args.factor)
+            else:
+                DR = model_dynamic_range(args.model, args.residual)
+            stats = residual_image_stats(args.residual)
+            output_dict[args.model] = {'DR': DR}
+            output_dict[args.residual] = stats
     if args.residual:
-        stats = residual_image_stats(args.residual)
-        output_dict[args.residual] = stats
+        if args.residual not in output_dict.keys():
+            stats = residual_image_stats(args.residual)
+            output_dict[args.residual] = stats
     if args.restored:
         if args.factor:
-            DR = dynamic_range(args.restored, area_factor=args.factor)
+            DR = image_dynamic_range(args.restored, area_factor=args.factor)
         else:
-            DR = dynamic_range(args.restored)
+            DR = image_dynamic_range(args.restored)
         output_dict[args.restored] = {'DR': DR}
-    if not args.residual and not args.restored:
-        R = '\033[31m'  # red
-        W = '\033[0m'   # white (normal)
-        print("%sPlease provide fits file name(s)."
-              "\nOr\naimfast -h for arguments%s" % (R, W))
-    else:
+    if output_dict:
         json_dump(output_dict)
         print(output_dict)
