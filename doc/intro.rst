@@ -135,15 +135,25 @@ Get the dynamic range of the restored image, where argument -af is the multiplyi
     
     $ aimfast --restored-image cube.image.fits -af 5
 
-Get combination of the four (4) moments and dynamic range
-
-.. code-block:: bash
-
-    $ aimfast --residual-image cube.residual.fits --restored-image cube.image.fits -af 5
 
 NB: Outputs will be printed on the terminal and dumped into `fidelity_results.json` file.
+Moreover if the source file names are distinct the output results will be
+appended to the same json file.
 
 .. code-block:: bash
 
     $ cat fidelity_results.json
     $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05, "MEAN": 4.747e-07}, "cube.image.fits": {"DR": 53.868}}
+
+
+Get combination of the four (4) moments and dynamic range in one step:
+
+.. code-block:: bash
+
+    $ aimfast --residual-image cube.residual.fits --restored-image cube.image.fits -af 5
+
+or using sky model file (tigger lsm.html or text file):
+
+.. code-block:: bash
+
+    $ aimfast --residual-image cube.residual.fits --tigger-model model.lsm.html -af 5
