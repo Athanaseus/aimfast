@@ -391,12 +391,12 @@ def compare_models(models, tolerance=0.0001):
 
 def _source_property_ploter(results, models):
     """Plot results"""
-    BINS = 50
+    BINS = len(results.values()[0]['flux'])/2
     im_titles = []
     for input_model, output_model in models.items():
-        header = output_model[:-9]
-        im_titles.append('<b>%s flux density</b>'%header.upper())
-        im_titles.append('<b>%s flux density</b>                                        '%header.upper())
+        header = output_model[:-9].split('_')[0]
+        im_titles.append('<b>%s flux density</b>' % header.upper())
+        im_titles.append('<b>%s flux density</b>                   ' % header.upper())
 
     fig = tools.make_subplots(rows=len(models.keys()), cols=2, shared_yaxes=False,
                               print_grid=False, horizontal_spacing=0.005,
