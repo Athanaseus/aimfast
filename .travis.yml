@@ -1,0 +1,17 @@
+language: python
+sudo: false
+python:
+- '2.7'
+install:
+- python setup.py install
+script:
+- true
+before_install:
+- sudo apt-get install python-qt4
+deploy:
+    provider: pypi
+    user: athanaseus
+    on:
+      tags: true
+      distributions: sdist bdist_wheel
+      repo: athanaseus/aimfast
