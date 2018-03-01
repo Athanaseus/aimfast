@@ -188,7 +188,7 @@ def model_dynamic_range(lsmname, fitsname, area_factor=6):
     DEC = rad2dec(peak_source_flux.pos.dec)
     # Get source region and slice
     rgn = sky2px(fits_info["wcs"], RA, DEC, ra_num_pix, dec_num_pix,
-                 fits_info["dra"], beam_deg[1])
+                 deg2arcsec(fits_info["dra"]), deg2arcsec(beam_deg[1]))
     imslice = slice(rgn[2], rgn[3]), slice(rgn[0], rgn[1])
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
@@ -356,13 +356,17 @@ def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor
     return targets_flux, targets_scale, targets_position
 
 
-def compare_models(models, tolerance=0.0001):
+def compare_models(models, tolerance=0.0001, plot=True):
     """Plot model1 source properties against that of model2
 
     Parameters
     ----------
     models: dict
         Tigger formatted model files e.g {model1: model2}
+    tolerance: float
+        Tolerace in detecting source from model 2
+    plot: bool
+        Output html plot from which a png can be obtained
 
     Returns
     -------
@@ -385,26 +389,23 @@ def compare_models(models, tolerance=0.0001):
             results[heading]['shape'].append(props[1].items()[i][-1])
         for i in range(len(props[2])):
             results[heading]['position'].append(props[2].items()[i][-1])
-        _source_property_ploter(results, models)
+        if plot:
+            _source_property_ploter(results, models)
     return results
 
 
 def _source_property_ploter(results, models):
     """Plot results"""
-    BINS = len(results.values()[0]['flux'])/2
     im_titles = []
     for input_model, output_model in models.items():
         header = output_model[:-9].split('_')[0]
         im_titles.append('<b>%s flux density</b>' % header.upper())
-        im_titles.append('<b>%s flux density</b>                   ' % header.upper())
 
-    fig = tools.make_subplots(rows=len(models.keys()), cols=2, shared_yaxes=False,
+    fig = tools.make_subplots(rows=len(models.keys()), cols=1, shared_yaxes=False,
                               print_grid=False, horizontal_spacing=0.005,
                               vertical_spacing=0.15, subplot_titles=im_titles)
     i = -1
     counter = 0
-    I_min_max = []
-    err_I_min_max = []
     for input_model, output_model in models.items():
         i += 1
         counter += 1
@@ -429,44 +430,40 @@ def _source_property_ploter(results, models):
         flux_R_score = r2_score(flux_in_data, flux_out_data)
         flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
         I_out_in = [float(I_out)/I_in for I_out, I_in in zip(flux_out_data, flux_in_data)]
+        fig.append_trace(go.Scatter(x=np.array([flux_in_data[0], flux_in_data[-1]]), showlegend=False,
+                                    y=np.array([flux_in_data[0], flux_in_data[-1]]), mode='line'), i+1, 1)
         fig.append_trace(go.Scatter(x=np.array(flux_in_data), y=np.array(flux_out_data),
                                     mode='markers', showlegend=False,
                                     text=name_labels, name='%s flux_ratio' % heading,
                                     marker=dict(color=phase_center_dist, showscale=True, colorscale='Jet',
                                                 reversescale=False,
                                                 colorbar=dict(title='Distance from phase center (arcsec)',
-                                                              titleside='right', titlefont=dict(size=16), x=0.82)
+                                                              titleside='right',
+                                                              titlefont=dict(size=16),
+                                                              x=1.0)
                                                  ) if i == 0 else dict(color=phase_center_dist, colorscale='Jet',
                                                                        reversescale=False),
                                     error_y=dict(type='data', array=flux_out_err_data,
                                                  color='rgb(158, 63, 221)', visible=True)), i+1, 1)
-        fig.append_trace(go.Histogram(x=I_out_in, histnorm='count', nbinsx=BINS, name='%s' % heading,
-                                      marker=dict(color='rgb(64, 98, 221)'), showlegend=False), i+1, 2)
         fig['layout'].update(title='', height=900, width=900,
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor='rgb(229,229,229)',
                              legend=dict(x=0.8, y=1.0),)
         fig['layout'].update(
             {'yaxis{}'.format(counter): YAxis(title=u'I_out', gridcolor='rgb(255,255,255)',
-                                            # titlefont=dict(size=18),
-                                            # range=axis_min_max if _scaley.value else [],
-            #range=[1,10],
-            tickfont=dict(size=15),
-            titlefont=dict(size=17),
-            showgrid=True,
-            showline=False,
-            showticklabels=True,
-            tickcolor='rgb(51,153,225)',
-            ticks='outside',
-            zeroline=False)})
+                                              tickfont=dict(size=15),
+                                              titlefont=dict(size=17),
+                                              showgrid=True,
+                                              showline=False,
+                                              showticklabels=True,
+                                              tickcolor='rgb(51,153,225)',
+                                              ticks='outside',
+                                              zeroline=False)})
         fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='I_in', position=0.0,
                                                                  titlefont=dict(size=17),
                                                                  overlaying='x')})
-        fig['layout'].update({'xaxis{}'.format(counter+i+1): XAxis(title='Counts',
-                                                                   titlefont=dict(size=17),
-                                                                   domain=[0.505, 0.8])}
-            )
     outfile = 'InputOutputFluxDensity'
     py.plot(fig, filename=outfile)
+
 
 def get_argparser():
     "Get argument parser"
