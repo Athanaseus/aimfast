@@ -198,7 +198,7 @@ def model_dynamic_range(lsmname, fitsname, area_factor=2):
     min_flux = source_res_area.min()
     # Compute dynamic range
     DR = peak_flux/abs(min_flux)
-    return DR
+    return (DR, peak_flux, min_flux)
 
 
 def image_dynamic_range(fitsname, area_factor=6):
