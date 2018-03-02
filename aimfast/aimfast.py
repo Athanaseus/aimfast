@@ -88,20 +88,26 @@ def fitsInfo(fitsname=None):
     return fitsinfo
 
 
-def sky2px(wcs, ra, dec, dra, ddec, cell, beam):
-    """convert a sky region to pixel positions"""
-    # assume every source is at least as large as the psf
-    dra = beam if dra < beam else dra
-    ddec = beam if ddec < beam else ddec
-    offsetDec = int((ddec/2.)/cell)
-    offsetRA = int((dra/2.)/cell)
-    if offsetDec % 2 == 1:
-        offsetDec += 1
-    if offsetRA % 2 == 1:
-        offsetRA += 1
-    raPix, decPix = map(int, wcs.wcs2pix(ra, dec))
-    return np.array([raPix-offsetRA, raPix+offsetRA,
-                    decPix-offsetDec, decPix+offsetDec])
+def get_box(wcs, radec, w):
+    """Get box of width w around source coordinates radec
+
+    Parameters
+    ----------
+    radec: tuple
+        RA and DEC in degrees
+    w: int
+        width of box
+
+    Returns
+    -------
+    box: tuple
+        A box centered at radec
+    """
+    raPix, decPix = wcs.wcs2pix(*radec)
+    raPix = int(raPix)
+    decPix = int(decPix)
+    box = slice(decPix-w/2, decPix+w/2), slice(raPix-w/2, raPix+w/2)
+    return box
 
 
 def residual_image_stats(fitsname):
@@ -140,7 +146,7 @@ def residual_image_stats(fitsname):
     return stats_props
 
 
-def model_dynamic_range(lsmname, fitsname, area_factor=6):
+def model_dynamic_range(lsmname, fitsname, area_factor=2):
     """Gets the dynamic range using model lsm and residual fits
 
     Parameters
@@ -164,7 +170,7 @@ def model_dynamic_range(lsmname, fitsname, area_factor=6):
     """
     fits_info = fitsInfo(fitsname)
     beam_deg = fits_info['b_size']
-    rad2dec = lambda x: x*(180/np.pi)  # convert radians to degrees
+    rad2deg = lambda x: x*(180/np.pi)  # convert radians to degrees
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
     residual_data = residual_hdu[0].data
@@ -172,10 +178,6 @@ def model_dynamic_range(lsmname, fitsname, area_factor=6):
     model_lsm = Tigger.load(lsmname)
     # Get detected sources
     model_sources = model_lsm.sources
-    # Compute number of pixel in beam and extend by factor area_factor
-    ra_num_pix = round((beam_deg[0]*area_factor)/fits_info['dra'])
-    dec_num_pix = round((beam_deg[1]*area_factor)/fits_info['ddec'])
-    emin, emaj = sorted([ra_num_pix, dec_num_pix])
     # Obtain peak flux source
     sources_flux = dict([(model_source, model_source.flux.I)
                         for model_source in model_sources])
@@ -183,13 +185,13 @@ def model_dynamic_range(lsmname, fitsname, area_factor=6):
                         for _model_source, flux in sources_flux.items()
                         if flux == max(sources_flux.values())][0][0]
     peak_flux = peak_source_flux.flux.I
-    # Get astrometry of the source
-    RA = rad2dec(peak_source_flux.pos.ra)
-    DEC = rad2dec(peak_source_flux.pos.dec)
+    # Get astrometry of the source in degrees
+    RA = rad2deg(peak_source_flux.pos.ra)
+    DEC = rad2deg(peak_source_flux.pos.dec)
     # Get source region and slice
-    rgn = sky2px(fits_info["wcs"], RA, DEC, ra_num_pix, dec_num_pix,
-                 deg2arcsec(fits_info["dra"]), deg2arcsec(beam_deg[1]))
-    imslice = slice(rgn[2], rgn[3]), slice(rgn[0], rgn[1])
+    wcs = WCS(residual_hdu[0].header, mode="pyfits")
+    width = int(deg2arcsec(beam_deg[0])*area_factor)
+    imslice = get_box(wcs, (RA, DEC), width)
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
     # Compute dynamic range
