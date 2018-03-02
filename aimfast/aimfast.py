@@ -97,6 +97,8 @@ def get_box(wcs, radec, w):
         RA and DEC in degrees
     w: int
         width of box
+    wcs: astLib.astWCS.WCS instance
+        World Coordinate System
 
     Returns
     -------
