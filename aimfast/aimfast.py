@@ -2,7 +2,6 @@ import json
 import Tigger
 import argparse
 import numpy as np
-import pylab as plt
 from scipy import stats
 from plotly import tools
 from functools import partial
@@ -10,10 +9,11 @@ from astLib.astWCS import WCS
 import plotly.graph_objs as go
 from plotly import offline as py
 from astropy.io import fits as fitsio
+from scipy.interpolate import interp1d
 from plotly.graph_objs import XAxis, YAxis
+import scipy.ndimage.measurements as measure
 from Tigger.Coordinates import angular_dist_pos_angle
 from sklearn.metrics import r2_score, mean_squared_error
-py.init_notebook_mode(connected=True)
 
 
 def deg2arcsec(x):
@@ -88,6 +88,46 @@ def fitsInfo(fitsname=None):
     return fitsinfo
 
 
+def measure_psf(psffile, arcsec_size=20):
+    """Measure point spread function after deconvolution
+
+    Parameters
+    ----------
+    psfile: fits file
+        point spread function file
+
+    """
+    with fitsio.open(psffile) as hdu:
+        pp = hdu[0].data.T[:, :, 0, 0]
+        secpix = abs(hdu[0].header['CDELT1']*3600)
+    # get midpoint and size of cross-sections
+    xmid, ymid = measure.maximum_position(pp)
+    sz = int(arcsec_size/secpix)
+    xsec = pp[xmid-sz:xmid+sz, ymid]
+    ysec = pp[xmid, ymid-sz:ymid+sz]
+
+    def fwhm(tsec):
+        """Dertemine the full width half maximum"""
+        tmid = len(tsec)/2
+        # find first minima off the peak, and flatten cross-section outside them
+        xmin = measure.minimum_position(tsec[:tmid])[0]
+        tsec[:xmin] = tsec[xmin]
+        xmin = measure.minimum_position(tsec[tmid:])[0]
+        tsec[tmid+xmin:] = tsec[tmid+xmin]
+        if tsec[0] > .5 or tsec[-1] > .5:
+            print("PSF FWHM over %2.f %arcsec" % (arcsec_size*2))
+            return arcsec_size, arcsec_size
+        x1 = interp1d(tsec[:tmid], range(tmid))(0.5)
+        x2 = interp1d(1-tsec[tmid:], range(tmid, len(tsec)))(0.5)
+        return x1, x2
+
+    ix0, ix1 = fwhm(xsec)
+    iy0, iy1 = fwhm(ysec)
+    rx, ry = (ix1-ix0)*secpix, (iy1-iy0)*secpix
+    r0 = (rx+ry)/2
+    return r0
+
+
 def get_box(wcs, radec, w):
     """Get box of width w around source coordinates radec
 
@@ -148,7 +188,7 @@ def residual_image_stats(fitsname):
     return stats_props
 
 
-def model_dynamic_range(lsmname, fitsname, area_factor=2):
+def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     """Gets the dynamic range using model lsm and residual fits
 
     Parameters
@@ -157,7 +197,9 @@ def model_dynamic_range(lsmname, fitsname, area_factor=2):
         residual image (cube)
     lsmname: lsm.html or .txt file
         model .lsm.html from pybdsm (or .txt converted tigger file)
-    area_factor: int
+    beam_size: float
+        Average beam size in arcsec
+    area_factor: float
         Factor to multiply the beam area
 
     Returns
@@ -170,8 +212,6 @@ def model_dynamic_range(lsmname, fitsname, area_factor=2):
     DR = Peak source from model / deepest negative around source position in residual
 
     """
-    fits_info = fitsInfo(fitsname)
-    beam_deg = fits_info['b_size']
     rad2deg = lambda x: x*(180/np.pi)  # convert radians to degrees
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
@@ -192,7 +232,7 @@ def model_dynamic_range(lsmname, fitsname, area_factor=2):
     DEC = rad2deg(peak_source_flux.pos.dec)
     # Get source region and slice
     wcs = WCS(residual_hdu[0].header, mode="pyfits")
-    width = int(deg2arcsec(beam_deg[0])*area_factor)
+    width = int(beam_size*area_factor)
     imslice = get_box(wcs, (RA, DEC), width)
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
@@ -254,7 +294,7 @@ def image_dynamic_range(fitsname, area_factor=6):
             min_flux = min_flux/float(nchan)
     # Compute dynamic range
     DR = peak_flux/abs(min_flux)
-    return DR
+    return (DR, peak_flux, min_flux)
 
 
 def get_src_scale(source_shape):
@@ -360,7 +400,7 @@ def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor
     return targets_flux, targets_scale, targets_position
 
 
-def compare_models(models, tolerance=0.0001, plot=True):
+def compare_models(models, tolerance=0.0001, plot=False):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -394,6 +434,7 @@ def compare_models(models, tolerance=0.0001, plot=True):
         for i in range(len(props[2])):
             results[heading]['position'].append(props[2].items()[i][-1])
         if plot:
+            py.init_notebook_mode(connected=True)
             _source_property_ploter(results, models)
     return results
 
@@ -481,6 +522,8 @@ def get_argparser():
              help='Name of the tigger model lsm.html file')
     argument('--restored-image',  dest='restored',
              help='Name of the restored image fits file')
+    argument('--psf-image',  dest='psf',
+             help='Name of the point spread function file')
     argument('--residual-image',  dest='residual',
              help='Name of the residual image fits file')
     argument('-af', '--area-factor', dest='factor', type=float, default=6,
@@ -503,12 +546,15 @@ def main():
     if args.model:
         if not args.residual:
             print("%sPlease provide residual fits file%s" % (R, W))
+        elif not args.psf:
+            print("%sPlease provide psf fits file to get DR%s" % (R, W))
         else:
+            psf_size = measure_psf(args.psf)
             if args.factor:
-                DR = model_dynamic_range(args.model, args.residual,
-                                         area_factor=args.factor)
+                DR = model_dynamic_range(args.model, args.residual, psf_size,
+                                         area_factor=args.factor)[0]
             else:
-                DR = model_dynamic_range(args.model, args.residual)
+                DR = model_dynamic_range(args.model, args.residual, psf_size)[0]
             stats = residual_image_stats(args.residual)
             output_dict[args.model] = {'DR': DR}
             output_dict[args.residual] = stats
@@ -518,9 +564,9 @@ def main():
             output_dict[args.residual] = stats
     if args.restored:
         if args.factor:
-            DR = image_dynamic_range(args.restored, area_factor=args.factor)
+            DR = image_dynamic_range(args.restored, area_factor=args.factor)[0]
         else:
-            DR = image_dynamic_range(args.restored)
+            DR = image_dynamic_range(args.restored)[0]
         output_dict[args.restored] = {'DR': DR}
     if args.models:
         models = args.models
