@@ -212,6 +212,12 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     DR = Peak source from model / deepest negative around source position in residual
 
     """
+    try:
+        fits_info = fitsInfo(fitsname)
+        beam_deg = fits_info['b_size']
+        beam_size = beam_deg[0]*3600
+    except IOError:
+        pass
     rad2deg = lambda x: x*(180/np.pi)  # convert radians to degrees
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
@@ -522,8 +528,8 @@ def get_argparser():
              help='Name of the tigger model lsm.html file')
     argument('--restored-image',  dest='restored',
              help='Name of the restored image fits file')
-    argument('--psf-image',  dest='psf',
-             help='Name of the point spread function file')
+    argument('-psf', '--psf-image',  dest='psf',
+             help='Name of the point spread function file or psf size in arcsec')
     argument('--residual-image',  dest='residual',
              help='Name of the residual image fits file')
     argument('-af', '--area-factor', dest='factor', type=float, default=6,
@@ -546,15 +552,22 @@ def main():
     if args.model:
         if not args.residual:
             print("%sPlease provide residual fits file%s" % (R, W))
-        elif not args.psf:
-            print("%sPlease provide psf fits file to get DR%s" % (R, W))
         else:
-            psf_size = measure_psf(args.psf)
+            if args.psf:
+                if '.fits' in args.psf:
+                    psf_size = measure_psf(args.psf)
+                else:
+                    psf_size = int(args.psf)
+            else:
+                psf_size = 5
             if args.factor:
                 DR = model_dynamic_range(args.model, args.residual, psf_size,
                                          area_factor=args.factor)[0]
             else:
                 DR = model_dynamic_range(args.model, args.residual, psf_size)[0]
+                print("%sPlease provide psf fits file or psf size.\n"
+                      "Otherwise a default beam size of five (5``) asec is used%s"
+                      % (R, W))
             stats = residual_image_stats(args.residual)
             output_dict[args.model] = {'DR': DR}
             output_dict[args.residual] = stats
