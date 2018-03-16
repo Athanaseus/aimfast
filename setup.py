@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name="aimfast",
-      version="0.0.1",
+      version="0.1.0",
       description="An Astronomical Image Fidelity Assessment Tool.",
       author="Athanaseus Ramaila",
       author_email="aramaila@ska.ac.za",
@@ -13,7 +13,7 @@ setup(name="aimfast",
                    "Topic :: Software Development :: Libraries :: Python Modules"],
       platforms=["OS Independent"],
       install_requires=["astLib",
-                        "astropy",
+                        "astropy==2.0.4",
                         "astro-tigger",
                         "numpy",
                         "plotly",
