@@ -13,7 +13,6 @@ from scipy.interpolate import interp1d
 from plotly.graph_objs import XAxis, YAxis
 import scipy.ndimage.measurements as measure
 from Tigger.Coordinates import angular_dist_pos_angle
-from sklearn.metrics import r2_score, mean_squared_error
 
 
 def deg2arcsec(x):
@@ -21,9 +20,14 @@ def deg2arcsec(x):
     return float(x)*3600.00
 
 
+def rad2deg(x):
+    """Converts 'x' from radian to degrees"""
+    return float(x)*(180/np.pi)
+
+
 def rad2arcsec(x):
     """Converts `x` from radians to arcseconds"""
-    return x*3600.0*180.0/np.pi
+    return float(x)*3600.0*180.0/np.pi
 
 
 def json_dump(data_dict, root='.'):
@@ -42,7 +46,7 @@ def json_dump(data_dict, root='.'):
     repeated image assessments will be replaced.
 
     """
-    filename = 'fidelity_results.json'
+    filename = ('fidelity_results.json')
     try:
         # Extract data from the json data file
         with open(filename) as data_file:
@@ -51,7 +55,7 @@ def json_dump(data_dict, root='.'):
     except IOError:
         data = data_dict
     if data:
-        with open('%s/%s' % (root, filename), 'w') as f:
+        with open('{:s}/{:s}'.format(root, filename), 'w') as f:
             json.dump(data, f)
 
 
@@ -96,6 +100,11 @@ def measure_psf(psffile, arcsec_size=20):
     psfile: fits file
         point spread function file
 
+    Returns
+    -------
+    r0: float
+        Average psf size
+
     """
     with fitsio.open(psffile) as hdu:
         pp = hdu[0].data.T[:, :, 0, 0]
@@ -107,7 +116,7 @@ def measure_psf(psffile, arcsec_size=20):
     ysec = pp[xmid, ymid-sz:ymid+sz]
 
     def fwhm(tsec):
-        """Dertemine the full width half maximum"""
+        """Determine the full width half maximum"""
         tmid = len(tsec)/2
         # find first minima off the peak, and flatten cross-section outside them
         xmin = measure.minimum_position(tsec[:tmid])[0]
@@ -115,7 +124,7 @@ def measure_psf(psffile, arcsec_size=20):
         xmin = measure.minimum_position(tsec[tmid:])[0]
         tsec[tmid+xmin:] = tsec[tmid+xmin]
         if tsec[0] > .5 or tsec[-1] > .5:
-            print("PSF FWHM over %2.f %arcsec" % (arcsec_size*2))
+            print("PSF FWHM over {:.2f} arcsec".format(arcsec_size*2))
             return arcsec_size, arcsec_size
         x1 = interp1d(tsec[:tmid], range(tmid))(0.5)
         x2 = interp1d(1-tsec[tmid:], range(tmid, len(tsec)))(0.5)
@@ -204,8 +213,10 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
 
     Returns
     -------
-    DR: float
-        dynamic range value
+    (DR, peak_flux, min_flux): tuple
+        DR - dynamic range value
+        peak_flux - peak flux source in the image
+        min_flux - min flux pixel value in the image
 
     Note
     ----
@@ -218,7 +229,6 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
         beam_size = beam_deg[0]*3600
     except IOError:
         pass
-    rad2deg = lambda x: x*(180/np.pi)  # convert radians to degrees
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
     residual_data = residual_hdu[0].data
@@ -240,6 +250,7 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     wcs = WCS(residual_hdu[0].header, mode="pyfits")
     width = int(beam_size*area_factor)
     imslice = get_box(wcs, (RA, DEC), width)
+    # TODO please confirm
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
     # Compute dynamic range
@@ -259,8 +270,10 @@ def image_dynamic_range(fitsname, area_factor=6):
 
     Returns
     -------
-    DR: float
-        dynamic range value
+    (DR, peak_flux, min_flux): tuple
+        DR - dynamic range value
+        peak_flux - peak flux source in the image
+        min_flux - min flux pixel value in the image
 
     Note
     ----
@@ -327,8 +340,8 @@ def get_src_scale(source_shape):
     else:
         scale_out = 0
         scale_out_err = 0
-        scale_out_arc_sec = rad2arcsec(scale_out)
-        scale_out_err_arc_sec = rad2arcsec(scale_out_err)
+    scale_out_arc_sec = rad2arcsec(scale_out)
+    scale_out_err_arc_sec = rad2arcsec(scale_out_err)
     return scale_out_arc_sec, scale_out_err_arc_sec
 
 
@@ -380,12 +393,12 @@ def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor
             if ra > np.pi:
                 ra -= 2.0*np.pi
             delta_pos_angle = angular_dist_pos_angle(RA, DEC, ra, dec)
-            delta_pos_angle_arc_sec = deg2arcsec(delta_pos_angle[0])
+            delta_pos_angle_arc_sec = rad2arcsec(delta_pos_angle[0])
             delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
-            delta_phase_centre_arc_sec = deg2arcsec(delta_phase_centre[0])
+            delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
             targets_position[name] = [delta_pos_angle_arc_sec,
-                                      deg2arcsec(abs(ra - RA)),
-                                      deg2arcsec(abs(dec - DEC)),
+                                      rad2arcsec(abs(ra - RA)),
+                                      rad2arcsec(abs(dec - DEC)),
                                       delta_phase_centre_arc_sec, I_in,
                                       source_name]
             try:
@@ -402,11 +415,11 @@ def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
-    print("Number of sources recovered: %d" % len(targets_scale))
+            print("Number of sources recovered: {:d}".format(len(targets_scale)))
     return targets_flux, targets_scale, targets_position
 
 
-def compare_models(models, tolerance=0.0001, plot=False):
+def compare_models(models, tolerance=0.0001, plot=True):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -430,8 +443,8 @@ def compare_models(models, tolerance=0.0001, plot=False):
         results[heading]['flux'] = []
         results[heading]['shape'] = []
         results[heading]['position'] = []
-        props = get_detected_sources_properties('%s' % (input_model),
-                                                '%s' % (output_model),
+        props = get_detected_sources_properties('{:s}'.format(input_model),
+                                                '{:s}'.format(output_model),
                                                 tolerance)  # TOD0 area to be same as beam
         for i in range(len(props[0])):
             results[heading]['flux'].append(props[0].items()[i][-1])
@@ -440,7 +453,6 @@ def compare_models(models, tolerance=0.0001, plot=False):
         for i in range(len(props[2])):
             results[heading]['position'].append(props[2].items()[i][-1])
         if plot:
-            py.init_notebook_mode(connected=True)
             _source_property_ploter(results, models)
     return results
 
@@ -450,7 +462,7 @@ def _source_property_ploter(results, models):
     im_titles = []
     for input_model, output_model in models.items():
         header = output_model[:-9].split('_')[0]
-        im_titles.append('<b>%s flux density</b>' % header.upper())
+        im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
 
     fig = tools.make_subplots(rows=len(models.keys()), cols=1, shared_yaxes=False,
                               print_grid=False, horizontal_spacing=0.005,
@@ -476,31 +488,38 @@ def _source_property_ploter(results, models):
             source_scale.append(results[heading]['shape'][n][3])
         zipped_props = zip(flux_out_data, flux_out_err_data, flux_in_data,
                            name_labels, phase_center_dist, source_scale)
-        flux_out_data, flux_out_err_data, flux_in_data, name_labels, phase_center_dist, source_scale = zip(
-            *sorted(zipped_props, key=lambda x: x[0]))
-        flux_R_score = r2_score(flux_in_data, flux_out_data)
-        flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
-        I_out_in = [float(I_out)/I_in for I_out, I_in in zip(flux_out_data, flux_in_data)]
-        fig.append_trace(go.Scatter(x=np.array([flux_in_data[0], flux_in_data[-1]]), showlegend=False,
-                                    y=np.array([flux_in_data[0], flux_in_data[-1]]), mode='line'), i+1, 1)
+        (flux_out_data, flux_out_err_data, flux_in_data, name_labels,
+            phase_center_dist, source_scale) = zip(*sorted(
+                    zipped_props, key=lambda x: x[0]))
+        fig.append_trace(go.Scatter(x=np.array([flux_in_data[0], flux_in_data[-1]]),
+                                    showlegend=False,
+                                    y=np.array([flux_in_data[0],
+                                                flux_in_data[-1]]),
+                                    mode='line'), i+1, 1)
         fig.append_trace(go.Scatter(x=np.array(flux_in_data), y=np.array(flux_out_data),
                                     mode='markers', showlegend=False,
-                                    text=name_labels, name='%s flux_ratio' % heading,
-                                    marker=dict(color=phase_center_dist, showscale=True, colorscale='Jet',
+                                    text=name_labels, name='{:s} flux_ratio'.format(heading),
+                                    marker=dict(color=phase_center_dist,
+                                                showscale=True, colorscale='Jet',
                                                 reversescale=False,
-                                                colorbar=dict(title='Distance from phase center (arcsec)',
-                                                              titleside='right',
-                                                              titlefont=dict(size=16),
-                                                              x=1.0)
-                                                 ) if i == 0 else dict(color=phase_center_dist, colorscale='Jet',
-                                                                       reversescale=False),
+                                                colorbar=dict(
+                                                    title='Distance from phase center (arcsec)',
+                                                    titleside='right',
+                                                    titlefont=dict(size=16), x=1.0)
+                                               ) if i == 0 else
+                                    dict(color=phase_center_dist,
+                                         colorscale='Jet',
+                                         reversescale=False),
                                     error_y=dict(type='data', array=flux_out_err_data,
-                                                 color='rgb(158, 63, 221)', visible=True)), i+1, 1)
+                                                 color='rgb(158, 63, 221)',
+                                                 visible=True)), i+1, 1)
         fig['layout'].update(title='', height=900, width=900,
-                             paper_bgcolor='rgb(255,255,255)', plot_bgcolor='rgb(229,229,229)',
+                             paper_bgcolor='rgb(255,255,255)',
+                             plot_bgcolor='rgb(229,229,229)',
                              legend=dict(x=0.8, y=1.0),)
         fig['layout'].update(
-            {'yaxis{}'.format(counter): YAxis(title=u'I_out', gridcolor='rgb(255,255,255)',
+            {'yaxis{}'.format(counter): YAxis(title=u'I_out (Jy)',
+                                              gridcolor='rgb(255,255,255)',
                                               tickfont=dict(size=15),
                                               titlefont=dict(size=17),
                                               showgrid=True,
@@ -509,7 +528,8 @@ def _source_property_ploter(results, models):
                                               tickcolor='rgb(51,153,225)',
                                               ticks='outside',
                                               zeroline=False)})
-        fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='I_in', position=0.0,
+        fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='I_in (Jy)',
+                                                                 position=0.0,
                                                                  titlefont=dict(size=17),
                                                                  overlaying='x')})
     outfile = 'InputOutputFluxDensity'
@@ -517,7 +537,7 @@ def _source_property_ploter(results, models):
 
 
 def get_argparser():
-    "Get argument parser"
+    """Get argument parser"""
     parser = argparse.ArgumentParser(
                  description="Examine radio image fidelity by obtaining: \n"
                              "- The four (4) moments of a residual image \n"
@@ -541,17 +561,18 @@ def get_argparser():
 
 
 def main():
+    """Main function"""
     parser = get_argparser()
     args = parser.parse_args()
     output_dict = dict()
     R = '\033[31m'  # red
     W = '\033[0m'   # white (normal)
     if not args.residual and not args.restored and not args.model and not args.models:
-        print("%sPlease provide lsm.html/fits file name(s)."
-              "\nOr\naimfast -h for arguments%s" % (R, W))
+        print("{:s}Please provide lsm.html/fits file name(s)."
+              "\nOr\naimfast -h for arguments{:s}".format(R, W))
     if args.model:
         if not args.residual:
-            print("%sPlease provide residual fits file%s" % (R, W))
+            print("{:s}Please provide residual fits file{:s}".format(R, W))
         else:
             if args.psf:
                 if '.fits' in args.psf:
@@ -565,9 +586,9 @@ def main():
                                          area_factor=args.factor)[0]
             else:
                 DR = model_dynamic_range(args.model, args.residual, psf_size)[0]
-                print("%sPlease provide psf fits file or psf size.\n"
-                      "Otherwise a default beam size of five (5``) asec is used%s"
-                      % (R, W))
+                print("{:s}Please provide psf fits file or psf size.\n"
+                      "Otherwise a default beam size of five (5``) asec "
+                      "is used{:s}".format(R, W))
             stats = residual_image_stats(args.residual)
             output_dict[args.model] = {'DR': DR}
             output_dict[args.residual] = stats
@@ -583,9 +604,9 @@ def main():
         output_dict[args.restored] = {'DR': DR}
     if args.models:
         models = args.models
-        print("Number of model files: %s" % len(models))
+        print("Number of model files: {:s}".format(len(models)))
         if len(models) > 2 or len(models) < 2:
-            print("%sCan only compare two models at a time.%s" % (R, W))
+            print("{:s}Can only compare two models at a time.{:s}".format(R, W))
         else:
             model1, model2 = models
             output_dict = compare_models({model1: model2})
