@@ -1,5 +1,5 @@
 .. _source: https://github.com/Athanaseus/aimfast
-
+.. _plot.ly: https://plot.ly/
 =======
 aimfast
 =======
@@ -157,3 +157,21 @@ or using sky model file (tigger lsm.html or text file):
 .. code-block:: bash
 
     $ aimfast --residual-image cube.residual.fits --tigger-model model.lsm.html -af 5
+
+Moreover aimfast allows you to compare two (input-output) tigger models. It returns an interactive html correlation plot, from which a `.png` file can be easily downloaded or imported to plot.ly_.
+
+.. code-block:: bash
+
+    $ aimfast --compare-models model1.lsm.html model2.lsm.html -af 5 -psf <size_arcsec | psf.fits> 
+
+Where --psf-image | -psf is the Name of the point spread function file or psf size in arcsec.
+
+The more the data points rest on the y=x (or I_out=I_in), the more correlated the two models are.
+
+   .. figure:: https://user-images.githubusercontent.com/16665629/37516078-a82e0880-2915-11e8-8507-2002da8a6527.png
+    :width: 60%
+    :align: center
+    :alt: alternate text
+    :figclass: align-center
+
+    Figure 3. Input-Output tigger (txt/lsm.html) model comparison
