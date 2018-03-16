@@ -13,7 +13,6 @@ from scipy.interpolate import interp1d
 from plotly.graph_objs import XAxis, YAxis
 import scipy.ndimage.measurements as measure
 from Tigger.Coordinates import angular_dist_pos_angle
-from sklearn.metrics import r2_score, mean_squared_error
 
 
 def deg2arcsec(x):
@@ -341,8 +340,8 @@ def get_src_scale(source_shape):
     else:
         scale_out = 0
         scale_out_err = 0
-        scale_out_arc_sec = rad2arcsec(scale_out)
-        scale_out_err_arc_sec = rad2arcsec(scale_out_err)
+    scale_out_arc_sec = rad2arcsec(scale_out)
+    scale_out_err_arc_sec = rad2arcsec(scale_out_err)
     return scale_out_arc_sec, scale_out_err_arc_sec
 
 
@@ -394,12 +393,12 @@ def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor
             if ra > np.pi:
                 ra -= 2.0*np.pi
             delta_pos_angle = angular_dist_pos_angle(RA, DEC, ra, dec)
-            delta_pos_angle_arc_sec = deg2arcsec(delta_pos_angle[0])
+            delta_pos_angle_arc_sec = rad2arcsec(delta_pos_angle[0])
             delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
-            delta_phase_centre_arc_sec = deg2arcsec(delta_phase_centre[0])
+            delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
             targets_position[name] = [delta_pos_angle_arc_sec,
-                                      deg2arcsec(abs(ra - RA)),
-                                      deg2arcsec(abs(dec - DEC)),
+                                      rad2arcsec(abs(ra - RA)),
+                                      rad2arcsec(abs(dec - DEC)),
                                       delta_phase_centre_arc_sec, I_in,
                                       source_name]
             try:
@@ -454,7 +453,6 @@ def compare_models(models, tolerance=0.0001, plot=True):
         for i in range(len(props[2])):
             results[heading]['position'].append(props[2].items()[i][-1])
         if plot:
-            py.init_notebook_mode(connected=True)
             _source_property_ploter(results, models)
     return results
 
@@ -495,25 +493,33 @@ def _source_property_ploter(results, models):
                     zipped_props, key=lambda x: x[0]))
         fig.append_trace(go.Scatter(x=np.array([flux_in_data[0], flux_in_data[-1]]),
                                     showlegend=False,
-                                    y=np.array([flux_in_data[0], flux_in_data[-1]]), mode='line'), i+1, 1)
+                                    y=np.array([flux_in_data[0],
+                                                flux_in_data[-1]]),
+                                    mode='line'), i+1, 1)
         fig.append_trace(go.Scatter(x=np.array(flux_in_data), y=np.array(flux_out_data),
                                     mode='markers', showlegend=False,
                                     text=name_labels, name='%s flux_ratio' % heading,
-                                    marker=dict(color=phase_center_dist, showscale=True, colorscale='Jet',
+                                    marker=dict(color=phase_center_dist,
+                                                showscale=True, colorscale='Jet',
                                                 reversescale=False,
-                                                colorbar=dict(title='Distance from phase center (arcsec)',
-                                                              titleside='right',
-                                                              titlefont=dict(size=16),
-                                                              x=1.0)
-                                                 ) if i == 0 else dict(color=phase_center_dist, colorscale='Jet',
-                                                                       reversescale=False),
+                                                colorbar=dict(
+                                                    title='Distance from phase center (arcsec)',
+                                                    titleside='right',
+                                                    titlefont=dict(size=16), x=1.0)
+                                               ) if i == 0 else
+                                    dict(color=phase_center_dist,
+                                         colorscale='Jet',
+                                         reversescale=False),
                                     error_y=dict(type='data', array=flux_out_err_data,
-                                                 color='rgb(158, 63, 221)', visible=True)), i+1, 1)
+                                                 color='rgb(158, 63, 221)',
+                                                 visible=True)), i+1, 1)
         fig['layout'].update(title='', height=900, width=900,
-                             paper_bgcolor='rgb(255,255,255)', plot_bgcolor='rgb(229,229,229)',
+                             paper_bgcolor='rgb(255,255,255)',
+                             plot_bgcolor='rgb(229,229,229)',
                              legend=dict(x=0.8, y=1.0),)
         fig['layout'].update(
-            {'yaxis{}'.format(counter): YAxis(title=u'I_out', gridcolor='rgb(255,255,255)',
+            {'yaxis{}'.format(counter): YAxis(title=u'I_out (Jy)',
+                                              gridcolor='rgb(255,255,255)',
                                               tickfont=dict(size=15),
                                               titlefont=dict(size=17),
                                               showgrid=True,
@@ -522,7 +528,8 @@ def _source_property_ploter(results, models):
                                               tickcolor='rgb(51,153,225)',
                                               ticks='outside',
                                               zeroline=False)})
-        fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='I_in', position=0.0,
+        fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='I_in (Jy)',
+                                                                 position=0.0,
                                                                  titlefont=dict(size=17),
                                                                  overlaying='x')})
     outfile = 'InputOutputFluxDensity'
