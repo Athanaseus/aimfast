@@ -124,7 +124,7 @@ def measure_psf(psffile, arcsec_size=20):
         xmin = measure.minimum_position(tsec[tmid:])[0]
         tsec[tmid+xmin:] = tsec[tmid+xmin]
         if tsec[0] > .5 or tsec[-1] > .5:
-            print("PSF FWHM over %2.f %arcsec" % (arcsec_size*2))
+            print("PSF FWHM over {:.2f} arcsec".format(arcsec_size*2))
             return arcsec_size, arcsec_size
         x1 = interp1d(tsec[:tmid], range(tmid))(0.5)
         x2 = interp1d(1-tsec[tmid:], range(tmid, len(tsec)))(0.5)
@@ -415,7 +415,7 @@ def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
-    print("Number of sources recovered: %d" % len(targets_scale))
+            print("Number of sources recovered: {:d}".format(len(targets_scale)))
     return targets_flux, targets_scale, targets_position
 
 
@@ -443,8 +443,8 @@ def compare_models(models, tolerance=0.0001, plot=True):
         results[heading]['flux'] = []
         results[heading]['shape'] = []
         results[heading]['position'] = []
-        props = get_detected_sources_properties('%s' % (input_model),
-                                                '%s' % (output_model),
+        props = get_detected_sources_properties('{:s}'.format(input_model),
+                                                '{:s}'.format(output_model),
                                                 tolerance)  # TOD0 area to be same as beam
         for i in range(len(props[0])):
             results[heading]['flux'].append(props[0].items()[i][-1])
@@ -462,7 +462,7 @@ def _source_property_ploter(results, models):
     im_titles = []
     for input_model, output_model in models.items():
         header = output_model[:-9].split('_')[0]
-        im_titles.append('<b>%s flux density</b>' % header.upper())
+        im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
 
     fig = tools.make_subplots(rows=len(models.keys()), cols=1, shared_yaxes=False,
                               print_grid=False, horizontal_spacing=0.005,
@@ -498,7 +498,7 @@ def _source_property_ploter(results, models):
                                     mode='line'), i+1, 1)
         fig.append_trace(go.Scatter(x=np.array(flux_in_data), y=np.array(flux_out_data),
                                     mode='markers', showlegend=False,
-                                    text=name_labels, name='%s flux_ratio' % heading,
+                                    text=name_labels, name='{:s} flux_ratio'.format(heading),
                                     marker=dict(color=phase_center_dist,
                                                 showscale=True, colorscale='Jet',
                                                 reversescale=False,
@@ -568,11 +568,11 @@ def main():
     R = '\033[31m'  # red
     W = '\033[0m'   # white (normal)
     if not args.residual and not args.restored and not args.model and not args.models:
-        print("%sPlease provide lsm.html/fits file name(s)."
-              "\nOr\naimfast -h for arguments%s" % (R, W))
+        print("{:s}Please provide lsm.html/fits file name(s)."
+              "\nOr\naimfast -h for arguments{:s}".format(R, W))
     if args.model:
         if not args.residual:
-            print("%sPlease provide residual fits file%s" % (R, W))
+            print("{:s}Please provide residual fits file{:s}".format(R, W))
         else:
             if args.psf:
                 if '.fits' in args.psf:
@@ -586,9 +586,9 @@ def main():
                                          area_factor=args.factor)[0]
             else:
                 DR = model_dynamic_range(args.model, args.residual, psf_size)[0]
-                print("%sPlease provide psf fits file or psf size.\n"
-                      "Otherwise a default beam size of five (5``) asec is used%s"
-                      % (R, W))
+                print("{:s}Please provide psf fits file or psf size.\n"
+                      "Otherwise a default beam size of five (5``) asec "
+                      "is used{:s}".format(R, W))
             stats = residual_image_stats(args.residual)
             output_dict[args.model] = {'DR': DR}
             output_dict[args.residual] = stats
@@ -604,9 +604,9 @@ def main():
         output_dict[args.restored] = {'DR': DR}
     if args.models:
         models = args.models
-        print("Number of model files: %s" % len(models))
+        print("Number of model files: {:s}".format(len(models)))
         if len(models) > 2 or len(models) < 2:
-            print("%sCan only compare two models at a time.%s" % (R, W))
+            print("{:s}Can only compare two models at a time.{:s}".format(R, W))
         else:
             model1, model2 = models
             output_dict = compare_models({model1: model2})
