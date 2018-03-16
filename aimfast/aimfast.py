@@ -21,9 +21,14 @@ def deg2arcsec(x):
     return float(x)*3600.00
 
 
+def rad2deg(x):
+    """Converts 'x' from radian to degrees"""
+    return float(x)*(180/np.pi)
+
+
 def rad2arcsec(x):
     """Converts `x` from radians to arcseconds"""
-    return x*3600.0*180.0/np.pi
+    return float(x)*3600.0*180.0/np.pi
 
 
 def json_dump(data_dict, root='.'):
@@ -42,7 +47,7 @@ def json_dump(data_dict, root='.'):
     repeated image assessments will be replaced.
 
     """
-    filename = 'fidelity_results.json'
+    filename = ('fidelity_results.json')
     try:
         # Extract data from the json data file
         with open(filename) as data_file:
@@ -51,7 +56,7 @@ def json_dump(data_dict, root='.'):
     except IOError:
         data = data_dict
     if data:
-        with open('%s/%s' % (root, filename), 'w') as f:
+        with open('{:s}/{:s}'.format(root, filename), 'w') as f:
             json.dump(data, f)
 
 
@@ -96,6 +101,11 @@ def measure_psf(psffile, arcsec_size=20):
     psfile: fits file
         point spread function file
 
+    Returns
+    -------
+    r0: float
+        Average psf size
+
     """
     with fitsio.open(psffile) as hdu:
         pp = hdu[0].data.T[:, :, 0, 0]
@@ -107,7 +117,7 @@ def measure_psf(psffile, arcsec_size=20):
     ysec = pp[xmid, ymid-sz:ymid+sz]
 
     def fwhm(tsec):
-        """Dertemine the full width half maximum"""
+        """Determine the full width half maximum"""
         tmid = len(tsec)/2
         # find first minima off the peak, and flatten cross-section outside them
         xmin = measure.minimum_position(tsec[:tmid])[0]
@@ -204,8 +214,10 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
 
     Returns
     -------
-    DR: float
-        dynamic range value
+    (DR, peak_flux, min_flux): tuple
+        DR - dynamic range value
+        peak_flux - peak flux source in the image
+        min_flux - min flux pixel value in the image
 
     Note
     ----
@@ -218,7 +230,6 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
         beam_size = beam_deg[0]*3600
     except IOError:
         pass
-    rad2deg = lambda x: x*(180/np.pi)  # convert radians to degrees
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
     residual_data = residual_hdu[0].data
@@ -240,6 +251,7 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     wcs = WCS(residual_hdu[0].header, mode="pyfits")
     width = int(beam_size*area_factor)
     imslice = get_box(wcs, (RA, DEC), width)
+    # TODO please confirm
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
     # Compute dynamic range
@@ -259,8 +271,10 @@ def image_dynamic_range(fitsname, area_factor=6):
 
     Returns
     -------
-    DR: float
-        dynamic range value
+    (DR, peak_flux, min_flux): tuple
+        DR - dynamic range value
+        peak_flux - peak flux source in the image
+        min_flux - min flux pixel value in the image
 
     Note
     ----
@@ -406,7 +420,7 @@ def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor
     return targets_flux, targets_scale, targets_position
 
 
-def compare_models(models, tolerance=0.0001, plot=False):
+def compare_models(models, tolerance=0.0001, plot=True):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -476,12 +490,11 @@ def _source_property_ploter(results, models):
             source_scale.append(results[heading]['shape'][n][3])
         zipped_props = zip(flux_out_data, flux_out_err_data, flux_in_data,
                            name_labels, phase_center_dist, source_scale)
-        flux_out_data, flux_out_err_data, flux_in_data, name_labels, phase_center_dist, source_scale = zip(
-            *sorted(zipped_props, key=lambda x: x[0]))
-        flux_R_score = r2_score(flux_in_data, flux_out_data)
-        flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
-        I_out_in = [float(I_out)/I_in for I_out, I_in in zip(flux_out_data, flux_in_data)]
-        fig.append_trace(go.Scatter(x=np.array([flux_in_data[0], flux_in_data[-1]]), showlegend=False,
+        (flux_out_data, flux_out_err_data, flux_in_data, name_labels,
+            phase_center_dist, source_scale) = zip(*sorted(
+                    zipped_props, key=lambda x: x[0]))
+        fig.append_trace(go.Scatter(x=np.array([flux_in_data[0], flux_in_data[-1]]),
+                                    showlegend=False,
                                     y=np.array([flux_in_data[0], flux_in_data[-1]]), mode='line'), i+1, 1)
         fig.append_trace(go.Scatter(x=np.array(flux_in_data), y=np.array(flux_out_data),
                                     mode='markers', showlegend=False,
@@ -517,7 +530,7 @@ def _source_property_ploter(results, models):
 
 
 def get_argparser():
-    "Get argument parser"
+    """Get argument parser"""
     parser = argparse.ArgumentParser(
                  description="Examine radio image fidelity by obtaining: \n"
                              "- The four (4) moments of a residual image \n"
@@ -541,6 +554,7 @@ def get_argparser():
 
 
 def main():
+    """Main function"""
     parser = get_argparser()
     args = parser.parse_args()
     output_dict = dict()
