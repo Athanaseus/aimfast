@@ -6,7 +6,7 @@ aimfast
 |Build Version|
 |Python Versions|
 
-aimfast is an Astronomical Image Fidelity Assessment Tool
+An Astronomical Image Fidelity Assessment Tool
 
 Main website: https://aimfast.readthedocs.io
 
