@@ -223,12 +223,6 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     DR = Peak source from model / deepest negative around source position in residual
 
     """
-    try:
-        fits_info = fitsInfo(fitsname)
-        beam_deg = fits_info['b_size']
-        beam_size = beam_deg[0]*3600
-    except IOError:
-        pass
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
     residual_data = residual_hdu[0].data
@@ -604,7 +598,7 @@ def main():
         output_dict[args.restored] = {'DR': DR}
     if args.models:
         models = args.models
-        print("Number of model files: {:s}".format(len(models)))
+        print("Number of model files: {:d}".format(len(models)))
         if len(models) > 2 or len(models) < 2:
             print("{:s}Can only compare two models at a time.{:s}".format(R, W))
         else:
