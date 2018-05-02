@@ -1,5 +1,6 @@
 import json
 import Tigger
+import random
 import argparse
 import numpy as np
 from scipy import stats
@@ -161,40 +162,108 @@ def get_box(wcs, radec, w):
     return box
 
 
-def residual_image_stats(fitsname):
+def residual_image_stats(fitsname, normality_test=False, data_range=20):
     """Gets statistcal properties of a residual image
 
     Parameters
     ----------
     fitsname: fits file
         residual image (cube)
+    normality_test: bool
+        perform normality testing
+    data_range: int
+        Range of data to perform normality testing
 
     Returns
     -------
-    stats_props: dict
+    props: dict
         dictionary of stats props
         e.g. {'MEAN': 0.0,
         'STDDev': 0.1,
         'SKEW': 0.2,
         'KURT': 0.3}
 
+    NOTE
+    ----
+    If normality_test=True
+        dictionary of stats props
+        e.g. {'MEAN': 0.0,
+        'STDDev': 0.1,
+        'SKEW': 0.2,
+        'KURT': 0.3,
+        'NORM': [0.4,  [NormaltestResult(statistic=0.403, pvalue=0.817),
+                        NormaltestResult(statistic=0.171, pvalue=0.918),
+                        ...]}
+    whereby the first element is the average pvalues of the datasets
+    and second element is the list of Normal test results for each set.
+
     """
-    stats_props = dict()
+    res_props = dict()
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
     residual_data = residual_hdu[0].data
     # Get the mean value
-    stats_props['MEAN'] = round(abs(residual_data.mean()), 10)
+    res_props['MEAN'] = round(abs(residual_data.mean()), 10)
     # Get the sigma value
-    stats_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
+    res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
     # Flatten image
     res_data = residual_data.flatten()
     # Compute the skewness of the residual
-    stats_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
+    res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
     # Compute the kurtosis of the residual
-    stats_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
-    return stats_props
+    res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
+    # Perform normality testing
+    if normality_test:
+        norm_props = normality_testing(fitsname, data_range)
+        props = res_props.items() + norm_props.items()
+    else:
+        props = res_props
+    # Return dictionary of results
+    return props
+
+
+def normality_testing(fitsname, data_range=20):
+    """Performs a normality test on the image
+
+    Parameters
+    ----------
+    fitsname: fits file
+        residual image (cube)
+    data_range: int
+        Range of data to perform normality testing
+
+    Returns
+    -------
+    stats_props: dict
+        dictionary of stats props
+        e.g. {'NORM': [0.4,  [NormaltestResult(statistic=0.403, pvalue=0.817),
+                              NormaltestResult(statistic=0.171, pvalue=0.918),
+                              ...]}
+    whereby the first element is the average pvalues of the datasets
+    and second element is the list of Normal test results for each set.
+
+    """
+    normality = dict()
+    # Open the residual image
+    residual_hdu = fitsio.open(fitsname)
+    # Get the header data unit for the residual rms
+    residual_data = residual_hdu[0].data
+    # Flatten image
+    res_data = residual_data.flatten()
+    # Shuffle the data
+    random.shuffle(res_data)
+    # Normality test
+    norm_res = []
+    counter = 0
+    for dataset in range(len(res_data)//data_range):
+        i = counter
+        counter += data_range
+        norm_res.append(stats.mstats.normaltest(res_data[i:counter]))
+    # Compute sum of pvalue
+    sum_p_scores = sum([norm.pvalue for norm in norm_res])
+    normality['NORM'] = [sum_p_scores//dataset, norm_res]
+    return normality
 
 
 def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
