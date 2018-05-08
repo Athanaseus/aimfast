@@ -162,15 +162,15 @@ def get_box(wcs, radec, w):
     return box
 
 
-def residual_image_stats(fitsname, normality_test=False, data_range=20):
+def residual_image_stats(fitsname, test_model=None, data_range=None):
     """Gets statistcal properties of a residual image
 
     Parameters
     ----------
     fitsname: fits file
         residual image (cube)
-    normality_test: bool
-        perform normality testing
+    test_model: str
+        perform normality testing using either 'shapiro' or 'normaltest'
     data_range: int
         Range of data to perform normality testing
 
@@ -214,22 +214,24 @@ def residual_image_stats(fitsname, normality_test=False, data_range=20):
     # Compute the kurtosis of the residual
     res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
     # Perform normality testing
-    if normality_test:
-        norm_props = normality_testing(fitsname, data_range)
-        props = res_props.items() + norm_props.items()
+    if test_model:
+        norm_props = normality_testing(fitsname, test_model, data_range)
+        props = dict(res_props.items() + norm_props.items())
     else:
         props = res_props
     # Return dictionary of results
     return props
 
 
-def normality_testing(fitsname, data_range=20):
+def normality_testing(fitsname, test_model='normaltest', data_range=None):
     """Performs a normality test on the image
 
     Parameters
     ----------
     fitsname: fits file
         residual image (cube)
+    test_model: str
+        perform normality testing using either 'shapiro' or 'normaltest'
     data_range: int
         Range of data to perform normality testing
 
@@ -256,13 +258,24 @@ def normality_testing(fitsname, data_range=20):
     # Normality test
     norm_res = []
     counter = 0
-    for dataset in range(len(res_data)//data_range):
-        i = counter
-        counter += data_range
-        norm_res.append(stats.mstats.normaltest(res_data[i:counter]))
-    # Compute sum of pvalue
-    sum_p_scores = sum([norm.pvalue for norm in norm_res])
-    normality['NORM'] = [sum_p_scores//dataset, norm_res]
+    if data_range is int:
+        for dataset in range(len(res_data)/data_range):
+            i = counter
+            counter += data_range
+            norm_res.append(getattr(stats, test_model)(res_data[i:counter]))
+        # Compute sum of pvalue
+        if test_model == 'normaltest':
+            sum_pvalues = sum([norm.pvalue for norm in norm_res])
+        elif test_model == 'shapiro':
+            sum_pvalues = sum([norm[1] for norm in norm_res])
+        normality['NORM'] = [sum_pvalues/dataset, norm_res]
+    else:
+        norm_res = getattr(stats, test_model)(res_data)
+        if test_model == 'normaltest':
+            pvalue = norm_res.pvalue
+        elif test_model == 'shapiro':
+            pvalue = norm_res[1]
+        normality['NORM'] = [pvalue, norm_res]
     return normality
 
 
@@ -615,9 +628,15 @@ def get_argparser():
              help='Name of the point spread function file or psf size in arcsec')
     argument('--residual-image',  dest='residual',
              help='Name of the residual image fits file')
+    argument('--normality-model',  dest='test_model',
+             help='Name of model to use for normality testing. \n'
+                  'options: [shapiro, normaltest] \n'
+                  'NB: normaltest is the D`Agostino')
+    argument('-dr', '--data-range',  dest='data_range',
+             help='Data range to perform normality testing')
     argument('-af', '--area-factor', dest='factor', type=float, default=6,
              help='Factor to multiply the beam area to get target peak area')
-    argument('--compare-models',  dest='models', nargs="+", type=str,
+    argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html, model2.lsm.html')
     return parser
@@ -652,12 +671,36 @@ def main():
                 print("{:s}Please provide psf fits file or psf size.\n"
                       "Otherwise a default beam size of five (5``) asec "
                       "is used{:s}".format(R, W))
-            stats = residual_image_stats(args.residual)
+            if args.test_model in ['shapiro', 'normaltest']:
+                if args.data_range:
+                    stats = residual_image_stats(args.residual,
+                                                 args.test_model,
+                                                 int(args.data_range))
+                else:
+                    stats = residual_image_stats(args.residual, args.test_model)
+            else:
+                if not args.test_model:
+                    stats = residual_image_stats(args.residual)
+                else:
+                    print("{:s}Please provide correct normality"
+                          "model{:s}".format(R, W))
             output_dict[args.model] = {'DR': DR}
             output_dict[args.residual] = stats
     if args.residual:
         if args.residual not in output_dict.keys():
-            stats = residual_image_stats(args.residual)
+            if args.test_model in ['shapiro', 'normaltest']:
+                if args.data_range:
+                    stats = residual_image_stats(args.residual,
+                                                 args.test_model,
+                                                 int(args.data_range))
+                else:
+                    stats = residual_image_stats(args.residual, args.test_model)
+            else:
+                if not args.test_model:
+                    stats = residual_image_stats(args.residual)
+                else:
+                    print("{:s}Please provide correct normality"
+                          "model{:s}".format(R, W))
             output_dict[args.residual] = stats
     if args.restored:
         if args.factor:
