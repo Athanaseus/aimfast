@@ -158,7 +158,15 @@ or using sky model file (tigger lsm.html or text file):
 
     $ aimfast --residual-image cube.residual.fits --tigger-model model.lsm.html -af 5
 
-Moreover aimfast allows you to compare two (input-output) tigger models. It returns an interactive html correlation plot, from which a `.png` file can be easily downloaded or imported to plot.ly_.
+Additionally, normality testing of the residual image can be performed using the D’Agostino (normaltest) and
+Shapiro-Wilk (shapiro) analysis, which returns a tuple result, e.g {'NORM': (123.3, 0.1)}, with the
+z-score and p-value respectively.
+
+.. code-block:: bash
+
+    $ aimfast --residual-image cube.residual.fits --normality-model normaltest
+
+Moreover aimfast allows you to swiftly compare two (input-output) tigger models. It returns an interactive html correlation plot, from which a `.png` file can be easily downloaded or imported to plot.ly_.
 
 .. code-block:: bash
 
