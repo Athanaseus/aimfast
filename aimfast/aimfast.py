@@ -191,11 +191,9 @@ def residual_image_stats(fitsname, test_model=None, data_range=None):
         'STDDev': 0.1,
         'SKEW': 0.2,
         'KURT': 0.3,
-        'NORM': [0.4,  [NormaltestResult(statistic=0.403, pvalue=0.817),
-                        NormaltestResult(statistic=0.171, pvalue=0.918),
-                        ...]}
-    whereby the first element is the average pvalues of the datasets
-    and second element is the list of Normal test results for each set.
+        'NORM': (123.3,  0.012)}
+    whereby the first element is the statistics (or average if data_range
+    specified) of the datasets and second element is the p-value.
 
     """
     res_props = dict()
@@ -239,11 +237,9 @@ def normality_testing(fitsname, test_model='normaltest', data_range=None):
     -------
     stats_props: dict
         dictionary of stats props
-        e.g. {'NORM': [0.4,  [NormaltestResult(statistic=0.403, pvalue=0.817),
-                              NormaltestResult(statistic=0.171, pvalue=0.918),
-                              ...]}
-    whereby the first element is the average pvalues of the datasets
-    and second element is the list of Normal test results for each set.
+        e.g. {'NORM': (123.3,  0.012)}
+    whereby the first element is the statistics (or average if data_range
+    specified) of the datasets and second element is the p-value.
 
     """
     normality = dict()
@@ -258,7 +254,7 @@ def normality_testing(fitsname, test_model='normaltest', data_range=None):
     # Normality test
     norm_res = []
     counter = 0
-    if data_range is int:
+    if type(data_range) is int:
         for dataset in range(len(res_data)/data_range):
             i = counter
             counter += data_range
@@ -268,14 +264,14 @@ def normality_testing(fitsname, test_model='normaltest', data_range=None):
             sum_statistics = sum([norm.statistic for norm in norm_res])
             sum_pvalues = sum([norm.pvalue for norm in norm_res])
         elif test_model == 'shapiro':
-            sum_statistics = sum([norm[1] for norm in norm_res])
+            sum_statistics = sum([norm[0] for norm in norm_res])
             sum_pvalues = sum([norm[1] for norm in norm_res])
         normality['NORM'] = (sum_statistics/dataset, sum_pvalues/dataset)
     else:
         norm_res = getattr(stats, test_model)(res_data)
         if test_model == 'normaltest':
-            statistic = norm_res.statistic
-            pvalue = norm_res.pvalue
+            statistic = float(norm_res.statistic)
+            pvalue = float(norm_res.pvalue)
             normality['NORM'] = (statistic, pvalue)
         elif test_model == 'shapiro':
             normality['NORM'] = norm_res
