@@ -1,6 +1,6 @@
 0.1.0
 -----
-- Python3 compatibility
+- implement Py3 compatibility
 - Allows tigger model lsm.html or text file to determine Dynamic Range
   using residual image
 - Compare input-out tigger models and plot correlation
