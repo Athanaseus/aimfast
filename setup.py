@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name="aimfast",
-      version="0.1.0",
+      version="0.1.1",
       description="An Astronomical Image Fidelity Assessment Tool.",
       author="Athanaseus Ramaila",
       author_email="aramaila@ska.ac.za",
