@@ -265,17 +265,20 @@ def normality_testing(fitsname, test_model='normaltest', data_range=None):
             norm_res.append(getattr(stats, test_model)(res_data[i:counter]))
         # Compute sum of pvalue
         if test_model == 'normaltest':
+            sum_statistics = sum([norm.statistic for norm in norm_res])
             sum_pvalues = sum([norm.pvalue for norm in norm_res])
         elif test_model == 'shapiro':
+            sum_statistics = sum([norm[1] for norm in norm_res])
             sum_pvalues = sum([norm[1] for norm in norm_res])
-        normality['NORM'] = [sum_pvalues/dataset, norm_res]
+        normality['NORM'] = (sum_statistics/dataset, sum_pvalues/dataset)
     else:
         norm_res = getattr(stats, test_model)(res_data)
         if test_model == 'normaltest':
+            statistic = norm_res.statistic
             pvalue = norm_res.pvalue
+            normality['NORM'] = (statistic, pvalue)
         elif test_model == 'shapiro':
-            pvalue = norm_res[1]
-        normality['NORM'] = [pvalue, norm_res]
+            normality['NORM'] = norm_res
     return normality
 
 
