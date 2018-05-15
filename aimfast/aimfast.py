@@ -1,5 +1,6 @@
 import json
 import Tigger
+import random
 import argparse
 import numpy as np
 from scipy import stats
@@ -161,40 +162,120 @@ def get_box(wcs, radec, w):
     return box
 
 
-def residual_image_stats(fitsname):
+def residual_image_stats(fitsname, test_model=None, data_range=None):
     """Gets statistcal properties of a residual image
 
     Parameters
     ----------
     fitsname: fits file
         residual image (cube)
+    test_model: str
+        perform normality testing using either 'shapiro' or 'normaltest'
+    data_range: int
+        Range of data to perform normality testing
 
     Returns
     -------
-    stats_props: dict
+    props: dict
         dictionary of stats props
         e.g. {'MEAN': 0.0,
         'STDDev': 0.1,
         'SKEW': 0.2,
         'KURT': 0.3}
 
+    NOTE
+    ----
+    If normality_test=True
+        dictionary of stats props
+        e.g. {'MEAN': 0.0,
+        'STDDev': 0.1,
+        'SKEW': 0.2,
+        'KURT': 0.3,
+        'NORM': (123.3,  0.012)}
+    whereby the first element is the statistics (or average if data_range
+    specified) of the datasets and second element is the p-value.
+
     """
-    stats_props = dict()
+    res_props = dict()
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
     residual_data = residual_hdu[0].data
     # Get the mean value
-    stats_props['MEAN'] = round(abs(residual_data.mean()), 10)
+    res_props['MEAN'] = round(abs(residual_data.mean()), 10)
     # Get the sigma value
-    stats_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
+    res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
     # Flatten image
     res_data = residual_data.flatten()
     # Compute the skewness of the residual
-    stats_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
+    res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
     # Compute the kurtosis of the residual
-    stats_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
-    return stats_props
+    res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
+    # Perform normality testing
+    if test_model:
+        norm_props = normality_testing(fitsname, test_model, data_range)
+        props = dict(res_props.items() + norm_props.items())
+    else:
+        props = res_props
+    # Return dictionary of results
+    return props
+
+
+def normality_testing(fitsname, test_model='normaltest', data_range=None):
+    """Performs a normality test on the image
+
+    Parameters
+    ----------
+    fitsname: fits file
+        residual image (cube)
+    test_model: str
+        perform normality testing using either 'shapiro' or 'normaltest'
+    data_range: int
+        Range of data to perform normality testing
+
+    Returns
+    -------
+    stats_props: dict
+        dictionary of stats props
+        e.g. {'NORM': (123.3,  0.012)}
+    whereby the first element is the statistics (or average if data_range
+    specified) of the datasets and second element is the p-value.
+
+    """
+    normality = dict()
+    # Open the residual image
+    residual_hdu = fitsio.open(fitsname)
+    # Get the header data unit for the residual rms
+    residual_data = residual_hdu[0].data
+    # Flatten image
+    res_data = residual_data.flatten()
+    # Shuffle the data
+    random.shuffle(res_data)
+    # Normality test
+    norm_res = []
+    counter = 0
+    if type(data_range) is int:
+        for dataset in range(len(res_data)/data_range):
+            i = counter
+            counter += data_range
+            norm_res.append(getattr(stats, test_model)(res_data[i:counter]))
+        # Compute sum of pvalue
+        if test_model == 'normaltest':
+            sum_statistics = sum([norm.statistic for norm in norm_res])
+            sum_pvalues = sum([norm.pvalue for norm in norm_res])
+        elif test_model == 'shapiro':
+            sum_statistics = sum([norm[0] for norm in norm_res])
+            sum_pvalues = sum([norm[1] for norm in norm_res])
+        normality['NORM'] = (sum_statistics/dataset, sum_pvalues/dataset)
+    else:
+        norm_res = getattr(stats, test_model)(res_data)
+        if test_model == 'normaltest':
+            statistic = float(norm_res.statistic)
+            pvalue = float(norm_res.pvalue)
+            normality['NORM'] = (statistic, pvalue)
+        elif test_model == 'shapiro':
+            normality['NORM'] = norm_res
+    return normality
 
 
 def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
@@ -223,12 +304,6 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     DR = Peak source from model / deepest negative around source position in residual
 
     """
-    try:
-        fits_info = fitsInfo(fitsname)
-        beam_deg = fits_info['b_size']
-        beam_size = beam_deg[0]*3600
-    except IOError:
-        pass
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
     residual_data = residual_hdu[0].data
@@ -552,9 +627,15 @@ def get_argparser():
              help='Name of the point spread function file or psf size in arcsec')
     argument('--residual-image',  dest='residual',
              help='Name of the residual image fits file')
+    argument('--normality-model',  dest='test_model',
+             help='Name of model to use for normality testing. \n'
+                  'options: [shapiro, normaltest] \n'
+                  'NB: normaltest is the D`Agostino')
+    argument('-dr', '--data-range',  dest='data_range',
+             help='Data range to perform normality testing')
     argument('-af', '--area-factor', dest='factor', type=float, default=6,
              help='Factor to multiply the beam area to get target peak area')
-    argument('--compare-models',  dest='models', nargs="+", type=str,
+    argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html, model2.lsm.html')
     return parser
@@ -589,12 +670,36 @@ def main():
                 print("{:s}Please provide psf fits file or psf size.\n"
                       "Otherwise a default beam size of five (5``) asec "
                       "is used{:s}".format(R, W))
-            stats = residual_image_stats(args.residual)
+            if args.test_model in ['shapiro', 'normaltest']:
+                if args.data_range:
+                    stats = residual_image_stats(args.residual,
+                                                 args.test_model,
+                                                 int(args.data_range))
+                else:
+                    stats = residual_image_stats(args.residual, args.test_model)
+            else:
+                if not args.test_model:
+                    stats = residual_image_stats(args.residual)
+                else:
+                    print("{:s}Please provide correct normality"
+                          "model{:s}".format(R, W))
             output_dict[args.model] = {'DR': DR}
             output_dict[args.residual] = stats
     if args.residual:
         if args.residual not in output_dict.keys():
-            stats = residual_image_stats(args.residual)
+            if args.test_model in ['shapiro', 'normaltest']:
+                if args.data_range:
+                    stats = residual_image_stats(args.residual,
+                                                 args.test_model,
+                                                 int(args.data_range))
+                else:
+                    stats = residual_image_stats(args.residual, args.test_model)
+            else:
+                if not args.test_model:
+                    stats = residual_image_stats(args.residual)
+                else:
+                    print("{:s}Please provide correct normality"
+                          "model{:s}".format(R, W))
             output_dict[args.residual] = stats
     if args.restored:
         if args.factor:
@@ -604,7 +709,7 @@ def main():
         output_dict[args.restored] = {'DR': DR}
     if args.models:
         models = args.models
-        print("Number of model files: {:s}".format(len(models)))
+        print("Number of model files: {:d}".format(len(models)))
         if len(models) > 2 or len(models) < 2:
             print("{:s}Can only compare two models at a time.{:s}".format(R, W))
         else:
