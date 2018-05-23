@@ -683,8 +683,8 @@ def main():
                 else:
                     print("{:s}Please provide correct normality"
                           "model{:s}".format(R, W))
-            output_dict[args.model] = {'DR': DR}
-            output_dict[args.residual] = stats
+            output_dict[args.residual] = dict(
+                    stats.items() + {args.model: {'DR': DR}}.items())
     if args.residual:
         if args.residual not in output_dict.keys():
             if args.test_model in ['shapiro', 'normaltest']:
