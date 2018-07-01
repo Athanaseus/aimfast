@@ -512,14 +512,14 @@ def compare_models(models, tolerance=0.0001, plot=True):
         Dictionary of source properties from each model
     """
     results = dict()
-    for input_model, output_model in models.items():
-        heading = output_model[:-9]
-        results[heading] = {'models': [input_model, output_model]}
+    for input_model, output_model in models:
+        heading = input_models["label"]
+        results[heading] = {'models': [input_model["path"], output_model["path"]]}
         results[heading]['flux'] = []
         results[heading]['shape'] = []
         results[heading]['position'] = []
-        props = get_detected_sources_properties('{:s}'.format(input_model),
-                                                '{:s}'.format(output_model),
+        props = get_detected_sources_properties('{:s}'.format(input_model["path"]),
+                                                '{:s}'.format(output_model["path"]),
                                                 tolerance)  # TOD0 area to be same as beam
         for i in range(len(props[0])):
             results[heading]['flux'].append(props[0].items()[i][-1])
@@ -535,16 +535,16 @@ def compare_models(models, tolerance=0.0001, plot=True):
 def _source_property_ploter(results, models):
     """Plot results"""
     im_titles = []
-    for input_model, output_model in models.items():
-        header = output_model[:-9].split('_')[0]
+    for input_model, output_model in models:
+        header = output_model["path"][:-9].split('_')[0]
         im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
 
-    fig = tools.make_subplots(rows=len(models.keys()), cols=1, shared_yaxes=False,
+    fig = tools.make_subplots(rows=len(models), cols=1, shared_yaxes=False,
                               print_grid=False, horizontal_spacing=0.005,
                               vertical_spacing=0.15, subplot_titles=im_titles)
     i = -1
     counter = 0
-    for input_model, output_model in models.items():
+    for input_model, output_model in models:
         i += 1
         counter += 1
         name_labels = []
@@ -553,7 +553,7 @@ def _source_property_ploter(results, models):
         source_scale = []
         phase_center_dist = []
         flux_out_err_data = []
-        heading = output_model[:-9]
+        heading = output_model["path"][:-9]
         for n in range(len(results[heading]['flux'])):
             flux_out_data.append(results[heading]['flux'][n][0])
             flux_out_err_data.append(results[heading]['flux'][n][1])
@@ -638,6 +638,8 @@ def get_argparser():
     argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html, model2.lsm.html')
+    argument("--label",
+            help="Use this label instead of the FITS image path when saving data as JSON file")
     return parser
 
 
@@ -651,41 +653,52 @@ def main():
     if not args.residual and not args.restored and not args.model and not args.models:
         print("{:s}Please provide lsm.html/fits file name(s)."
               "\nOr\naimfast -h for arguments{:s}".format(R, W))
+
+    if args.label:
+        residual_label = "{0:s}-residual".format(args.label)
+        restored_label = "{0:s}-restored".format(args.label)
+        model_label = "{0:s}-model".format(args.label)
+    else:
+        residual_label = args.residual
+        restored_label = args.restored
+        model_label = args.model
+
     if args.model:
         if not args.residual:
-            print("{:s}Please provide residual fits file{:s}".format(R, W))
+            raise RuntimeError("{:s}Please provide residual fits file{:s}".format(R, W))
+        
+        if args.psf:
+            if isinstance(args.psf, (str, unicode)):
+                psf_size = measure_psf(args.psf)
+            else:
+                psf_size = int(args.psf)
         else:
-            if args.psf:
-                if '.fits' in args.psf:
-                    psf_size = measure_psf(args.psf)
-                else:
-                    psf_size = int(args.psf)
+            psf_size = 5
+
+        if args.factor:
+            DR = model_dynamic_range(args.model, args.residual, psf_size,
+                                     area_factor=args.factor)[0]
+        else:
+            DR = model_dynamic_range(args.model, args.residual, psf_size)[0]
+            print("{:s}Please provide psf fits file or psf size.\n"
+                  "Otherwise a default beam size of five (5``) asec "
+                  "is used{:s}".format(R, W))
+        if args.test_model in ['shapiro', 'normaltest']:
+            if args.data_range:
+                stats = residual_image_stats(args.residual,
+                                             args.test_model,
+                                             int(args.data_range))
             else:
-                psf_size = 5
-            if args.factor:
-                DR = model_dynamic_range(args.model, args.residual, psf_size,
-                                         area_factor=args.factor)[0]
+                stats = residual_image_stats(args.residual, args.test_model)
+        else:
+            if not args.test_model:
+                stats = residual_image_stats(args.residual)
             else:
-                DR = model_dynamic_range(args.model, args.residual, psf_size)[0]
-                print("{:s}Please provide psf fits file or psf size.\n"
-                      "Otherwise a default beam size of five (5``) asec "
-                      "is used{:s}".format(R, W))
-            if args.test_model in ['shapiro', 'normaltest']:
-                if args.data_range:
-                    stats = residual_image_stats(args.residual,
-                                                 args.test_model,
-                                                 int(args.data_range))
-                else:
-                    stats = residual_image_stats(args.residual, args.test_model)
-            else:
-                if not args.test_model:
-                    stats = residual_image_stats(args.residual)
-                else:
-                    print("{:s}Please provide correct normality"
-                          "model{:s}".format(R, W))
-            output_dict[args.residual] = dict(
-                    stats.items() + {args.model: {'DR': DR}}.items())
-    if args.residual:
+                print("{:s}Please provide correct normality"
+                      "model{:s}".format(R, W))
+        output_dict[residual_label] = dict(
+                    stats.items() + {model_label: {'DR': DR}}.items())
+    elif args.residual:
         if args.residual not in output_dict.keys():
             if args.test_model in ['shapiro', 'normaltest']:
                 if args.data_range:
@@ -700,13 +713,15 @@ def main():
                 else:
                     print("{:s}Please provide correct normality"
                           "model{:s}".format(R, W))
-            output_dict[args.residual] = stats
+            output_dict[residual_label] = stats
+
     if args.restored:
         if args.factor:
             DR = image_dynamic_range(args.restored, area_factor=args.factor)[0]
         else:
             DR = image_dynamic_range(args.restored)[0]
-        output_dict[args.restored] = {'DR': DR}
+        output_dict[restored_label] = {'DR': DR}
+
     if args.models:
         models = args.models
         print("Number of model files: {:d}".format(len(models)))
@@ -714,7 +729,12 @@ def main():
             print("{:s}Can only compare two models at a time.{:s}".format(R, W))
         else:
             model1, model2 = models
-            output_dict = compare_models({model1: model2})
+            output_dict = compare_models(
+                    [
+                        dict(label="{0:s}-model1".format(args.label), path=model1),
+                        dict(label="{0:s}-model2".format(args.label), path=model2),
+                    ]
+                )
     if output_dict:
         json_dump(output_dict)
         print(output_dict)
