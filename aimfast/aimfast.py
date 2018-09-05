@@ -15,7 +15,6 @@ from plotly.graph_objs import XAxis, YAxis
 import scipy.ndimage.measurements as measure
 from Tigger.Coordinates import angular_dist_pos_angle
 
-
 def deg2arcsec(x):
     """Converts 'x' from degrees to arcseconds"""
     return float(x)*3600.00
@@ -328,9 +327,16 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     # TODO please confirm
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
+    local_std = source_res_area.std()
+    global_std = residual_data[0,0,...].std()
     # Compute dynamic range
-    DR = peak_flux/abs(min_flux)
-    return (DR, peak_flux, min_flux)
+
+    DR = {
+        "deepest_negative"  : peak_flux/abs(min_flux)*1e0,
+        "local_rms"         : peak_flux/local_std*1e0,
+        "global_rms"        : peak_flux/global_std*1e0,
+    }
+    return DR
 
 
 def image_dynamic_range(fitsname, area_factor=6):
@@ -387,8 +393,16 @@ def image_dynamic_range(fitsname, area_factor=6):
         if frq_ax == nchan - 1:
             min_flux = min_flux/float(nchan)
     # Compute dynamic range
-    DR = peak_flux/abs(min_flux)
-    return (DR, peak_flux, min_flux)
+    local_std = target_area.std()
+    global_std = restored_data[0,0,...].std()
+    # Compute dynamic range
+
+    DR = {
+        "deepest_negative"  : peak_flux/abs(min_flux)*1e0,
+        "local_rms"         : peak_flux/local_std*1e0,
+        "global_rms"        : peak_flux/global_std*1e0,
+    }
+    return DR
 
 
 def get_src_scale(source_shape):
@@ -677,9 +691,9 @@ def main():
 
         if args.factor:
             DR = model_dynamic_range(args.model, args.residual, psf_size,
-                                     area_factor=args.factor)[0]
+                                     area_factor=args.factor)
         else:
-            DR = model_dynamic_range(args.model, args.residual, psf_size)[0]
+            DR = model_dynamic_range(args.model, args.residual, psf_size)
             print("{:s}Please provide psf fits file or psf size.\n"
                   "Otherwise a default beam size of five (5``) asec "
                   "is used{:s}".format(R, W))
@@ -697,7 +711,12 @@ def main():
                 print("{:s}Please provide correct normality"
                       "model{:s}".format(R, W))
         output_dict[residual_label] = dict(
-                    stats.items() + {model_label: {'DR': DR}}.items())
+                    stats.items() + {model_label: {
+                        'DR': DR["global_rms"],
+                        'DR_deepest_negative'   : DR["deepest_negative"],
+                        'DR_global_rms'         : DR['global_rms'],
+                        'DR_local_rms'          : DR['local_rms'],
+                        }}.items())
     elif args.residual:
         if args.residual not in output_dict.keys():
             if args.test_model in ['shapiro', 'normaltest']:
@@ -717,10 +736,15 @@ def main():
 
     if args.restored:
         if args.factor:
-            DR = image_dynamic_range(args.restored, area_factor=args.factor)[0]
+            DR = image_dynamic_range(args.restored, area_factor=args.factor)
         else:
-            DR = image_dynamic_range(args.restored)[0]
-        output_dict[restored_label] = {'DR': DR}
+            DR = image_dynamic_range(args.restored)
+        output_dict[restored_label] = { 
+                            'DR': DR["global_rms"],
+                            'DR_deepest_negative' : DR["deepest_negative"],
+                            'DR_global_rms' : DR['global_rms'],
+                            'DR_local_rms'  : DR['local_rms'],
+                        }
 
     if args.models:
         models = args.models
@@ -737,4 +761,3 @@ def main():
                 )
     if output_dict:
         json_dump(output_dict)
-        print(output_dict)
