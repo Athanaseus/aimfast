@@ -311,12 +311,12 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     # Get detected sources
     model_sources = model_lsm.sources
     # Obtain peak flux source
-    sources_flux = dict([(model_source, model_source.flux.I)
+    sources_flux = dict([(model_source, model_source.getTag('I_peak'))
                         for model_source in model_sources])
     peak_source_flux = [(_model_source, flux)
                         for _model_source, flux in sources_flux.items()
                         if flux == max(sources_flux.values())][0][0]
-    peak_flux = peak_source_flux.flux.I
+    peak_flux = peak_source_flux.getTag('I_peak')
     # Get astrometry of the source in degrees
     RA = rad2deg(peak_source_flux.pos.ra)
     DEC = rad2deg(peak_source_flux.pos.dec)
@@ -328,7 +328,7 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
     local_std = source_res_area.std()
-    global_std = residual_data[0,0,...].std()
+    global_std = residual_data[0, 0, ...].std()
     # Compute dynamic range
 
     DR = {
@@ -527,7 +527,7 @@ def compare_models(models, tolerance=0.0001, plot=True):
     """
     results = dict()
     for input_model, output_model in models:
-        heading = input_models["label"]
+        heading = input_model["label"]
         results[heading] = {'models': [input_model["path"], output_model["path"]]}
         results[heading]['flux'] = []
         results[heading]['shape'] = []
