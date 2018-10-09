@@ -9,3 +9,9 @@
 -----
 - Fix formating bug
 - Add normality testing
+
+0.1.2
+-----
+- Use peak flux when computing DYnamic Range (DR)
+- Compute three DR (local using deepest negative, local using rms, global uing rms)
+- Use a label instead of a path when creating stats dictionary
