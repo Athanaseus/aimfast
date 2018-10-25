@@ -25,6 +25,14 @@ PLOT_NUM = {'colorbar':
                }
            }
 
+
+# Unit multipleirs for plotting
+UNIT_SCALER = {'milli': 1e3,
+               'micro': 1e6,
+               'nano' : 1e9}
+
+
+# Backgound color for plots
 BG_COLOR = 'rgb(229,229,229)'
 
 
@@ -407,7 +415,7 @@ def image_dynamic_range(fitsname, area_factor=6):
             min_flux = min_flux/float(nchan)
     # Compute dynamic range
     local_std = target_area.std()
-    global_std = restored_data[0,0,...].std()
+    global_std = restored_data[0, 0, ...].std()
     # Compute dynamic range
 
     DR = {
@@ -579,7 +587,10 @@ def _source_flux_plotter(results, models):
     """Plot results"""
     im_titles = []
     output_model = models[-1]['path']
-    header = output_model[:-9]
+    if 'html' in output_model:
+        header = output_model[:-9]
+    else:
+        header = output_model[:-4]
     im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
 
     fig = tools.make_subplots(rows=1, cols=1, shared_yaxes=False,
@@ -607,12 +618,14 @@ def _source_flux_plotter(results, models):
     (flux_out_data, flux_out_err_data, flux_in_data, name_labels,
         phase_center_dist, source_scale) = zip(*sorted(
                 zipped_props, key=lambda x: x[0]))
-    fig.append_trace(go.Scatter(x=np.array([flux_in_data[0], flux_in_data[-1]]),
+    fig.append_trace(go.Scatter(x=np.array([flux_in_data[0],
+                                            flux_in_data[-1]])*UNIT_SCALER['milli'],
                                 showlegend=False,
                                 y=np.array([flux_in_data[0],
-                                            flux_in_data[-1]]),
+                                            flux_in_data[-1]])*UNIT_SCALER['milli'],
                                 mode='line'), i+1, 1)
-    fig.append_trace(go.Scatter(x=np.array(flux_in_data), y=np.array(flux_out_data),
+    fig.append_trace(go.Scatter(x=np.array(flux_in_data)*UNIT_SCALER['milli'],
+                                y=np.array(flux_out_data)*UNIT_SCALER['milli'],
                                 mode='markers', showlegend=False,
                                 text=name_labels, name='{:s} flux_ratio'.format(heading),
                                 marker=dict(color=phase_center_dist,
@@ -621,12 +634,9 @@ def _source_flux_plotter(results, models):
                                             colorbar=dict(
                                                 title='Distance from phase center (arcsec)',
                                                 titleside='right',
-                                                titlefont=dict(size=16), x=1.0)
-                                           ) if i == 0 else
-                                dict(color=phase_center_dist,
-                                     colorscale='Jet',
-                                     reversescale=False),
-                                error_y=dict(type='data', array=flux_out_err_data,
+                                                titlefont=dict(size=16), x=1.0)),
+                                error_y=dict(type='data',
+                                             array=np.array(flux_out_err_data)*UNIT_SCALER['milli'],
                                              color='rgb(158, 63, 221)',
                                              visible=True)), i+1, 1)
     fig['layout'].update(title='', height=900, width=900,
@@ -634,7 +644,7 @@ def _source_flux_plotter(results, models):
                          plot_bgcolor='rgb(229,229,229)',
                          legend=dict(x=0.8, y=1.0),)
     fig['layout'].update(
-        {'yaxis{}'.format(counter): YAxis(title=u'$I_{out}$ (Jy)',
+        {'yaxis{}'.format(counter): YAxis(title=u'$I_{out}$ (mJy)',
                                           gridcolor='rgb(255,255,255)',
                                           tickfont=dict(size=15),
                                           titlefont=dict(size=17),
@@ -644,7 +654,7 @@ def _source_flux_plotter(results, models):
                                           tickcolor='rgb(51,153,225)',
                                           ticks='outside',
                                           zeroline=False)})
-    fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title=u'$I_{in}$ (Jy)',
+    fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title=u'$I_{in}$ (mJy)',
                                                              position=0.0,
                                                              titlefont=dict(size=17),
                                                              overlaying='x')})
@@ -656,11 +666,13 @@ def _source_flux_plotter(results, models):
 def _source_astrometry_plotter(results, models):
     """Plot results"""
 
-    unit_scaler = 1000
     PLOTS = 1
     im_titles = []
     output_model = models[-1]['path']
-    header = output_model[:-9]
+    if 'html' in output_model:
+        header = output_model[:-9]
+    else:
+        header = output_model[:-4]
     im_titles.append('<b>{:s} Delta Position</b>'.format(header.upper()))
     im_titles.append('<b>{:s} Position Offset</b>'.format(header.upper()))
 
@@ -693,7 +705,7 @@ def _source_astrometry_plotter(results, models):
     (delta_pos_data, RA_offset, DEC_offset, DELTA_PHASE0,
         flux_in_data, source_labels) = zip(
         *sorted(zipped_props, key=lambda x: x[-2]))
-    fig.append_trace(go.Scatter(x=np.array(flux_in_data)*unit_scaler,
+    fig.append_trace(go.Scatter(x=np.array(flux_in_data)*UNIT_SCALER['milli'],
                                 y=np.array(delta_pos_data),
                                 mode='markers', showlegend=False,
                                 text=source_labels, name='{:s} flux_ratio'.format(header),
@@ -704,23 +716,18 @@ def _source_astrometry_plotter(results, models):
                                                           len=PLOT_NUM['colorbar'][PLOTS][2],
                                                           y=PLOT_NUM['colorbar'][PLOTS][1],
                                                           x=0.39)
-                                            ),
-                                error_y=dict(type='data',# array=flux_out_err_data,
-                                             color='rgb(158, 63, 221)', visible=True)), i+1, 1)
+                                            )), i+1, 1)
     fig.append_trace(go.Scatter(x=np.array(RA_offset), y=np.array(DEC_offset),
                                 mode='markers', showlegend=False,
                                 text=source_labels, name='{:s} flux_ratio'.format(heading),
-                                marker=dict(color=np.array(flux_out_data)*unit_scaler,
+                                marker=dict(color=np.array(flux_out_data)*UNIT_SCALER['milli'],
                                             showscale=True,
                                             colorscale='Viridis',
                                             reversescale=True,
                                             colorbar=dict(title='Output flux (mJy)',
-                                                          titleside ='right',
+                                                          titleside='right',
                                                           len=PLOT_NUM['colorbar'][PLOTS][2],
-                                                          y=PLOT_NUM['colorbar'][PLOTS][1])
-                                             ),
-                                error_y=dict(type='data',
-                                             color='rgb(158, 63, 221)', visible=True)), i+1, 2)
+                                                          y=PLOT_NUM['colorbar'][PLOTS][1]))), i+1, 2)
     r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
     pi, cos, sin = np.pi, np.cos, np.sin
     theta = np.linspace(0, 2*pi, 45)
@@ -756,8 +763,7 @@ def _source_astrometry_plotter(results, models):
                                 marker=dict(color='rgb(255, 255, 0)')), i+1, 2)
     fig['layout'].update(title='', height=800, width=1800,
                          paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
-                         legend=dict(xanchor=True, x=1.2, y=1)
-                        )
+                         legend=dict(xanchor=True, x=1.2, y=1))
     fig['layout'].update(
         {'yaxis{}'.format(counter+i): YAxis(title=u'Delta position [arcsec]',
                                             gridcolor='rgb(255,255,255)',
@@ -824,7 +830,7 @@ def get_argparser():
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html, model2.lsm.html')
     argument("--label",
-            help="Use this label instead of the FITS image path when saving data as JSON file")
+             help="Use this label instead of the FITS image path when saving data as JSON file")
     return parser
 
 
@@ -851,7 +857,7 @@ def main():
     if args.model:
         if not args.residual:
             raise RuntimeError("{:s}Please provide residual fits file{:s}".format(R, W))
-        
+
         if args.psf:
             if isinstance(args.psf, (str, unicode)):
                 psf_size = measure_psf(args.psf)
