@@ -62,6 +62,7 @@ standards pep8_.
                      :alt:
 
 .. |Project License| image:: https://img.shields.io/aur/license/yaourt.svg
+                     :target:: https://github.com/Athanaseus/aimfast/blob/master/LICENSE
                      :alt:
 
 .. _source: https://github.com/Athanaseus/aimfast
