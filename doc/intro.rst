@@ -191,7 +191,7 @@ For Flux density, the more the data points rest on the y=x (or I_out=I_in), the 
 
 For astrometry, the more sources lie on the y=0 (Delta-position axis) in the left plot and the more points with 1 sigma (blue circle) the more accurate the output source positions.
 
-   .. figure:: https://user-images.githubusercontent.com/16665629/47494922-29cd3680-d853-11e8-8e29-6ed075c7a600.png
+   .. figure:: https://user-images.githubusercontent.com/16665629/47504227-1f6b6680-d86c-11e8-937c-a00e2ec50d0f.png
     :width: 60%
     :align: center
     :alt: alternate text
