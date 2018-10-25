@@ -447,20 +447,34 @@ def get_src_scale(source_shape):
     return scale_out_arc_sec, scale_out_err_arc_sec
 
 
-def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor):
-    """Extracts the output simulation sources properties"""
-    model_lsm = Tigger.load(model_lsm_file)
-    pybdsm_lsm = Tigger.load(pybdsm_lsm_file)
+def get_detected_sources_properties(model_1, model_2, area_factor):
+    """Extracts the output simulation sources properties
+
+    Parameters
+    ----------
+    models_1: file
+        Tigger formatted or txt model 1 file
+    models_2: file
+        Tigger formatted or txt model 2 file
+    area_factor: float
+        Area factor to multiply the psf size around source
+
+    Returns
+    -------
+    targets_flux, targets_scale, targets_position : tuple
+        Tuple of target flux, morphology and astrometry information
+    """
+    model_lsm = Tigger.load(model_1)
+    pybdsm_lsm = Tigger.load(model_2)
     # Sources from the input model
     model_sources = model_lsm.sources
     # {"source_name": [I_out, I_out_err, I_in, source_name]}
     targets_flux = dict()       # recovered sources flux
     # {"source_name": [delta_pos_angle_arc_sec, ra_offset, dec_offset,
-    #                  delta_phase_centre_arc_sec, I_in]
+    #                  delta_phase_centre_arc_sec, I_in, source_name]
     targets_position = dict()   # recovered sources position
-    # {"source_name: [(majx_out, minx_out, pos_angle_out),
-    #                 (majx_in, min_in, pos_angle_in),
-    #                 scale_out, scale_out_err, I_in]
+    # {"source_name: [shape_out=(maj, min, angle), shape_out_err=, shape_in=,
+    #                 scale_out, scale_out_err, I_in, source_name]
     targets_scale = dict()         # recovered sources scale
     for model_source in model_sources:
         I_out = 0.0
@@ -571,11 +585,9 @@ def _source_flux_plotter(results, models):
     fig = tools.make_subplots(rows=1, cols=1, shared_yaxes=False,
                               print_grid=False, horizontal_spacing=0.005,
                               vertical_spacing=0.15, subplot_titles=im_titles)
-    i = -1
-    counter = 0
+    i = 0
+    counter = 1
     output_model = models[1]['path']
-    i += 1
-    counter += 1
     name_labels = []
     flux_in_data = []
     flux_out_data = []
@@ -622,7 +634,7 @@ def _source_flux_plotter(results, models):
                          plot_bgcolor='rgb(229,229,229)',
                          legend=dict(x=0.8, y=1.0),)
     fig['layout'].update(
-        {'yaxis{}'.format(counter): YAxis(title=u'I_out (Jy)',
+        {'yaxis{}'.format(counter): YAxis(title=u'$I_{out}$ (Jy)',
                                           gridcolor='rgb(255,255,255)',
                                           tickfont=dict(size=15),
                                           titlefont=dict(size=17),
@@ -632,10 +644,11 @@ def _source_flux_plotter(results, models):
                                           tickcolor='rgb(51,153,225)',
                                           ticks='outside',
                                           zeroline=False)})
-    fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='I_in (Jy)',
+    fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title=u'$I_{in}$ (Jy)',
                                                              position=0.0,
                                                              titlefont=dict(size=17),
                                                              overlaying='x')})
+    fig['layout']['annotations'].update({'font': {'size': 18}})
     outfile = 'InputOutputFluxDensity.html'
     py.plot(fig, filename=outfile, auto_open=False)
 
@@ -646,7 +659,6 @@ def _source_astrometry_plotter(results, models):
     unit_scaler = 1000
     PLOTS = 1
     im_titles = []
-    #for input_model, output_model in sorted(models.items()):
     output_model = models[-1]['path']
     header = output_model[:-9]
     im_titles.append('<b>{:s} Delta Position</b>'.format(header.upper()))
@@ -656,14 +668,10 @@ def _source_astrometry_plotter(results, models):
                               horizontal_spacing=0.25,
                               vertical_spacing=0.15,
                               subplot_titles=sorted(im_titles))
-    j = 0
-    i = -1
-    counter = 0
-#    for input_model, output_model in sorted(models):
-#        input_model = models[0]['path']
+
     output_model = models[1]['path']
-    i += 1
-    counter += 1
+    i = 0
+    counter = 1
     RA_offset = []
     DEC_offset = []
     DELTA_PHASE0 = []
@@ -680,18 +688,21 @@ def _source_astrometry_plotter(results, models):
         DELTA_PHASE0.append(results[heading]['position'][n][3])
         flux_in_data.append(results[heading]['position'][n][4])
         source_labels.append(results[heading]['position'][n][5])
-    zipped_props = zip(delta_pos_data, RA_offset, DEC_offset, DELTA_PHASE0, flux_in_data, source_labels)
-    delta_pos_data, RA_offset, DEC_offset, DELTA_PHASE0, flux_in_data, source_labels = zip(
+    zipped_props = zip(delta_pos_data, RA_offset, DEC_offset,
+                       DELTA_PHASE0, flux_in_data, source_labels)
+    (delta_pos_data, RA_offset, DEC_offset, DELTA_PHASE0,
+        flux_in_data, source_labels) = zip(
         *sorted(zipped_props, key=lambda x: x[-2]))
-    fig.append_trace(go.Scatter(x=np.array(flux_in_data)*unit_scaler, y=np.array(delta_pos_data),
+    fig.append_trace(go.Scatter(x=np.array(flux_in_data)*unit_scaler,
+                                y=np.array(delta_pos_data),
                                 mode='markers', showlegend=False,
                                 text=source_labels, name='{:s} flux_ratio'.format(header),
                                 marker=dict(color=DELTA_PHASE0, showscale=True,
                                             colorscale='Jet', reversescale=True,
-                                            colorbar=dict(title='Phase center dist (arcsec)',
+                                            colorbar=dict(title='Distance from phase center (arcsec)',
                                                           titleside='right',
                                                           len=PLOT_NUM['colorbar'][PLOTS][2],
-                                                          y=PLOT_NUM['colorbar'][PLOTS][1]-j,
+                                                          y=PLOT_NUM['colorbar'][PLOTS][1],
                                                           x=0.39)
                                             ),
                                 error_y=dict(type='data',# array=flux_out_err_data,
@@ -699,13 +710,14 @@ def _source_astrometry_plotter(results, models):
     fig.append_trace(go.Scatter(x=np.array(RA_offset), y=np.array(DEC_offset),
                                 mode='markers', showlegend=False,
                                 text=source_labels, name='{:s} flux_ratio'.format(heading),
-                                marker=dict(color=np.array(flux_out_data)*unit_scaler, showscale=True,
+                                marker=dict(color=np.array(flux_out_data)*unit_scaler,
+                                            showscale=True,
                                             colorscale='Viridis',
                                             reversescale=True,
                                             colorbar=dict(title='Output flux (mJy)',
                                                           titleside ='right',
                                                           len=PLOT_NUM['colorbar'][PLOTS][2],
-                                                          y=PLOT_NUM['colorbar'][PLOTS][1]-j)
+                                                          y=PLOT_NUM['colorbar'][PLOTS][1])
                                              ),
                                 error_y=dict(type='data',
                                              color='rgb(158, 63, 221)', visible=True)), i+1, 2)
@@ -714,17 +726,30 @@ def _source_astrometry_plotter(results, models):
     theta = np.linspace(0, 2*pi, 45)
     x1 = r1*cos(theta)
     y1 = r2*sin(theta)
+
+    RA_mean = np.mean(RA_offset)
+    DEC_mean = np.mean(DEC_offset)
+    r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
+    pi, cos, sin = np.pi, np.cos, np.sin
+    theta = np.linspace(0, 2*pi, len(DEC_offset))
+    x1 = RA_mean+(r1*cos(theta))
+    y1 = DEC_mean+(r2*sin(theta))
+    x2 = RA_mean+(2*r1*cos(theta))
+    y2 = DEC_mean+(2*r2*sin(theta))
+    x3 = RA_mean+(3*r1*cos(theta))
+    y3 = DEC_mean+(3*r2*sin(theta))
+
     fig.append_trace(go.Scatter(x=x1, y=y1,
                                 mode='lines', showlegend=True if i == 0 else False,
                                 name=r'1 sigma',
                                 text=r'1 sigma ~ {:f}'.format(np.sqrt(r1*r2)),
                                 marker=dict(color='rgb(0, 0, 255)')), i+1, 2)
-    fig.append_trace(go.Scatter(x=2*x1, y=2*y1,
+    fig.append_trace(go.Scatter(x=x2, y=y2,
                                 mode='lines', showlegend=True if i == 0 else False,
                                 name=r'2 sigma',
                                 text=r'2 sigma ~ {:f}'.format(2*np.sqrt(r1*r2)),
                                 marker=dict(color='rgb(255, 0, 0)')), i+1, 2)
-    fig.append_trace(go.Scatter(x=3*x1, y=3*y1,
+    fig.append_trace(go.Scatter(x=x3, y=y3,
                                 mode='lines', showlegend=True if i == 0 else False,
                                 name=r'3 sigma',
                                 text=r'3 sigma ~ {:f}'.format(3*np.sqrt(r1*r2)),
@@ -737,8 +762,6 @@ def _source_astrometry_plotter(results, models):
         {'yaxis{}'.format(counter+i): YAxis(title=u'Delta position [arcsec]',
                                             gridcolor='rgb(255,255,255)',
                                             color='rgb(0,0,0)',
-        #                                   range=axis_min_max if _scaley.value else [],
-        range=[-0.1, 1.5],
         tickfont=dict(size=14, color='rgb(0,0,0)'),
         titlefont=dict(size=15),
         showgrid=True,
@@ -751,8 +774,6 @@ def _source_astrometry_plotter(results, models):
         {'yaxis{}'.format(counter+i+1): YAxis(title='Dec offset [arcsec]',
                                               gridcolor='rgb(255,255,255)',
                                               color='rgb(0,0,0)',
-        #                                     range=dec_min_max if _scaley.value else [],
-        range=[-2, 1.2],
         tickfont=dict(size=10, color='rgb(0,0,0)'),
         titlefont=dict(size=17),
         showgrid=True,
@@ -761,16 +782,16 @@ def _source_astrometry_plotter(results, models):
         tickcolor='rgb(51,153,225)',
         ticks='outside',
         zeroline=True)})
-    fig['layout'].update({'xaxis{}'.format(counter+i):XAxis(title=u'$I_{in} (mJy)$',
-                                                            titlefont=dict(size=17),
-                                                            zeroline=True, position=0.0, overlaying='x',)})
-    fig['layout'].update({'xaxis{}'.format(counter+i+1):XAxis(title='RA offset [arcsec]',
-                                                              titlefont=dict(size=17),
-                                                              #range=ra_min_max if _scalex.value else [],
-                                                              range=[-1.2, 1.2],
-                                                              zeroline=False)})#domain=[0.505, 0.8])})
-    fig['layout']['annotations'].update({ 'font':{'size': 10}})
-    j+=PLOT_NUM['colorbar'][PLOTS][0]
+    fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title=u'$I_{in}$ (mJy)',
+                                                             titlefont=dict(size=17),
+                                                             zeroline=True,
+                                                             position=0.0,
+                                                             overlaying='x',)})
+    fig['layout'].update({'xaxis{}'.format(counter+i+1): XAxis(title='RA offset [arcsec]',
+                                                               titlefont=dict(size=17),
+                                                               range=[-1.2, 1.2],
+                                                               zeroline=False)})
+    fig['layout']['annotations'].update({'font': {'size': 18}})
     outfile = 'InputOutputPosition.html'
     py.plot(fig, filename=outfile, auto_open=False)
 
