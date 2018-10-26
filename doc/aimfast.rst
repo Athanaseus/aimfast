@@ -1,19 +1,20 @@
 aimfast package
 ===============
 
+.. toctree::
+
+    aimfast
+
 Module contents
 ---------------
 
-.. automodule:: aimfast
+.. automodule:: aimfast.aimfast
     :members:
     :undoc-members:
     :show-inheritance:
 
-Submodules
-----------
-
-aimfast.aimfast module
-----------------------
+aimfast\.aimfast module
+-----------------------
 
 .. automodule:: aimfast.aimfast
     :members:
