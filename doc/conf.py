@@ -29,8 +29,8 @@ sys.path.insert(0, os.path.abspath('../'))
 MOCK_MODULES = ['numpy', 'scipy', 'astropy', 'astropy.io', 'astLib',
                 'plotly', 'plotly.graph_objs', 'astLib.astWCS', 'scipy.stats',
                 'scipy.interpolate', 'scipy.sparse', 'sklearn.metrics',
-                'scipy.ndimage', 'scipy.ndimage.measurements',
-                'Tigger.Coordinates']
+                'scipy.ndimage', 'scipy.ndimage.measurements', 'sklearn',
+                'Tigger.Coordinates', 'sklearn.metrics.mean_squared_error']
 
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
