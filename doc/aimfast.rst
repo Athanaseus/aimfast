@@ -3,7 +3,7 @@ aimfast modules
 
 .. toctree::
 
-    aimfast
+    aimfast.aimfast
 
 :mod: `aimfast.aimfast`
 -----------------------
