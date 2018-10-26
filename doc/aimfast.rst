@@ -1,4 +1,4 @@
-aimfast package
+aimfast modules
 ===============
 
 .. toctree::
