@@ -5,7 +5,7 @@ aimfast modules
 
     aimfast
 
-aimfast\.aimfast module
+:mod: `aimfast.aimfast`
 -----------------------
 
 .. automodule:: aimfast.aimfast
