@@ -5,6 +5,7 @@
 
 Welcome to aimfast's documentation!
 ===================================
+An Astronomical Image Fidelity Assessment Tool
 
 Contents:
 
@@ -23,4 +24,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
