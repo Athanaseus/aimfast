@@ -5,6 +5,7 @@ aimfast
 |Pypi Version|
 |Build Version|
 |Python Versions|
+|Project License|
 
 An Astronomical Image Fidelity Assessment Tool
 
@@ -58,6 +59,10 @@ standards pep8_.
 
 .. |Python Versions| image:: https://img.shields.io/pypi/pyversions/aimfast.svg
                      :target: https://pypi.python.org/pypi/aimfast/
+                     :alt:
+
+.. |Project License| image:: https://img.shields.io/aur/license/yaourt.svg
+                     :target: https://github.com/Athanaseus/aimfast/blob/master/LICENSE
                      :alt:
 
 .. _source: https://github.com/Athanaseus/aimfast

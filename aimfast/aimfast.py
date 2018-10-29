@@ -9,36 +9,59 @@ from functools import partial
 from astLib.astWCS import WCS
 import plotly.graph_objs as go
 from plotly import offline as py
+from scipy.stats import linregress
 from astropy.io import fits as fitsio
 from scipy.interpolate import interp1d
 from plotly.graph_objs import XAxis, YAxis
 import scipy.ndimage.measurements as measure
+from sklearn.metrics import mean_squared_error
 from Tigger.Coordinates import angular_dist_pos_angle
 
+PLOT_NUM = {'colorbar':
+               {   # num of plots: [colorbar spacing, colorbar y, colorbar len]
+                1: [0.95, 0.5, 0.95],
+                2: [0.59, 0.78, 0.4],
+                3: [0.41, 0.81, 0.34],
+                4: [0.28, 0.86, 0.31],
+                5: [0.22, 0.93, 0.2]
+               }
+           }
+
+
+# Unit multipleirs for plotting
+UNIT_SCALER = {'milli': 1e3,
+               'micro': 1e6,
+               'nano' : 1e9}
+
+
+# Backgound color for plots
+BG_COLOR = 'rgb(229,229,229)'
+
+
 def deg2arcsec(x):
-    """Converts 'x' from degrees to arcseconds"""
+    """Converts 'x' from degrees to arcseconds."""
     return float(x)*3600.00
 
 
 def rad2deg(x):
-    """Converts 'x' from radian to degrees"""
+    """Converts 'x' from radian to degrees."""
     return float(x)*(180/np.pi)
 
 
 def rad2arcsec(x):
-    """Converts `x` from radians to arcseconds"""
+    """Converts `x` from radians to arcseconds."""
     return float(x)*3600.0*180.0/np.pi
 
 
 def json_dump(data_dict, root='.'):
-    """Dumps the computed dictionary into a json file
+    """Dumps the computed dictionary into a json file.
 
     Parameters
     ----------
-    data_dict: dict
-        dictionary with output results to save
-    root: str
-        directory to save output json file (default is current directory)
+    data_dict : dict
+        Dictionary with output results to save.
+    root : str
+        Directory to save output json file (default is current directory).
 
     Note
     ----
@@ -60,17 +83,17 @@ def json_dump(data_dict, root='.'):
 
 
 def fitsInfo(fitsname=None):
-    """Get fits header info
+    """Get fits header info.
 
     Parameters
     ----------
-    fitsname: fits file
-        restored image (cube)
+    fitsname : fits file
+        Restored image (cube)
 
     Returns
     -------
-    fitsinfo: dict
-        dictionary of fits information
+    fitsinfo : dict
+        Dictionary of fits information
         e.g. {'wcs': wcs, 'ra': ra, 'dec': dec,
         'dra': dra, 'ddec': ddec, 'raPix': raPix,
         'decPix': decPix,  'b_scale': beam_scale}
@@ -93,17 +116,19 @@ def fitsInfo(fitsname=None):
 
 
 def measure_psf(psffile, arcsec_size=20):
-    """Measure point spread function after deconvolution
+    """Measure point spread function after deconvolution.
 
     Parameters
     ----------
-    psfile: fits file
-        point spread function file
+    psfile : fits file
+        Point spread function file.
+    arcsec_size : float
+        Cross section size
 
     Returns
     -------
-    r0: float
-        Average psf size
+    r0 : float
+        Average psf size.
 
     """
     with fitsio.open(psffile) as hdu:
@@ -138,21 +163,22 @@ def measure_psf(psffile, arcsec_size=20):
 
 
 def get_box(wcs, radec, w):
-    """Get box of width w around source coordinates radec
+    """Get box of width w around source coordinates radec.
 
     Parameters
     ----------
-    radec: tuple
-        RA and DEC in degrees
-    w: int
-        width of box
-    wcs: astLib.astWCS.WCS instance
-        World Coordinate System
+    radec : tuple
+        RA and DEC in degrees.
+    w : int
+        Width of box.
+    wcs : astLib.astWCS.WCS instance
+        World Coordinate System.
 
     Returns
     -------
-    box: tuple
-        A box centered at radec
+    box : tuple
+        A box centered at radec.
+
     """
     raPix, decPix = wcs.wcs2pix(*radec)
     raPix = int(raPix)
@@ -162,37 +188,29 @@ def get_box(wcs, radec, w):
 
 
 def residual_image_stats(fitsname, test_model=None, data_range=None):
-    """Gets statistcal properties of a residual image
+    """Gets statistcal properties of a residual image.
 
     Parameters
     ----------
-    fitsname: fits file
-        residual image (cube)
-    test_model: str
-        perform normality testing using either 'shapiro' or 'normaltest'
-    data_range: int
-        Range of data to perform normality testing
+    fitsname : file
+        Residual image (cube).
+    test_model : str
+        Perform normality testing using either `shapiro` or `normaltest`.
+    data_range : int, optional
+        Range of data to perform normality testing.
 
     Returns
     -------
-    props: dict
-        dictionary of stats props
-        e.g. {'MEAN': 0.0,
-        'STDDev': 0.1,
-        'SKEW': 0.2,
-        'KURT': 0.3}
+    props : dict
+        Dictionary of stats properties.
+        e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3}.
 
-    NOTE
-    ----
-    If normality_test=True
-        dictionary of stats props
-        e.g. {'MEAN': 0.0,
-        'STDDev': 0.1,
-        'SKEW': 0.2,
-        'KURT': 0.3,
-        'NORM': (123.3,  0.012)}
-    whereby the first element is the statistics (or average if data_range
-    specified) of the datasets and second element is the p-value.
+    Notes
+    -----
+    If normality_test=True, dictionary of stats props becomes \
+    e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, 'NORM': (123.3,0.012)} \
+    whereby the first element is the statistics (or average if data_range specified) \
+    of the datasets and second element is the p-value.
 
     """
     res_props = dict()
@@ -221,24 +239,25 @@ def residual_image_stats(fitsname, test_model=None, data_range=None):
 
 
 def normality_testing(fitsname, test_model='normaltest', data_range=None):
-    """Performs a normality test on the image
+    """Performs a normality test on the image.
 
     Parameters
     ----------
-    fitsname: fits file
-        residual image (cube)
-    test_model: str
-        perform normality testing using either 'shapiro' or 'normaltest'
-    data_range: int
-        Range of data to perform normality testing
+    fitsname : file
+        Residual image (cube).
+    test_model : str
+        Perform normality testing using either `shapiro` or `normaltest`.
+    data_range : int
+        Range of data to perform normality testing.
 
     Returns
     -------
-    stats_props: dict
-        dictionary of stats props
+    normality : dict
+        dictionary of stats props.
         e.g. {'NORM': (123.3,  0.012)}
-    whereby the first element is the statistics (or average if data_range
-    specified) of the datasets and second element is the p-value.
+        whereby the first element is the statistics
+        (or average if data_range specified) of the
+        datasets and second element is the p-value.
 
     """
     normality = dict()
@@ -278,29 +297,23 @@ def normality_testing(fitsname, test_model='normaltest', data_range=None):
 
 
 def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
-    """Gets the dynamic range using model lsm and residual fits
+    """Gets the dynamic range using model lsm and residual fits.
 
     Parameters
     ----------
-    fitsname: fits file
-        residual image (cube)
-    lsmname: lsm.html or .txt file
-        model .lsm.html from pybdsm (or .txt converted tigger file)
-    beam_size: float
-        Average beam size in arcsec
-    area_factor: float
-        Factor to multiply the beam area
+    fitsname : fits file
+        Residual image (cube).
+    lsmname : lsm.html or .txt file
+        Model .lsm.html from pybdsm (or .txt converted tigger file).
+    beam_size : float
+        Average beam size in arcsec.
+    area_factor : float
+        Factor to multiply the beam area.
 
     Returns
     -------
-    (DR, peak_flux, min_flux): tuple
-        DR - dynamic range value
-        peak_flux - peak flux source in the image
-        min_flux - min flux pixel value in the image
-
-    Note
-    ----
-    DR = Peak source from model / deepest negative around source position in residual
+    DR : dict
+        DRs - dynamic range values.
 
     """
     # Open the residual image
@@ -340,25 +353,19 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
 
 
 def image_dynamic_range(fitsname, area_factor=6):
-    """Gets the dynamic range in a restored image
+    """Gets the dynamic range in a restored image.
 
     Parameters
     ----------
-    fitsname: fits file
-        restored image (cube)
+    fitsname : fits file
+        Restored image (cube).
     area_factor: int
-        Factor to multiply the beam area
+        Factor to multiply the beam area.
 
     Returns
     -------
-    (DR, peak_flux, min_flux): tuple
-        DR - dynamic range value
-        peak_flux - peak flux source in the image
-        min_flux - min flux pixel value in the image
-
-    Note
-    ----
-    DR = Peak source / deepest negative around source position
+    DR : dict
+        DRs - dynamic range values.
 
     """
     fits_info = fitsInfo(fitsname)
@@ -394,7 +401,7 @@ def image_dynamic_range(fitsname, area_factor=6):
             min_flux = min_flux/float(nchan)
     # Compute dynamic range
     local_std = target_area.std()
-    global_std = restored_data[0,0,...].std()
+    global_std = restored_data[0, 0, ...].std()
     # Compute dynamic range
 
     DR = {
@@ -406,7 +413,19 @@ def image_dynamic_range(fitsname, area_factor=6):
 
 
 def get_src_scale(source_shape):
-    """Get scale measure of the source in arcsec"""
+    """Get scale measure of the source in arcsec.
+
+    Parameters
+    ----------
+    source_shape : lsm object
+        Source shape object from model
+
+    Returns
+    -------
+    (scale_out_arc_sec, scale_out_err_arc_sec) : tuple
+        Output source scale with error value
+
+    """
     if source_shape:
         shape_out = source_shape.getShape()
         shape_out_err = source_shape.getShapeErr()
@@ -434,20 +453,35 @@ def get_src_scale(source_shape):
     return scale_out_arc_sec, scale_out_err_arc_sec
 
 
-def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor):
-    """Extracts the output simulation sources properties"""
-    model_lsm = Tigger.load(model_lsm_file)
-    pybdsm_lsm = Tigger.load(pybdsm_lsm_file)
+def get_detected_sources_properties(model_1, model_2, area_factor):
+    """Extracts the output simulation sources properties.
+
+    Parameters
+    ----------
+    models_1 : file
+        Tigger formatted or txt model 1 file.
+    models_2 : file
+        Tigger formatted or txt model 2 file.
+    area_factor : float
+        Area factor to multiply the psf size around source.
+
+    Returns
+    -------
+    (targets_flux, targets_scale, targets_position) : tuple
+        Tuple of target flux, morphology and astrometry information
+
+    """
+    model_lsm = Tigger.load(model_1)
+    pybdsm_lsm = Tigger.load(model_2)
     # Sources from the input model
     model_sources = model_lsm.sources
     # {"source_name": [I_out, I_out_err, I_in, source_name]}
     targets_flux = dict()       # recovered sources flux
     # {"source_name": [delta_pos_angle_arc_sec, ra_offset, dec_offset,
-    #                  delta_phase_centre_arc_sec, I_in]
+    #                  delta_phase_centre_arc_sec, I_in, source_name]
     targets_position = dict()   # recovered sources position
-    # {"source_name: [(majx_out, minx_out, pos_angle_out),
-    #                 (majx_in, min_in, pos_angle_in),
-    #                 scale_out, scale_out_err, I_in]
+    # {"source_name: [shape_out=(maj, min, angle), shape_out_err=, shape_in=,
+    #                 scale_out, scale_out_err, I_in, source_name]
     targets_scale = dict()         # recovered sources scale
     for model_source in model_sources:
         I_out = 0.0
@@ -504,129 +538,310 @@ def get_detected_sources_properties(model_lsm_file, pybdsm_lsm_file, area_factor
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
-            print("Number of sources recovered: {:d}".format(len(targets_scale)))
+    print("Number of sources recovered: {:d}".format(len(targets_scale)))
     return targets_flux, targets_scale, targets_position
 
 
-def compare_models(models, tolerance=0.0001, plot=True):
+def compare_models(models, tolerance=0.00001, plot=True):
     """Plot model1 source properties against that of model2
 
     Parameters
     ----------
-    models: dict
-        Tigger formatted model files e.g {model1: model2}
-    tolerance: float
-        Tolerace in detecting source from model 2
-    plot: bool
-        Output html plot from which a png can be obtained
+    models : dict
+        Tigger formatted model files e.g {model1: model2}.
+    tolerance : float
+        Tolerace in detecting source from model 2.
+    plot : bool
+        Output html plot from which a png can be obtained.
 
     Returns
     -------
-    results: dict
-        Dictionary of source properties from each model
+    results : dict
+        Dictionary of source properties from each model.
+
     """
     results = dict()
-    for input_model, output_model in models:
-        heading = input_model["label"]
-        results[heading] = {'models': [input_model["path"], output_model["path"]]}
-        results[heading]['flux'] = []
-        results[heading]['shape'] = []
-        results[heading]['position'] = []
-        props = get_detected_sources_properties('{:s}'.format(input_model["path"]),
-                                                '{:s}'.format(output_model["path"]),
-                                                tolerance)  # TOD0 area to be same as beam
-        for i in range(len(props[0])):
-            results[heading]['flux'].append(props[0].items()[i][-1])
-        for i in range(len(props[1])):
-            results[heading]['shape'].append(props[1].items()[i][-1])
-        for i in range(len(props[2])):
-            results[heading]['position'].append(props[2].items()[i][-1])
-        if plot:
-            _source_property_ploter(results, models)
+    input_model = models[0]
+    output_model = models[1]
+    heading = input_model["label"]
+    results[heading] = {'models': [input_model["path"], output_model["path"]]}
+    results[heading]['flux'] = []
+    results[heading]['shape'] = []
+    results[heading]['position'] = []
+    props = get_detected_sources_properties('{:s}'.format(input_model["path"]),
+                                            '{:s}'.format(output_model["path"]),
+                                            tolerance)  # TOD0 area to be same as beam
+    for i in range(len(props[0])):
+        results[heading]['flux'].append(props[0].items()[i][-1])
+    for i in range(len(props[1])):
+        results[heading]['shape'].append(props[1].items()[i][-1])
+    for i in range(len(props[2])):
+        results[heading]['position'].append(props[2].items()[i][-1])
+    if plot:
+        _source_flux_plotter(results, models)
+        _source_astrometry_plotter(results, models)
     return results
 
 
-def _source_property_ploter(results, models):
-    """Plot results"""
-    im_titles = []
-    for input_model, output_model in models:
-        header = output_model["path"][:-9].split('_')[0]
-        im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
+def _source_flux_plotter(results, models):
+    """Plot flux results and save output as html file.
 
-    fig = tools.make_subplots(rows=len(models), cols=1, shared_yaxes=False,
+    Parameters
+    ----------
+    results : dict
+        Structured output results.
+    models : list
+        Tigger/text formatted model files e.g [model1, model2].
+
+    """
+    im_titles = []
+    output_model = models[-1]['path']
+    if 'html' in output_model:
+        header = output_model[:-9]
+    else:
+        header = output_model[:-4]
+    im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
+
+    fig = tools.make_subplots(rows=1, cols=1, shared_yaxes=False,
                               print_grid=False, horizontal_spacing=0.005,
                               vertical_spacing=0.15, subplot_titles=im_titles)
-    i = -1
-    counter = 0
-    for input_model, output_model in models:
-        i += 1
-        counter += 1
-        name_labels = []
-        flux_in_data = []
-        flux_out_data = []
-        source_scale = []
-        phase_center_dist = []
-        flux_out_err_data = []
-        heading = output_model["path"][:-9]
-        for n in range(len(results[heading]['flux'])):
-            flux_out_data.append(results[heading]['flux'][n][0])
-            flux_out_err_data.append(results[heading]['flux'][n][1])
-            flux_in_data.append(results[heading]['flux'][n][2])
-            name_labels.append(results[heading]['flux'][n][3])
-            phase_center_dist.append(results[heading]['position'][n][-3])
-            source_scale.append(results[heading]['shape'][n][3])
-        zipped_props = zip(flux_out_data, flux_out_err_data, flux_in_data,
-                           name_labels, phase_center_dist, source_scale)
-        (flux_out_data, flux_out_err_data, flux_in_data, name_labels,
-            phase_center_dist, source_scale) = zip(*sorted(
-                    zipped_props, key=lambda x: x[0]))
-        fig.append_trace(go.Scatter(x=np.array([flux_in_data[0], flux_in_data[-1]]),
-                                    showlegend=False,
-                                    y=np.array([flux_in_data[0],
-                                                flux_in_data[-1]]),
-                                    mode='line'), i+1, 1)
-        fig.append_trace(go.Scatter(x=np.array(flux_in_data), y=np.array(flux_out_data),
-                                    mode='markers', showlegend=False,
-                                    text=name_labels, name='{:s} flux_ratio'.format(heading),
-                                    marker=dict(color=phase_center_dist,
-                                                showscale=True, colorscale='Jet',
-                                                reversescale=False,
-                                                colorbar=dict(
-                                                    title='Distance from phase center (arcsec)',
-                                                    titleside='right',
-                                                    titlefont=dict(size=16), x=1.0)
-                                               ) if i == 0 else
-                                    dict(color=phase_center_dist,
-                                         colorscale='Jet',
-                                         reversescale=False),
-                                    error_y=dict(type='data', array=flux_out_err_data,
-                                                 color='rgb(158, 63, 221)',
-                                                 visible=True)), i+1, 1)
-        fig['layout'].update(title='', height=900, width=900,
-                             paper_bgcolor='rgb(255,255,255)',
-                             plot_bgcolor='rgb(229,229,229)',
-                             legend=dict(x=0.8, y=1.0),)
-        fig['layout'].update(
-            {'yaxis{}'.format(counter): YAxis(title=u'I_out (Jy)',
+    i = 0
+    counter = 1
+    output_model = models[1]['path']
+    annotate = []
+    name_labels = []
+    flux_in_data = []
+    flux_out_data = []
+    source_scale = []
+    phase_center_dist = []
+    flux_out_err_data = []
+    heading = models[0]['label']
+    for n in range(len(results[heading]['flux'])):
+        flux_out_data.append(results[heading]['flux'][n][0])
+        flux_out_err_data.append(results[heading]['flux'][n][1])
+        flux_in_data.append(results[heading]['flux'][n][2])
+        name_labels.append(results[heading]['flux'][n][3])
+        phase_center_dist.append(results[heading]['position'][n][-3])
+        source_scale.append(results[heading]['shape'][n][3])
+    zipped_props = zip(flux_out_data, flux_out_err_data, flux_in_data,
+                       name_labels, phase_center_dist, source_scale)
+    (flux_out_data, flux_out_err_data, flux_in_data, name_labels,
+        phase_center_dist, source_scale) = zip(*sorted(
+                zipped_props, key=lambda x: x[0]))
+
+    flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
+    reg = linregress(flux_in_data, flux_out_data)
+    flux_R_score = reg.rvalue
+    annotate.append(go.Annotation(
+            x=0.0012*UNIT_SCALER['milli'],
+            y=flux_in_data[-1]*UNIT_SCALER['milli'] + 0.0005*UNIT_SCALER['milli'],
+            xref='x{:d}'.format(counter),
+            yref='y{:d}'.format(counter),
+            text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
+                    reg.slope, reg.intercept*UNIT_SCALER['milli'],
+                    np.sqrt(flux_MSE)*UNIT_SCALER['milli'], flux_R_score),
+            ax=0,
+            ay=-10,
+            showarrow=False,
+            bordercolor='#c7c7c7',
+            borderwidth=2,
+            font=dict(color="black", size=15),
+        ))
+    fig.append_trace(go.Scatter(x=np.array([flux_in_data[0],
+                                            flux_in_data[-1]])*UNIT_SCALER['milli'],
+                                showlegend=False,
+                                y=np.array([flux_in_data[0],
+                                            flux_in_data[-1]])*UNIT_SCALER['milli'],
+                                mode='line'), i+1, 1)
+    fig.append_trace(go.Scatter(x=np.array(flux_in_data)*UNIT_SCALER['milli'],
+                                y=np.array(flux_out_data)*UNIT_SCALER['milli'],
+                                mode='markers', showlegend=False,
+                                text=name_labels, name='{:s} flux_ratio'.format(heading),
+                                marker=dict(color=phase_center_dist,
+                                            showscale=True, colorscale='Jet',
+                                            reversescale=False,
+                                            colorbar=dict(
+                                                title='Distance from phase center (arcsec)',
+                                                titleside='right',
+                                                titlefont=dict(size=16), x=1.0)),
+                                error_y=dict(type='data',
+                                             array=np.array(flux_out_err_data)*UNIT_SCALER['milli'],
+                                             color='rgb(158, 63, 221)',
+                                             visible=True)), i+1, 1)
+    fig['layout'].update(title='', height=900, width=900,
+                         paper_bgcolor='rgb(255,255,255)',
+                         plot_bgcolor='rgb(229,229,229)',
+                         legend=dict(x=0.8, y=1.0),)
+    fig['layout'].update(
+        {'yaxis{}'.format(counter): YAxis(title=u'$I_{out}$ (mJy)',
+                                          gridcolor='rgb(255,255,255)',
+                                          tickfont=dict(size=15),
+                                          titlefont=dict(size=17),
+                                          showgrid=True,
+                                          showline=False,
+                                          showticklabels=True,
+                                          tickcolor='rgb(51,153,225)',
+                                          ticks='outside',
+                                          zeroline=False)})
+    fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title=u'$I_{in}$ (mJy)',
+                                                             position=0.0,
+                                                             titlefont=dict(size=17),
+                                                             overlaying='x')})
+    fig['layout']['annotations'].update({'font': {'size': 18}})
+    fig['layout']['annotations'].extend(annotate)
+    outfile = 'InputOutputFluxDensity.html'
+    py.plot(fig, filename=outfile, auto_open=False)
+
+
+def _source_astrometry_plotter(results, models):
+    """Plot astrometry results and save output as html file.
+
+    Parameters
+    ----------
+    results: dict
+        Structured output results.
+    models: list
+        Tigger/text formatted model files e.g [model1, model2].
+
+    """
+    PLOTS = 1
+    im_titles = []
+    output_model = models[-1]['path']
+    if 'html' in output_model:
+        header = output_model[:-9]
+    else:
+        header = output_model[:-4]
+    im_titles.append('<b>{:s} Position Offset</b>'.format(header.upper()))
+    im_titles.append('<b>{:s} Delta Position</b>'.format(header.upper()))
+
+    fig = tools.make_subplots(rows=1, cols=2, shared_yaxes=False, print_grid=False,
+                              horizontal_spacing=0.15,
+                              vertical_spacing=0.15,
+                              subplot_titles=im_titles)
+
+    output_model = models[1]['path']
+    i = 0
+    counter = 1
+    annotate = []
+    RA_offset = []
+    DEC_offset = []
+    DELTA_PHASE0 = []
+    source_labels = []
+    flux_in_data = []
+    flux_out_data = []
+    delta_pos_data = []
+    heading = models[0]['label']
+    for n in range(len(results[heading]['flux'])):
+        flux_out_data.append(results[heading]['flux'][n][0])
+        delta_pos_data.append(results[heading]['position'][n][0])
+        RA_offset.append(results[heading]['position'][n][1])
+        DEC_offset.append(results[heading]['position'][n][2])
+        DELTA_PHASE0.append(results[heading]['position'][n][3])
+        flux_in_data.append(results[heading]['position'][n][4])
+        source_labels.append(results[heading]['position'][n][5])
+    zipped_props = zip(delta_pos_data, RA_offset, DEC_offset,
+                       DELTA_PHASE0, flux_in_data, source_labels)
+    (delta_pos_data, RA_offset, DEC_offset, DELTA_PHASE0,
+        flux_in_data, source_labels) = zip(
+        *sorted(zipped_props, key=lambda x: x[-2]))
+    fig.append_trace(go.Scatter(x=np.array(flux_in_data)*UNIT_SCALER['milli'],
+                                y=np.array(delta_pos_data),
+                                mode='markers', showlegend=False,
+                                text=source_labels, name='{:s} flux_ratio'.format(header),
+                                marker=dict(color=DELTA_PHASE0, showscale=True,
+                                            colorscale='Jet', reversescale=True,
+                                            colorbar=dict(title='Distance from phase center (arcsec)',
+                                                          titleside='right',
+                                                          len=PLOT_NUM['colorbar'][PLOTS][2],
+                                                          y=PLOT_NUM['colorbar'][PLOTS][1])
+                                            )), i+1, 2)
+    fig.append_trace(go.Scatter(x=np.array(RA_offset), y=np.array(DEC_offset),
+                                mode='markers', showlegend=False,
+                                text=source_labels, name='{:s} flux_ratio'.format(heading),
+                                marker=dict(color=np.array(flux_out_data)*UNIT_SCALER['milli'],
+                                            showscale=True,
+                                            colorscale='Viridis',
+                                            reversescale=True,
+                                            colorbar=dict(title='Output flux (mJy)',
+                                                          titleside='right',
+                                                          len=PLOT_NUM['colorbar'][PLOTS][2],
+                                                          y=PLOT_NUM['colorbar'][PLOTS][1],
+                                                          x=0.45)
+                                            )), i+1, 1)
+
+    RA_mean = np.mean(RA_offset)
+    DEC_mean = np.mean(DEC_offset)
+    r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
+    pi, cos, sin = np.pi, np.cos, np.sin
+    theta = np.linspace(0, 2*pi, len(DEC_offset))
+    x1 = RA_mean+(r1*cos(theta))
+    y1 = DEC_mean+(r2*sin(theta))
+    recovered_sources = len(DEC_offset)
+    one_sigma_sources = len([(ra_off, dec_off) for ra_off, dec_off in zip(RA_offset, DEC_offset)
+                            if abs(ra_off) <= max(abs(x1)) and abs(dec_off) <= max(abs(y1))])
+    annotate.append(go.Annotation(
+            x=RA_mean*3,
+            y=max(DEC_offset) + 0.05,
+            xref='x{:d}'.format(counter),
+            yref='y{:d}'.format(counter),
+            text="Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f}) |"
+                 "  (RA, DEC) sigma: ({:.4f}, {:.4f}) | sigma sources: {:d}".format(
+                    recovered_sources, RA_mean, DEC_mean, r1, r2, one_sigma_sources),
+            ax=0,
+            ay=-40,
+            showarrow=False,
+            bordercolor='#c7c7c7',
+            borderwidth=2,
+            font=dict(color="black", size=10),
+        ))
+    fig.append_trace(go.Scatter(x=x1, y=y1,
+                                mode='lines', showlegend=False,
+                                name=r'1 sigma',
+                                text=r'1 sigma ~ {:f}'.format(np.sqrt(r1*r2)),
+                                marker=dict(color='rgb(0, 0, 255)')), i+1, 1)
+    fig['layout'].update(title='', height=800, width=1800,
+                         paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
+                         legend=dict(xanchor=True, x=1.2, y=1))
+    fig['layout'].update(
+        {'yaxis{}'.format(counter+i): YAxis(title=u'Dec offset [arcsec]',
+                                            gridcolor='rgb(255,255,255)',
+                                            color='rgb(0,0,0)',
+        tickfont=dict(size=14, color='rgb(0,0,0)'),
+        titlefont=dict(size=15),
+        showgrid=True,
+        showline=True,
+        showticklabels=True,
+        tickcolor='rgb(51,153,225)',
+        ticks='outside',
+        zeroline=True)})
+    fig['layout'].update(
+        {'yaxis{}'.format(counter+i+1): YAxis(title='Delta position [arcsec]',
                                               gridcolor='rgb(255,255,255)',
-                                              tickfont=dict(size=15),
-                                              titlefont=dict(size=17),
-                                              showgrid=True,
-                                              showline=False,
-                                              showticklabels=True,
-                                              tickcolor='rgb(51,153,225)',
-                                              ticks='outside',
-                                              zeroline=False)})
-        fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='I_in (Jy)',
-                                                                 position=0.0,
-                                                                 titlefont=dict(size=17),
-                                                                 overlaying='x')})
-    outfile = 'InputOutputFluxDensity'
-    py.plot(fig, filename=outfile)
+                                              color='rgb(0,0,0)',
+        tickfont=dict(size=10, color='rgb(0,0,0)'),
+        titlefont=dict(size=17),
+        showgrid=True,
+        showline=True,
+        showticklabels=True,
+        tickcolor='rgb(51,153,225)',
+        ticks='outside',
+        zeroline=True)})
+    fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title=u'RA offset [arcsec]',
+                                                             titlefont=dict(size=17),
+                                                             zeroline=True,
+                                                             position=0.0,
+                                                             overlaying='x',)})
+    fig['layout'].update({'xaxis{}'.format(counter+i+1): XAxis(title=u'$I_{in}$ (mJy)',
+                                                               titlefont=dict(size=17),
+                                                               zeroline=False)})
+    fig['layout']['annotations'].update({'font': {'size': 18}})
+    fig['layout']['annotations'].extend(annotate)
+    outfile = 'InputOutputPosition.html'
+    py.plot(fig, filename=outfile, auto_open=False)
 
 
 def get_argparser():
-    """Get argument parser"""
+    """Get argument parser."""
     parser = argparse.ArgumentParser(
                  description="Examine radio image fidelity by obtaining: \n"
                              "- The four (4) moments of a residual image \n"
@@ -653,12 +868,12 @@ def get_argparser():
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html, model2.lsm.html')
     argument("--label",
-            help="Use this label instead of the FITS image path when saving data as JSON file")
+             help="Use this label instead of the FITS image path when saving data as JSON file")
     return parser
 
 
 def main():
-    """Main function"""
+    """Main function."""
     parser = get_argparser()
     args = parser.parse_args()
     output_dict = dict()
@@ -680,7 +895,7 @@ def main():
     if args.model:
         if not args.residual:
             raise RuntimeError("{:s}Please provide residual fits file{:s}".format(R, W))
-        
+
         if args.psf:
             if isinstance(args.psf, (str, unicode)):
                 psf_size = measure_psf(args.psf)
@@ -739,7 +954,7 @@ def main():
             DR = image_dynamic_range(args.restored, area_factor=args.factor)
         else:
             DR = image_dynamic_range(args.restored)
-        output_dict[restored_label] = { 
+        output_dict[restored_label] = {
                             'DR': DR["global_rms"],
                             'DR_deepest_negative' : DR["deepest_negative"],
                             'DR_global_rms' : DR['global_rms'],

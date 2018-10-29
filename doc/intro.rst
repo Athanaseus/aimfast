@@ -27,13 +27,17 @@ Image dynamic range
 
 Dynamic range is a measure of the degree to which imaging artifacts around
 strong sources are suppressed, which in turn implies a higher fidelity of
-the on-source reconstruction. It is calculated by obtaining the quotient of
-highest peak flux (:math:`flux_{peak}`) and the absolute of the minimum
-flux (:math:`flux_{min}`) around the peak in the restored image.
+the on-source reconstruction.
+Here we determine it in three ways: Obtaining the quotient of
+    - highest peak flux (:math:`flux_{peak}`) and the absolute of the minimum flux (:math:`flux_{min}`) around the peak in the restored image.
+    - highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{local_rms}`) around the peak in the restored image.
+    - highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{grobal_rms}`) in the residual image.
 
 .. math::
 
-    DR = \frac{flux_{peak}}{\left | {flux_{min}} \right | }
+    DR = \frac{flux_{peak}}{\left | {flux_{min}} \right | }            (1)
+    DR = \frac{flux_{peak}}{\left | {flux_{local_rms}} \right | }      (2)
+    DR = \frac{flux_{peak}}{\left | {flux_{global_rms}} \right | }     (3)
 
 
 Statistical moments of distribution
@@ -47,19 +51,19 @@ The mean and variance are calculated as follows respectively
 
 .. math::
 
-    MEAN = \frac{1}{n}\sum_{i=1}^{n}(x_{i})
+    MEAN = \frac{1}{n}\sum_{i=1}^{n}(x_{i})                            (4)
 
 and 
 
 .. math::
 
-    VARIANCE = \frac{1}{n}\sum_{i=1}^{n}(x_{i} - \overline{x})^2
+    VARIANCE = \frac{1}{n}\sum_{i=1}^{n}(x_{i} - \overline{x})^2       (5)
 
 whereby
 
 .. math::
 
-    STD\_DEV = \sqrt{VARIANCE}
+    STD\_DEV = \sqrt{VARIANCE}                                         (6)
 
 The third and fourth moments are the skewness and kurtosis respectively. The
 skewness is the measure of the symmetry of the shape and kurtosis is a measure
@@ -69,13 +73,13 @@ data, the r-th moment is calculated as follows:
 
 .. math::
 
-    m_r = \frac{1}{n}\sum_{i=1}^{n}(x_i - \overline{x})^r
+    m_r = \frac{1}{n}\sum_{i=1}^{n}(x_i - \overline{x})^r              (7)
 
 The coefficient of skewness, the 3-rd moment, is obtained by
 
 .. math::
 
-    SKEWNESS = \frac{m_3}{{m_2}^{\frac{3}{2}}}
+    SKEWNESS = \frac{m_3}{{m_2}^{\frac{3}{2}}}                         (8)
 
 If there is a long tail in the positive direction, skewness will be positive,
 while if there is a long tail in the negative direction, skewness will be negative.
@@ -92,7 +96,7 @@ The coefficient kurtosis, the 4-th moment, is obtained by
 
 .. math::
 
-    KURTOSIS = \frac{m_4}{{m_2}^{2}}
+    KURTOSIS = \frac{m_4}{{m_2}^{2}}                                   (9)
 
 Smaller values (in magnitude) indicate a flatter, more uniform distribution.
 
@@ -166,7 +170,8 @@ z-score and p-value respectively.
 
     $ aimfast --residual-image cube.residual.fits --normality-model normaltest
 
-Moreover aimfast allows you to swiftly compare two (input-output) tigger models. It returns an interactive html correlation plot, from which a `.png` file can be easily downloaded or imported to plot.ly_.
+Moreover aimfast allows you to swiftly compare two (input-output) tigger models. Currently source flux density and astrometry are examined.
+It returns an interactive html correlation plots, from which a `.png` file can be easily downloaded or imported to plot.ly_.
 
 .. code-block:: bash
 
@@ -174,7 +179,7 @@ Moreover aimfast allows you to swiftly compare two (input-output) tigger models.
 
 Where --psf-image | -psf is the Name of the point spread function file or psf size in arcsec.
 
-The more the data points rest on the y=x (or I_out=I_in), the more correlated the two models are.
+For Flux density, the more the data points rest on the y=x (or I_out=I_in), the more correlated the two models are.
 
    .. figure:: https://user-images.githubusercontent.com/16665629/37516078-a82e0880-2915-11e8-8507-2002da8a6527.png
     :width: 60%
@@ -182,4 +187,15 @@ The more the data points rest on the y=x (or I_out=I_in), the more correlated th
     :alt: alternate text
     :figclass: align-center
 
-    Figure 3. Input-Output tigger (txt/lsm.html) model comparison
+    Figure 3. Input-Output Flux (txt/lsm.html) model comparison
+
+For astrometry, the more sources lie on the y=0 (Delta-position axis) in the left plot and the more points with 1 sigma (blue circle) the more accurate the output source positions.
+
+   .. figure:: https://user-images.githubusercontent.com/16665629/47504227-1f6b6680-d86c-11e8-937c-a00e2ec50d0f.png
+    :width: 60%
+    :align: center
+    :alt: alternate text
+    :figclass: align-center
+
+    Figure 4. Input-Output Astrometry (txt/lsm.html) model comparison
+
