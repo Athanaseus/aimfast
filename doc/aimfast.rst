@@ -1,11 +1,11 @@
-aimfast package
+aimfast modules
 ===============
 
 .. toctree::
 
-    aimfast
+    aimfast.aimfast
 
-aimfast\.aimfast module
+:mod: `aimfast.aimfast`
 -----------------------
 
 .. automodule:: aimfast.aimfast

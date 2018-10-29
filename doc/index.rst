@@ -5,8 +5,10 @@
 
 Welcome to aimfast's documentation!
 ===================================
+An Astronomical Image Fidelity Assessment Tool
 
 Contents:
+=========
 
 .. toctree::
    :maxdepth: 2
@@ -23,4 +25,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
