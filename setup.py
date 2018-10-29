@@ -19,7 +19,7 @@ setup(name="aimfast",
                         "jsonschema",
                         "mock",
                         "numpy",
-                        "numpydoc"
+                        "numpydoc",
                         "plotly",
                         "scikit-learn",
                         "scipy"],
