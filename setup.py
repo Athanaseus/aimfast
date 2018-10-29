@@ -17,11 +17,12 @@ setup(name="aimfast",
                         "astropy==2.0.4",
                         "astro-tigger",
                         "jsonschema",
+                        "mock",
                         "numpy",
+                        "numpydoc"
                         "plotly",
                         "scikit-learn",
                         "scipy"],
       extras_require={'docs': ["sphinx-pypi-upload",
-                               "numpydoc",
                                "Sphinx"]},
       scripts=['aimfast/bin/aimfast'])

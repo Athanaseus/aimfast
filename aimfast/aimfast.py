@@ -39,29 +39,29 @@ BG_COLOR = 'rgb(229,229,229)'
 
 
 def deg2arcsec(x):
-    """Converts 'x' from degrees to arcseconds"""
+    """Converts 'x' from degrees to arcseconds."""
     return float(x)*3600.00
 
 
 def rad2deg(x):
-    """Converts 'x' from radian to degrees"""
+    """Converts 'x' from radian to degrees."""
     return float(x)*(180/np.pi)
 
 
 def rad2arcsec(x):
-    """Converts `x` from radians to arcseconds"""
+    """Converts `x` from radians to arcseconds."""
     return float(x)*3600.0*180.0/np.pi
 
 
 def json_dump(data_dict, root='.'):
-    """Dumps the computed dictionary into a json file
+    """Dumps the computed dictionary into a json file.
 
     Parameters
     ----------
-    data_dict: dict
-        dictionary with output results to save
-    root: str
-        directory to save output json file (default is current directory)
+    data_dict : dict
+        Dictionary with output results to save.
+    root : str
+        Directory to save output json file (default is current directory).
 
     Note
     ----
@@ -83,17 +83,17 @@ def json_dump(data_dict, root='.'):
 
 
 def fitsInfo(fitsname=None):
-    """Get fits header info
+    """Get fits header info.
 
     Parameters
     ----------
-    fitsname: fits file
-        restored image (cube)
+    fitsname : fits file
+        Restored image (cube)
 
     Returns
     -------
-    fitsinfo: dict
-        dictionary of fits information
+    fitsinfo : dict
+        Dictionary of fits information
         e.g. {'wcs': wcs, 'ra': ra, 'dec': dec,
         'dra': dra, 'ddec': ddec, 'raPix': raPix,
         'decPix': decPix,  'b_scale': beam_scale}
@@ -116,17 +116,19 @@ def fitsInfo(fitsname=None):
 
 
 def measure_psf(psffile, arcsec_size=20):
-    """Measure point spread function after deconvolution
+    """Measure point spread function after deconvolution.
 
     Parameters
     ----------
-    psfile: fits file
-        point spread function file
+    psfile : fits file
+        Point spread function file.
+    arcsec_size : float
+        Cross section size
 
     Returns
     -------
-    r0: float
-        Average psf size
+    r0 : float
+        Average psf size.
 
     """
     with fitsio.open(psffile) as hdu:
@@ -161,21 +163,22 @@ def measure_psf(psffile, arcsec_size=20):
 
 
 def get_box(wcs, radec, w):
-    """Get box of width w around source coordinates radec
+    """Get box of width w around source coordinates radec.
 
     Parameters
     ----------
-    radec: tuple
-        RA and DEC in degrees
-    w: int
-        width of box
-    wcs: astLib.astWCS.WCS instance
-        World Coordinate System
+    radec : tuple
+        RA and DEC in degrees.
+    w : int
+        Width of box.
+    wcs : astLib.astWCS.WCS instance
+        World Coordinate System.
 
     Returns
     -------
-    box: tuple
-        A box centered at radec
+    box : tuple
+        A box centered at radec.
+
     """
     raPix, decPix = wcs.wcs2pix(*radec)
     raPix = int(raPix)
@@ -185,37 +188,29 @@ def get_box(wcs, radec, w):
 
 
 def residual_image_stats(fitsname, test_model=None, data_range=None):
-    """Gets statistcal properties of a residual image
+    """Gets statistcal properties of a residual image.
 
     Parameters
     ----------
-    fitsname: fits file
-        residual image (cube)
-    test_model: str
-        perform normality testing using either 'shapiro' or 'normaltest'
-    data_range: int
-        Range of data to perform normality testing
+    fitsname : file
+        Residual image (cube).
+    test_model : str
+        Perform normality testing using either `shapiro` or `normaltest`.
+    data_range : int, optional
+        Range of data to perform normality testing.
 
     Returns
     -------
-    props: dict
-        dictionary of stats props
-        e.g. {'MEAN': 0.0,
-        'STDDev': 0.1,
-        'SKEW': 0.2,
-        'KURT': 0.3}
+    props : dict
+        Dictionary of stats properties.
+        e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3}.
 
-    NOTE
-    ----
-    If normality_test=True
-        dictionary of stats props
-        e.g. {'MEAN': 0.0,
-        'STDDev': 0.1,
-        'SKEW': 0.2,
-        'KURT': 0.3,
-        'NORM': (123.3,  0.012)}
-    whereby the first element is the statistics (or average if data_range
-    specified) of the datasets and second element is the p-value.
+    Notes
+    -----
+    If normality_test=True, dictionary of stats props becomes \
+    e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, 'NORM': (123.3,0.012)} \
+    whereby the first element is the statistics (or average if data_range specified) \
+    of the datasets and second element is the p-value.
 
     """
     res_props = dict()
@@ -244,24 +239,25 @@ def residual_image_stats(fitsname, test_model=None, data_range=None):
 
 
 def normality_testing(fitsname, test_model='normaltest', data_range=None):
-    """Performs a normality test on the image
+    """Performs a normality test on the image.
 
     Parameters
     ----------
-    fitsname: fits file
-        residual image (cube)
-    test_model: str
-        perform normality testing using either 'shapiro' or 'normaltest'
-    data_range: int
-        Range of data to perform normality testing
+    fitsname : file
+        Residual image (cube).
+    test_model : str
+        Perform normality testing using either `shapiro` or `normaltest`.
+    data_range : int
+        Range of data to perform normality testing.
 
     Returns
     -------
-    stats_props: dict
-        dictionary of stats props
+    normality : dict
+        dictionary of stats props.
         e.g. {'NORM': (123.3,  0.012)}
-    whereby the first element is the statistics (or average if data_range
-    specified) of the datasets and second element is the p-value.
+        whereby the first element is the statistics
+        (or average if data_range specified) of the
+        datasets and second element is the p-value.
 
     """
     normality = dict()
@@ -301,29 +297,23 @@ def normality_testing(fitsname, test_model='normaltest', data_range=None):
 
 
 def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
-    """Gets the dynamic range using model lsm and residual fits
+    """Gets the dynamic range using model lsm and residual fits.
 
     Parameters
     ----------
-    fitsname: fits file
-        residual image (cube)
-    lsmname: lsm.html or .txt file
-        model .lsm.html from pybdsm (or .txt converted tigger file)
-    beam_size: float
-        Average beam size in arcsec
-    area_factor: float
-        Factor to multiply the beam area
+    fitsname : fits file
+        Residual image (cube).
+    lsmname : lsm.html or .txt file
+        Model .lsm.html from pybdsm (or .txt converted tigger file).
+    beam_size : float
+        Average beam size in arcsec.
+    area_factor : float
+        Factor to multiply the beam area.
 
     Returns
     -------
-    (DR, peak_flux, min_flux): tuple
-        DR - dynamic range value
-        peak_flux - peak flux source in the image
-        min_flux - min flux pixel value in the image
-
-    Note
-    ----
-    DR = Peak source from model / deepest negative around source position in residual
+    DR : dict
+        DRs - dynamic range values.
 
     """
     # Open the residual image
@@ -363,25 +353,19 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
 
 
 def image_dynamic_range(fitsname, area_factor=6):
-    """Gets the dynamic range in a restored image
+    """Gets the dynamic range in a restored image.
 
     Parameters
     ----------
-    fitsname: fits file
-        restored image (cube)
+    fitsname : fits file
+        Restored image (cube).
     area_factor: int
-        Factor to multiply the beam area
+        Factor to multiply the beam area.
 
     Returns
     -------
-    (DR, peak_flux, min_flux): tuple
-        DR - dynamic range value
-        peak_flux - peak flux source in the image
-        min_flux - min flux pixel value in the image
-
-    Note
-    ----
-    DR = Peak source / deepest negative around source position
+    DR : dict
+        DRs - dynamic range values.
 
     """
     fits_info = fitsInfo(fitsname)
@@ -429,7 +413,19 @@ def image_dynamic_range(fitsname, area_factor=6):
 
 
 def get_src_scale(source_shape):
-    """Get scale measure of the source in arcsec"""
+    """Get scale measure of the source in arcsec.
+
+    Parameters
+    ----------
+    source_shape : lsm object
+        Source shape object from model
+
+    Returns
+    -------
+    (scale_out_arc_sec, scale_out_err_arc_sec) : tuple
+        Output source scale with error value
+
+    """
     if source_shape:
         shape_out = source_shape.getShape()
         shape_out_err = source_shape.getShapeErr()
@@ -458,21 +454,22 @@ def get_src_scale(source_shape):
 
 
 def get_detected_sources_properties(model_1, model_2, area_factor):
-    """Extracts the output simulation sources properties
+    """Extracts the output simulation sources properties.
 
     Parameters
     ----------
-    models_1: file
-        Tigger formatted or txt model 1 file
-    models_2: file
-        Tigger formatted or txt model 2 file
-    area_factor: float
-        Area factor to multiply the psf size around source
+    models_1 : file
+        Tigger formatted or txt model 1 file.
+    models_2 : file
+        Tigger formatted or txt model 2 file.
+    area_factor : float
+        Area factor to multiply the psf size around source.
 
     Returns
     -------
-    targets_flux, targets_scale, targets_position : tuple
+    (targets_flux, targets_scale, targets_position) : tuple
         Tuple of target flux, morphology and astrometry information
+
     """
     model_lsm = Tigger.load(model_1)
     pybdsm_lsm = Tigger.load(model_2)
@@ -550,17 +547,18 @@ def compare_models(models, tolerance=0.00001, plot=True):
 
     Parameters
     ----------
-    models: dict
-        Tigger formatted model files e.g {model1: model2}
-    tolerance: float
-        Tolerace in detecting source from model 2
-    plot: bool
-        Output html plot from which a png can be obtained
+    models : dict
+        Tigger formatted model files e.g {model1: model2}.
+    tolerance : float
+        Tolerace in detecting source from model 2.
+    plot : bool
+        Output html plot from which a png can be obtained.
 
     Returns
     -------
-    results: dict
-        Dictionary of source properties from each model
+    results : dict
+        Dictionary of source properties from each model.
+
     """
     results = dict()
     input_model = models[0]
@@ -586,14 +584,15 @@ def compare_models(models, tolerance=0.00001, plot=True):
 
 
 def _source_flux_plotter(results, models):
-    """Plot flux results and save output as html file
+    """Plot flux results and save output as html file.
 
     Parameters
     ----------
-    results: dict
-        Structured output results
-    models: list
-        Tigger/text formatted model files e.g [model1, model2]
+    results : dict
+        Structured output results.
+    models : list
+        Tigger/text formatted model files e.g [model1, model2].
+
     """
     im_titles = []
     output_model = models[-1]['path']
@@ -695,16 +694,16 @@ def _source_flux_plotter(results, models):
 
 
 def _source_astrometry_plotter(results, models):
-    """Plot astrometry results and save output as html file
+    """Plot astrometry results and save output as html file.
 
     Parameters
     ----------
     results: dict
-        Structured output results
+        Structured output results.
     models: list
-        Tigger/text formatted model files e.g [model1, model2]
-    """
+        Tigger/text formatted model files e.g [model1, model2].
 
+    """
     PLOTS = 1
     im_titles = []
     output_model = models[-1]['path']
@@ -842,7 +841,7 @@ def _source_astrometry_plotter(results, models):
 
 
 def get_argparser():
-    """Get argument parser"""
+    """Get argument parser."""
     parser = argparse.ArgumentParser(
                  description="Examine radio image fidelity by obtaining: \n"
                              "- The four (4) moments of a residual image \n"
@@ -874,7 +873,7 @@ def get_argparser():
 
 
 def main():
-    """Main function"""
+    """Main function."""
     parser = get_argparser()
     args = parser.parse_args()
     output_dict = dict()
