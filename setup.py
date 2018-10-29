@@ -34,5 +34,6 @@ setup(name="aimfast",
                         "scikit-learn",
                         "scipy"],
       extras_require={'docs': ["sphinx-pypi-upload",
+                               "numpydoc",
                                "Sphinx"]},
       scripts=['aimfast/bin/aimfast'])
