@@ -17,6 +17,7 @@ import scipy.ndimage.measurements as measure
 from sklearn.metrics import mean_squared_error
 from Tigger.Coordinates import angular_dist_pos_angle
 
+
 PLOT_NUM = {'colorbar':
                {   # num of plots: [colorbar spacing, colorbar y, colorbar len]
                 1: [0.95, 0.5, 0.95],
@@ -185,6 +186,105 @@ def get_box(wcs, radec, w):
     decPix = int(decPix)
     box = slice(decPix-w/2, decPix+w/2), slice(raPix-w/2, raPix+w/2)
     return box
+
+
+def noise_sigma(noise_image):
+    """Determines the noise sigma level in a dirty image with no source
+
+    Parameters
+    ----------
+    noise_image: file
+        Noise image (cube).
+
+    Returns
+    -------
+    noise_std: float
+        Noise image standard deviation
+
+"""
+    # Read the simulated noise image
+    dirty_noise_hdu = fitsio.open(noise_image)
+    # Get the header data unit for the simulated noise
+    dirty_noise_data = dirty_noise_hdu[0].data
+    # Get the noise sigma
+    noise_std = dirty_noise_data.std()
+    return noise_std
+
+
+def _get_ra_dec_range(area=1.0, phase_centre="J2000,0deg,-30deg"):
+    """Get RA and DEC range from area of observations and phase centre"""
+    ra = float(phase_centre.split(',')[1].split('deg')[0])
+    dec = float(phase_centre.split(',')[2].split('deg')[0])
+    d_ra = np.sqrt(area)/2
+    d_dec = np.sqrt(area)/2
+    ra_range = [ra-d_ra, ra+d_ra]
+    dec_range = [dec-d_dec, dec+d_dec]
+    return ra_range, dec_range
+
+
+def _get_random_pixel_coord(num, sky_area=1, phase_centre="J2000,0deg,-30deg"):
+    """Provide random pixel coordinates"""
+    ra_range, dec_range = _get_ra_dec_range(sky_area, phase_centre)
+    COORDs = []
+    for i in range(num):
+        current = []
+        # add another number to the current list
+        current.append(random.uniform(ra_range[0], ra_range[1]))
+        current.append(random.uniform(dec_range[0], dec_range[1]))
+        # convert current list into a tuple and add to resulting list
+        COORDs.append(tuple(current))
+    random.shuffle(COORDs)
+    return COORDs
+
+
+def random_res_noise_ratio(res_noise_images, num_pix=4096, area_factor=2.0,
+                           pix_size=1.0, num_areas=100, directory='.'):
+    beam_deg = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
+    results = dict()
+    # TODO: Get phase centre and sky_area
+    pix_coord_deg = _get_random_pixel_coord(num_areas, sky_area=1.0)
+    rad = lambda a: a*(180/np.pi)  # convert radians to degrees
+    deg2arcsec = lambda a: a*3600  # convert degrees to arcsec
+    for res_image, noise_image in res_noise_images.items():
+        imager = res_image#.split('-')[0].split('_')[-1]
+        noise_sig = noise_sigma('{:s}/{:s}'.format(directory,noise_image))
+        noise_hdu = fitsio.open('{:s}/{:s}'.format(directory,noise_image))
+        noise_data = noise_hdu[0].data
+        results[imager] = []
+        residual_hdu = fitsio.open('{:s}/{:s}'.format(directory,res_image))
+        # Get the header data unit for the residual rms
+        residual_data = residual_hdu[0].data
+        res_header = residual_hdu[0].header
+        nchan = (residual_data.shape[1] if residual_data.shape[0] == 1
+                 else residual_data.shape[0])
+        for RA, DEC in pix_coord_deg:
+            fits_info = fitsInfo('{:s}/{:s}'.format(directory,res_image))
+            #beam_deg = fits_info['b_size']
+            #rgn = sky2px(fits_info["wcs"],RA,DEC,dra,ddec,fits_info["dra"], beam[1])
+            #imslice = slice(rgn[2], rgn[3]), slice(rgn[0], rgn[1])
+            width = int(deg2arcsec(beam_deg[0])*area_factor)
+            imslice = get_box(fits_info["wcs"], (RA, DEC), width)
+            noise_area = noise_data[0,0,:,:][imslice]
+            noise_rms = noise_area.std()
+            # if image is cube then average along freq axis
+            flux_std = 0.0
+            flux_mean = 0.0
+            for frq_ax in range(nchan):
+                if residual_data.shape[0] == 1:
+                    target_area = residual_data[0,frq_ax,:,:][imslice]
+                else:
+                    target_area = residual_data[frq_ax,0,:,:][imslice]
+                flux_std += target_area.std()
+                flux_mean += target_area.mean()
+                if frq_ax == nchan - 1:
+                    flux_std = flux_std/float(nchan)
+                    flux_mean = flux_mean/float(nchan)
+            results[imager].append([flux_std,
+                                    noise_rms,
+                                    flux_std/noise_rms,
+                                    flux_mean,
+                                    flux_mean/noise_rms])
+    return results
 
 
 def residual_image_stats(fitsname, test_model=None, data_range=None):
@@ -583,6 +683,12 @@ def compare_models(models, tolerance=0.00001, plot=True):
     return results
 
 
+def compare_residuals(residuals, points=100, plot=True):
+    if plot:
+        _random_residual_plotter(residuals, points)
+
+
+
 def _source_flux_plotter(results, models):
     """Plot flux results and save output as html file.
 
@@ -840,6 +946,102 @@ def _source_astrometry_plotter(results, models):
     py.plot(fig, filename=outfile, auto_open=False)
 
 
+def _random_residual_plotter(res_noise_images, points):
+    """Plot ratios of random residuals and noise"""
+    im_titles = []
+    TO_MICRO = UNIT_SCALER['micro']
+    noise1 = res_noise_images[0]['path']
+    noise2 = res_noise_images[-1]['path']
+    header1 = noise1[:-5]
+    header2 = noise2[:-5]
+    im_titles.append('<b>{:s} RMS</b>'.format(header1.upper()))
+    im_titles.append('<b>{:s} residual-noise</b>'.format(header2.upper()))
+    res = random_res_noise_ratio(res_noise_images={noise1: noise2}, num_areas=points)
+
+    fig = tools.make_subplots(rows=1, cols=2,
+                              shared_yaxes=False, print_grid=False,
+                              horizontal_spacing=0.15,
+                              vertical_spacing=0.15,
+                              subplot_titles=im_titles)
+    i = 0
+    counter = 1
+    residual_image = noise1
+    rmss = []
+    residuals = []
+    res_noise_ratio = []
+    imager = residual_image
+    k = 0
+    for res_src in res[imager]:
+        residuals.append(res_src[0])
+        rmss.append(res_src[1])
+        res_noise_ratio.append(res_src[2])
+        k += 1
+    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(rmss)*TO_MICRO,
+                                mode='lines',
+                                showlegend=False if i == 0 else False,
+                                #text=name_labels, name='noise',
+                                marker=dict(color='rgb(255,0,0)'),
+                                error_y=dict(type='data', #array=SCALE_ERR,
+                                             color='rgb(158, 63, 221)',
+                                             visible=True)), i+1, 1)
+    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(residuals)*TO_MICRO,
+                                mode='lines', showlegend=False if i == 0 else False,
+                                #text = name_labels, name = 'residual',
+                                marker=dict(color='rgb(0,0,255)'),
+                                error_y=dict(type='data', #array=SCALE_ERR,
+                                             color='rgb(158, 63, 221)', visible=True)), i+1, 1)
+    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(res_noise_ratio),
+                                mode='markers', showlegend=False,
+                               # text = name_labels,# name = '%s flux_ratio' % imager,
+                                marker=dict(color='rgb(158, 63, 221)'),
+                                error_y=dict(type='data',
+                                             color='rgb(158, 63, 221)', visible=True)), i+1, 2)
+#        pi,sin,cos = np.pi,np.sin,np.cos
+    fig['layout'].update(title='', height=800, width=1500,
+                         paper_bgcolor='rgb(255,255,255)', #plot_bgcolor='rgb(229,229,229)',
+                         legend=dict(xanchor=True, x=1.0, y=1.05))
+    fig['layout'].update(
+        {'yaxis{}'.format(counter+i): YAxis(title=u'rms [\u03BCJy]',
+                                            gridcolor='rgb(255,255,255)',
+                                            color='rgb(0,0,0)',
+        #range=[1,10],
+        tickfont=dict(size=14, color='rgb(0,0,0)'),
+        titlefont=dict(size=17),
+        showgrid=True,
+        showline=True,
+        showticklabels=True,
+        tickcolor='rgb(51,153,225)',
+        ticks='outside',
+        zeroline=False)})
+    fig['layout'].update(
+        {'yaxis{}'.format(counter+i+1): YAxis(title=u'$I_{res}/I_{noise}$',
+                                              gridcolor='rgb(255,255,255)',
+                                              color='rgb(0,0,0)',
+                                             #range=res_axis_min_max if _scaley.value else [],
+        #range=[1,10],
+        tickfont=dict(size=10, color='rgb(0,0,0)'),
+        titlefont=dict(size=15),
+        showgrid=True,
+        showline=True,
+        showticklabels=True,
+        tickcolor='rgb(51,153,225)',
+        ticks='outside',
+        zeroline=False)})
+    fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='Sources',
+                                                             titlefont=dict(size=17),
+                                                             showline=True,
+                                                             zeroline=False,
+                                                             position=0.0,
+                                                             overlaying='x')})
+    fig['layout'].update({'xaxis{}'.format(counter+i+1): XAxis(title='Sources',
+                                                               titlefont=dict(size=17),
+                                                               showline=True,
+                                                               zeroline=False)})
+    outfile = 'ResidualNoiseRation.html'
+    py.plot(fig, filename=outfile, auto_open=False)
+    return res
+
+
 def get_argparser():
     """Get argument parser."""
     parser = argparse.ArgumentParser(
@@ -866,7 +1068,12 @@ def get_argparser():
              help='Factor to multiply the beam area to get target peak area')
     argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
-                  'e.g. --compare-models model1.lsm.html, model2.lsm.html')
+                  'e.g. --compare-models model1.lsm.html model2.lsm.html')
+    argument('--compare-residual2noise', dest='noise', nargs="+", type=str,
+             help='List of noise-like (fits) files to compare \n'
+                  'e.g. --compare-residuals2noise residuals.fits noise.fits')
+    argument('-dp', '--data-points',  dest='points',
+             help='Data points to sample the residual/noise image')
     argument("--label",
              help="Use this label instead of the FITS image path when saving data as JSON file")
     return parser
@@ -879,7 +1086,8 @@ def main():
     output_dict = dict()
     R = '\033[31m'  # red
     W = '\033[0m'   # white (normal)
-    if not args.residual and not args.restored and not args.model and not args.models:
+    if not args.residual and not args.restored and not args.model \
+            and not args.models and not args.noise:
         print("{:s}Please provide lsm.html/fits file name(s)."
               "\nOr\naimfast -h for arguments{:s}".format(R, W))
 
@@ -974,5 +1182,20 @@ def main():
                         dict(label="{0:s}-model2".format(args.label), path=model2),
                     ]
                 )
+
+    if args.noise:
+        residuals = args.noise
+        print("Number of model files: {:d}".format(len(residuals)))
+        if len(residuals) > 2 or len(residuals) < 2:
+            print("{:s}Can only compare two models at a time.{:s}".format(R, W))
+        else:
+            noise1, noise2 = residuals
+            output_dict = compare_residuals(
+                    [
+                        dict(label="{0:s}-noise1".format(args.label), path=noise1),
+                        dict(label="{0:s}-noise2".format(args.label), path=noise2),
+                    ], int(args.points) if args.points else 100
+                )
+
     if output_dict:
         json_dump(output_dict)
