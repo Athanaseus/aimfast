@@ -978,17 +978,19 @@ def _random_residual_plotter(res_noise_images, points):
         k += 1
     fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(rmss)*TO_MICRO,
                                 mode='lines',
-                                showlegend=False if i == 0 else False,
-                                #text=name_labels, name='noise',
+                                showlegend=True if i == 0 else False,
+                                name='residual image 1',
+                                #text=name_labels,
                                 marker=dict(color='rgb(255,0,0)'),
-                                error_y=dict(type='data', #array=SCALE_ERR,
+                                error_y=dict(type='data',
                                              color='rgb(158, 63, 221)',
                                              visible=True)), i+1, 1)
     fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(residuals)*TO_MICRO,
-                                mode='lines', showlegend=False if i == 0 else False,
-                                #text = name_labels, name = 'residual',
+                                mode='lines', showlegend=True if i == 0 else False,
+                                name='residual image 2',
+                                #text=name_labels,
                                 marker=dict(color='rgb(0,0,255)'),
-                                error_y=dict(type='data', #array=SCALE_ERR,
+                                error_y=dict(type='data',
                                              color='rgb(158, 63, 221)', visible=True)), i+1, 1)
     fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(res_noise_ratio),
                                 mode='markers', showlegend=False,
@@ -996,15 +998,13 @@ def _random_residual_plotter(res_noise_images, points):
                                 marker=dict(color='rgb(158, 63, 221)'),
                                 error_y=dict(type='data',
                                              color='rgb(158, 63, 221)', visible=True)), i+1, 2)
-#        pi,sin,cos = np.pi,np.sin,np.cos
     fig['layout'].update(title='', height=800, width=1500,
-                         paper_bgcolor='rgb(255,255,255)', #plot_bgcolor='rgb(229,229,229)',
+                         paper_bgcolor='rgb(255,255,255)', plot_bgcolor='rgb(229,229,229)',
                          legend=dict(xanchor=True, x=1.0, y=1.05))
     fig['layout'].update(
         {'yaxis{}'.format(counter+i): YAxis(title=u'rms [\u03BCJy]',
                                             gridcolor='rgb(255,255,255)',
                                             color='rgb(0,0,0)',
-        #range=[1,10],
         tickfont=dict(size=14, color='rgb(0,0,0)'),
         titlefont=dict(size=17),
         showgrid=True,
@@ -1014,11 +1014,9 @@ def _random_residual_plotter(res_noise_images, points):
         ticks='outside',
         zeroline=False)})
     fig['layout'].update(
-        {'yaxis{}'.format(counter+i+1): YAxis(title=u'$I_{res}/I_{noise}$',
+        {'yaxis{}'.format(counter+i+1): YAxis(title='${I_{res}/I_{noise}}$',
                                               gridcolor='rgb(255,255,255)',
                                               color='rgb(0,0,0)',
-                                             #range=res_axis_min_max if _scaley.value else [],
-        #range=[1,10],
         tickfont=dict(size=10, color='rgb(0,0,0)'),
         titlefont=dict(size=15),
         showgrid=True,
@@ -1037,7 +1035,7 @@ def _random_residual_plotter(res_noise_images, points):
                                                                titlefont=dict(size=17),
                                                                showline=True,
                                                                zeroline=False)})
-    outfile = 'ResidualNoiseRation.html'
+    outfile = 'RandomResidualNoiseRatio.html'
     py.plot(fig, filename=outfile, auto_open=False)
     return res
 
@@ -1074,8 +1072,12 @@ def get_argparser():
                   'e.g. --compare-residuals2noise residuals.fits noise.fits')
     argument('-dp', '--data-points',  dest='points',
              help='Data points to sample the residual/noise image')
+    argument('-sm', '--source-model',  dest='sources',
+             help='Name of the tigger model lsm.html/txt file to locate exact'
+                  'source residuals')
     argument("--label",
-             help="Use this label instead of the FITS image path when saving data as JSON file")
+             help='Use this label instead of the FITS image path when saving'
+                  'data as JSON file')
     return parser
 
 
@@ -1190,12 +1192,22 @@ def main():
             print("{:s}Can only compare two models at a time.{:s}".format(R, W))
         else:
             noise1, noise2 = residuals
-            output_dict = compare_residuals(
-                    [
-                        dict(label="{0:s}-noise1".format(args.label), path=noise1),
-                        dict(label="{0:s}-noise2".format(args.label), path=noise2),
-                    ], int(args.points) if args.points else 100
-                )
+            if args.sources:
+                pass
+#                output_dict = compare_source_residuals(
+#                        [
+#                            dict(label="{0:s}-noise1".format(args.label), path=noise1),
+#                            dict(label="{0:s}-noise2".format(args.label), path=noise2),
+#                        ], args.sources
+#                    )
+            else:
+                output_dict = compare_residuals(
+                        [
+                            dict(label="{0:s}-noise1".format(args.label), path=noise1),
+                            dict(label="{0:s}-noise2".format(args.label), path=noise2),
+                        ], int(args.points) if args.points else 100
+                    )
+
 
     if output_dict:
         json_dump(output_dict)
