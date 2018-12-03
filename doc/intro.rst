@@ -147,7 +147,8 @@ appended to the same json file.
 .. code-block:: bash
 
     $ cat fidelity_results.json
-    $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05, "MEAN": 4.747e-07}, "cube.image.fits": {"DR": 53.868}}
+    $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05, "MEAN": 4.747e-07},
+           "cube.image.fits": {"DR": 53.868}}
 
 
 Get combination of the four (4) moments and dynamic range in one step:
