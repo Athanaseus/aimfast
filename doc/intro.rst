@@ -198,4 +198,14 @@ For astrometry, the more sources lie on the y=0 (Delta-position axis) in the lef
     :figclass: align-center
 
     Figure 4. Input-Output Astrometry (txt/lsm.html) model comparison
+    
+For random residual noise comparison, the plot on the left shows the residuals on image 1 and image 2 overlayed and the plot on the right shows the ratios.
+
+   .. figure:: https://user-images.githubusercontent.com/16665629/49361133-e1bbf200-f6e3-11e8-8f3e-f446cacfee66.png
+    :width: 60%
+    :align: center
+    :alt: alternate text
+    :figclass: align-center
+
+    Figure 5. The random residual-to-residual/noise ratio measurements
 
