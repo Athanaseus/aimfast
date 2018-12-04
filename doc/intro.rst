@@ -147,7 +147,8 @@ appended to the same json file.
 .. code-block:: bash
 
     $ cat fidelity_results.json
-    $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05, "MEAN": 4.747e-07}, "cube.image.fits": {"DR": 53.868}}
+    $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05, "MEAN": 4.747e-07},
+           "cube.image.fits": {"DR": 53.868}}
 
 
 Get combination of the four (4) moments and dynamic range in one step:
@@ -181,8 +182,8 @@ Where --psf-image | -psf is the Name of the point spread function file or psf si
 
 For Flux density, the more the data points rest on the y=x (or I_out=I_in), the more correlated the two models are.
 
-   .. figure:: https://user-images.githubusercontent.com/16665629/37516078-a82e0880-2915-11e8-8507-2002da8a6527.png
-    :width: 60%
+   .. figure:: https://user-images.githubusercontent.com/16665629/49431777-e9989680-f7b6-11e8-899b-cfe100f47ac7.png
+    :width: 50%
     :align: center
     :alt: alternate text
     :figclass: align-center
@@ -198,14 +199,27 @@ For astrometry, the more sources lie on the y=0 (Delta-position axis) in the lef
     :figclass: align-center
 
     Figure 4. Input-Output Astrometry (txt/lsm.html) model comparison
-    
-For random residual noise comparison, the plot on the left shows the residuals on image 1 and image 2 overlayed and the plot on the right shows the ratios.
 
-   .. figure:: https://user-images.githubusercontent.com/16665629/49361133-e1bbf200-f6e3-11e8-8f3e-f446cacfee66.png
+Furthermore, a comparison of residuals/noise can be performed as follows: To get random residual flux measurements in a `residual1.fits` and `residual2.fits` images
+
+.. code-block:: bash
+
+    $ aimfast --compare-residuals residual1.fits residual2.fits -dp 100
+
+where -dp is the number of data points to sample. To get on source residual flux measurements in a `residual1.fits` and `residual2.fits` images
+
+.. code-block:: bash
+
+    $ aimfast --compare-residuals residual1.fits residual2.fits --tigger-model model.lsm.html
+
+where --tigger-model is the name of the tigger model lsm.html file to locate exact source residuals.
+For random or on source residual noise comparisons, the plot on the left shows the residuals on image 1 and image 2 overlayed and the plot on the right shows the ratios. The colorbar shows the distance of the sources from the phase centre.
+
+   .. figure:: https://user-images.githubusercontent.com/16665629/49431465-3fb90a00-f7b6-11e8-929a-c80633b6fe73.png
     :width: 60%
     :align: center
     :alt: alternate text
     :figclass: align-center
 
-    Figure 5. The random residual-to-residual/noise ratio measurements
+    Figure 5. The random/source residual-to-residual/noise ratio measurements
 

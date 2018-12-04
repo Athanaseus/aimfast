@@ -20,3 +20,7 @@
 -----
 - Compare input-output astrometry tigger models and plot correlation
 - Compute correlation stats between output and input data-set
+
+0.2.1
+-----
+- Compare the on source/random residuals to noise
