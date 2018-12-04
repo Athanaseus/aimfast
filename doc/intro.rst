@@ -183,7 +183,7 @@ Where --psf-image | -psf is the Name of the point spread function file or psf si
 For Flux density, the more the data points rest on the y=x (or I_out=I_in), the more correlated the two models are.
 
    .. figure:: https://user-images.githubusercontent.com/16665629/49431777-e9989680-f7b6-11e8-899b-cfe100f47ac7.png
-    :width: 60%
+    :width: 50%
     :align: center
     :alt: alternate text
     :figclass: align-center
