@@ -434,7 +434,9 @@ def image_dynamic_range(fitsname, area_factor=6):
 
     """
     fits_info = fitsInfo(fitsname)
-    beam_deg = fits_info['b_size']
+    # Get beam size otherwise use default (5``).
+    beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
+    beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
     # Open the restored image
     restored_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
@@ -1057,21 +1059,24 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
     # Get residual image names
     res_image = res_noise_images[0]['path']
     noise_image = res_noise_images[-1]['path']
+    # Residual-noise dictionary
+    res_noise_image_dict = {res_image: noise_image}
     # Get label
     label = res_noise_images[0]['label']
     if 'None' in label:
         label = res_image[:-5]
     # Get fits info
     fits_info = fitsInfo(res_image)
-    # Residual-noise dictionary
-    res_noise_images = {res_image: noise_image}
+    # Get beam size otherwise use default (5``).
+    beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
+    beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
     # Get random pixel coordinates
     pix_coord_deg = _get_random_pixel_coord(data_points,
-                                            sky_area=fits_info['skyArea'],
+                                            sky_area=fits_info['skyArea']*0.9,
                                             phase_centre=fits_info['centre'])
     # Source counter
     i = 0
-    for res_image, noise_image in res_noise_images.items():
+    for res_image, noise_image in res_noise_image_dict.items():
         # Open noise header
         noise_hdu = fitsio.open(noise_image)
         # Get data from noise image
@@ -1087,9 +1092,6 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
                  else residual_data.shape[0])
         for RA, DEC in pix_coord_deg:
             i += 1
-            # Get beam size otherwise use default (5``).
-            beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
-            beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
             # Get width of box around source
             width = int(deg2arcsec(beam_deg[0])*area_factor)
             # Get a image slice around source
@@ -1112,11 +1114,15 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
             # Get the average std and mean along all frequency channels
             flux_std = flux_std/float(nchan)
             flux_mean = flux_mean/float(nchan)
+            # Get phase centre and determine phase centre distance
+            RA0 = float(fits_info['centre'].split(',')[1].split('deg')[0])
+            DEC0 = float(fits_info['centre'].split(',')[-1].split('deg')[0])
+            phase_dist_arcsec = deg2arcsec(np.sqrt((RA-RA0)**2 + (DEC-DEC0)**2))
             # Store all outputs in the results data structure
             results[label].append([noise_rms,
                                    flux_std,
                                    flux_std/noise_rms,
-                                   0, 'source{0}'.format(i),
+                                   phase_dist_arcsec, 'source{0}'.format(i),
                                    flux_mean,
                                    flux_mean/noise_rms])
     return results
