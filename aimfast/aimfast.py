@@ -17,6 +17,7 @@ import scipy.ndimage.measurements as measure
 from sklearn.metrics import mean_squared_error
 from Tigger.Coordinates import angular_dist_pos_angle
 
+
 PLOT_NUM = {'colorbar':
                {   # num of plots: [colorbar spacing, colorbar y, colorbar len]
                 1: [0.95, 0.5, 0.95],
@@ -96,7 +97,9 @@ def fitsInfo(fitsname=None):
         Dictionary of fits information
         e.g. {'wcs': wcs, 'ra': ra, 'dec': dec,
         'dra': dra, 'ddec': ddec, 'raPix': raPix,
-        'decPix': decPix,  'b_scale': beam_scale}
+        'decPix': decPix,  'b_size': beam_size,
+        'numPix': numPix, 'centre': centre,
+        'skyArea': skyArea}
 
     """
     hdu = fitsio.open(fitsname)
@@ -108,10 +111,23 @@ def fitsInfo(fitsname=None):
     ddec = abs(hdr['CDELT2'])
     decPix = hdr['CRPIX2']
     wcs = WCS(hdr, mode='pyfits')
-    beam_size = (hdr['BMAJ'], hdr['BMIN'], hdr['BPA'])
+    numPix = hdr['NAXIS1']
+    try:
+        beam_size = (hdr['BMAJ'], hdr['BMIN'], hdr['BPA'])
+    except:
+        beam_size = None
+    try:
+        centre = '{0},{1},{2}'.format('J'+str(hdr['EQUINOX']),
+                                      str(hdr['CRVAL1'])+hdr['CUNIT1'],
+                                      str(hdr['CRVAL2'])+hdr['CUNIT2'])
+    except:
+        centre = 'J2000.0,0.0deg,-30.0deg'
+    skyArea = (numPix*ddec)**2
     fitsinfo = {'wcs': wcs, 'ra': ra, 'dec': dec,
                 'dra': dra, 'ddec': ddec, 'raPix': raPix,
-                'decPix': decPix,  'b_size': beam_size}
+                'decPix': decPix,  'b_size': beam_size,
+                'numPix': numPix, 'centre': centre,
+                'skyArea': skyArea}
     return fitsinfo
 
 
@@ -187,14 +203,78 @@ def get_box(wcs, radec, w):
     return box
 
 
-def residual_image_stats(fitsname, test_model=None, data_range=None):
+def noise_sigma(noise_image):
+    """Determines the noise sigma level in a dirty image with no source
+
+    Parameters
+    ----------
+    noise_image: file
+        Noise image (cube).
+
+    Returns
+    -------
+    noise_std: float
+        Noise image standard deviation
+
+"""
+    # Read the simulated noise image
+    dirty_noise_hdu = fitsio.open(noise_image)
+    # Get the header data unit for the simulated noise
+    dirty_noise_data = dirty_noise_hdu[0].data
+    # Get the noise sigma
+    noise_std = dirty_noise_data.std()
+    return noise_std
+
+
+def _get_ra_dec_range(area, phase_centre="J2000,0deg,-30deg"):
+    """Get RA and DEC range from area of observations and phase centre"""
+    ra = float(phase_centre.split(',')[1].split('deg')[0])
+    dec = float(phase_centre.split(',')[2].split('deg')[0])
+    d_ra = np.sqrt(area)/2
+    d_dec = np.sqrt(area)/2
+    ra_range = [ra-d_ra, ra+d_ra]
+    dec_range = [dec-d_dec, dec+d_dec]
+    return ra_range, dec_range
+
+
+def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
+    """Provides random pixel coordinates
+
+    Parameters
+    ----------
+    num: int
+        Number of data points
+    sky: float
+        Sky area to extract random points
+    phase_centre: str
+        Phase tracking centre of the telescope during observation
+
+    Returns
+    -------
+    COORDs: list
+        List of coordinates
+    """
+    ra_range, dec_range = _get_ra_dec_range(sky_area, phase_centre)
+    COORDs = []
+    for i in range(num):
+        current = []
+        # add another number to the current list
+        current.append(random.uniform(ra_range[0], ra_range[1]))
+        current.append(random.uniform(dec_range[0], dec_range[1]))
+        # convert current list into a tuple and add to resulting list
+        COORDs.append(tuple(current))
+    random.shuffle(COORDs)
+    return COORDs
+
+
+def residual_image_stats(fitsname, test_normality=None, data_range=None):
     """Gets statistcal properties of a residual image.
 
     Parameters
     ----------
     fitsname : file
         Residual image (cube).
-    test_model : str
+    test_normality : str
         Perform normality testing using either `shapiro` or `normaltest`.
     data_range : int, optional
         Range of data to perform normality testing.
@@ -229,8 +309,8 @@ def residual_image_stats(fitsname, test_model=None, data_range=None):
     # Compute the kurtosis of the residual
     res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
     # Perform normality testing
-    if test_model:
-        norm_props = normality_testing(fitsname, test_model, data_range)
+    if test_normality:
+        norm_props = normality_testing(fitsname, test_normality, data_range)
         props = dict(res_props.items() + norm_props.items())
     else:
         props = res_props
@@ -238,14 +318,14 @@ def residual_image_stats(fitsname, test_model=None, data_range=None):
     return props
 
 
-def normality_testing(fitsname, test_model='normaltest', data_range=None):
+def normality_testing(fitsname, test_normality='normaltest', data_range=None):
     """Performs a normality test on the image.
 
     Parameters
     ----------
     fitsname : file
         Residual image (cube).
-    test_model : str
+    test_normality : str
         Perform normality testing using either `shapiro` or `normaltest`.
     data_range : int
         Range of data to perform normality testing.
@@ -276,22 +356,22 @@ def normality_testing(fitsname, test_model='normaltest', data_range=None):
         for dataset in range(len(res_data)/data_range):
             i = counter
             counter += data_range
-            norm_res.append(getattr(stats, test_model)(res_data[i:counter]))
+            norm_res.append(getattr(stats, test_normality)(res_data[i:counter]))
         # Compute sum of pvalue
-        if test_model == 'normaltest':
+        if test_normality == 'normaltest':
             sum_statistics = sum([norm.statistic for norm in norm_res])
             sum_pvalues = sum([norm.pvalue for norm in norm_res])
-        elif test_model == 'shapiro':
+        elif test_normality == 'shapiro':
             sum_statistics = sum([norm[0] for norm in norm_res])
             sum_pvalues = sum([norm[1] for norm in norm_res])
         normality['NORM'] = (sum_statistics/dataset, sum_pvalues/dataset)
     else:
-        norm_res = getattr(stats, test_model)(res_data)
-        if test_model == 'normaltest':
+        norm_res = getattr(stats, test_normality)(res_data)
+        if test_normality == 'normaltest':
             statistic = float(norm_res.statistic)
             pvalue = float(norm_res.pvalue)
             normality['NORM'] = (statistic, pvalue)
-        elif test_model == 'shapiro':
+        elif test_normality == 'shapiro':
             normality['NORM'] = norm_res
     return normality
 
@@ -369,7 +449,9 @@ def image_dynamic_range(fitsname, area_factor=6):
 
     """
     fits_info = fitsInfo(fitsname)
-    beam_deg = fits_info['b_size']
+    # Get beam size otherwise use default (5``).
+    beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
+    beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
     # Open the restored image
     restored_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
@@ -391,7 +473,7 @@ def image_dynamic_range(fitsname, area_factor=6):
     min_flux = 0.0
     for frq_ax in range(nchan):
         # In the case where the 0th and 1st axis of the image are not in order
-        # i.e. (0, nchan, x_pix, y_pix
+        # i.e. (0, nchan, x_pix, y_pix)
         if restored_data.shape[0] == 1:
             target_area = restored_data[0, frq_ax, :, :][imslice]
         else:
@@ -403,7 +485,6 @@ def image_dynamic_range(fitsname, area_factor=6):
     local_std = target_area.std()
     global_std = restored_data[0, 0, ...].std()
     # Compute dynamic range
-
     DR = {
         "deepest_negative"  : peak_flux/abs(min_flux)*1e0,
         "local_rms"         : peak_flux/local_std*1e0,
@@ -581,6 +662,16 @@ def compare_models(models, tolerance=0.00001, plot=True):
         _source_flux_plotter(results, models)
         _source_astrometry_plotter(results, models)
     return results
+
+
+def compare_residuals(residuals, skymodel=None, points=None, plot=True):
+    if skymodel:
+        res = _source_residual_results(residuals, skymodel, area_factor=2)
+    else:
+        res = _random_residual_results(residuals, points)
+    if plot:
+        _residual_plotter(residuals, results=res, points=points)
+    return res
 
 
 def _source_flux_plotter(results, models):
@@ -840,13 +931,328 @@ def _source_astrometry_plotter(results, models):
     py.plot(fig, filename=outfile, auto_open=False)
 
 
+def _residual_plotter(res_noise_images, points=None, results=None):
+    """Plot ratios of random residuals and noise
+
+    Parameters
+    ----------
+    res_noise_images: dict
+        Structured input images with labels.
+    points: int
+        Number of data point to generate in case of random residuals
+    results: dict
+        Structured output results.
+
+    """
+    # Converter
+    TO_MICRO = UNIT_SCALER['micro']
+    # Plot titles
+    im_titles = []
+    # Get residual image names
+    res_image = res_noise_images[0]['path']
+    noise_image = res_noise_images[-1]['path']
+    # Get label
+    label = res_noise_images[0]['label']
+    if 'None' in label:
+        label = res_image[:-5]
+    # Assign plot titles
+    header1 = res_image[:-5]
+    header2 = noise_image[:-5]
+    im_titles.append('<b>{:s} RMS</b>'.format(header1.upper()))
+    im_titles.append('<b>{:s} residual-noise</b>'.format(header2.upper()))
+    # Create figure canvas
+    fig = tools.make_subplots(rows=1, cols=2,
+                              shared_yaxes=False,
+                              print_grid=False,
+                              horizontal_spacing=0.15,
+                              vertical_spacing=0.15,
+                              subplot_titles=im_titles)
+    i = 0
+    counter = 1
+    rmss = []
+    residuals = []
+    name_labels = []
+    dist_from_phase = []
+    res_noise_ratio = []
+    for res_src in results[label]:
+        rmss.append(res_src[0])
+        residuals.append(res_src[1])
+        res_noise_ratio.append(res_src[2])
+        dist_from_phase.append(res_src[3])
+        name_labels.append(res_src[4])
+    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(rmss)*TO_MICRO,
+                                mode='lines',
+                                showlegend=True if i == 0 else False,
+                                name='residual image 1',
+                                text=name_labels,
+                                marker=dict(color='rgb(255,0,0)'),
+                                error_y=dict(type='data',
+                                             color='rgb(158, 63, 221)',
+                                             visible=True)), i+1, 1)
+    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(residuals)*TO_MICRO,
+                                mode='lines', showlegend=True if i == 0 else False,
+                                name='residual image 2',
+                                text=name_labels,
+                                marker=dict(color='rgb(0,0,255)'),
+                                error_y=dict(type='data',
+                                             color='rgb(158, 63, 221)', visible=True)), i+1, 1)
+    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(res_noise_ratio),
+                                mode='markers', showlegend=False,
+                                text=name_labels,
+                                marker=dict(color=dist_from_phase, showscale=True, colorscale='Jet',
+                                colorbar=dict(title='Phase center dist (arcsec)',
+                                              titleside='right')),
+                                error_y=dict(type='data',
+                                             color='rgb(158, 63, 221)', visible=True)), i+1, 2)
+    fig['layout'].update(title='', height=800, width=1500,
+                         paper_bgcolor='rgb(255,255,255)', plot_bgcolor='rgb(229,229,229)',
+                         legend=dict(xanchor=True, x=1.0, y=1.05))
+    fig['layout'].update(
+        {'yaxis{}'.format(counter+i): YAxis(title=u'rms [\u03BCJy]',
+                                            gridcolor='rgb(255,255,255)',
+                                            color='rgb(0,0,0)',
+        tickfont=dict(size=14, color='rgb(0,0,0)'),
+        titlefont=dict(size=17),
+        showgrid=True,
+        showline=True,
+        showticklabels=True,
+        tickcolor='rgb(51,153,225)',
+        ticks='outside',
+        zeroline=False)})
+    fig['layout'].update(
+        {'yaxis{}'.format(counter+i+1): YAxis(title=u'${I_{res}/I_{noise}}$',
+                                              gridcolor='rgb(255,255,255)',
+                                              color='rgb(0,0,0)',
+        tickfont=dict(size=10, color='rgb(0,0,0)'),
+        titlefont=dict(size=15),
+        showgrid=True,
+        showline=True,
+        showticklabels=True,
+        tickcolor='rgb(51,153,225)',
+        ticks='outside',
+        zeroline=False)})
+    fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='Sources',
+                                                             titlefont=dict(size=17),
+                                                             showline=True,
+                                                             zeroline=False,
+                                                             position=0.0,
+                                                             overlaying='x')})
+    fig['layout'].update({'xaxis{}'.format(counter+i+1): XAxis(title='Sources',
+                                                               titlefont=dict(size=17),
+                                                               showline=True,
+                                                               zeroline=False)})
+    if points:
+        outfile = 'RandomResidualNoiseRatio.html'
+    else:
+        outfile = 'SourceResidualNoiseRatio.html'
+    py.plot(fig, filename=outfile, auto_open=False)
+
+
+def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0):
+    """Plot ratios of random residuals and noise
+
+    Parameters
+    ----------
+    res_noise_images: list
+        List of dictionaries with residual images
+    data_points: int
+        Number of data points to extract
+    area_factor : float
+        Factor to multiply the beam area.
+
+    Returns
+    -------
+    results : dict
+        Dictionary of source residual properties from each residual image.
+
+    """
+    # Quick converting functions
+    rad = lambda a: a*(180/np.pi)  # convert radians to degrees
+    deg2arcsec = lambda a: a*3600  # convert degrees to arcsec
+    # Dictinary to store results
+    results = dict()
+    # Get residual image names
+    res_image = res_noise_images[0]['path']
+    noise_image = res_noise_images[-1]['path']
+    # Residual-noise dictionary
+    res_noise_image_dict = {res_image: noise_image}
+    # Get label
+    label = res_noise_images[0]['label']
+    if 'None' in label:
+        label = res_image[:-5]
+    # Get fits info
+    fits_info = fitsInfo(res_image)
+    # Get beam size otherwise use default (5``).
+    beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
+    beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
+    # Get random pixel coordinates
+    pix_coord_deg = _get_random_pixel_coord(data_points,
+                                            sky_area=fits_info['skyArea']*0.9,
+                                            phase_centre=fits_info['centre'])
+    # Source counter
+    i = 0
+    for res_image, noise_image in res_noise_image_dict.items():
+        # Open noise header
+        noise_hdu = fitsio.open(noise_image)
+        # Get data from noise image
+        noise_data = noise_hdu[0].data
+        # Data structure for each residuals to compare
+        results[label] = []
+        residual_hdu = fitsio.open(res_image)
+        # Get the header data unit for the residual rms
+        residual_data = residual_hdu[0].data
+        # Get the number of frequency channels
+        nchan = (residual_data.shape[1]
+                 if residual_data.shape[0] == 1
+                 else residual_data.shape[0])
+        for RA, DEC in pix_coord_deg:
+            i += 1
+            # Get width of box around source
+            width = int(deg2arcsec(beam_deg[0])*area_factor)
+            # Get a image slice around source
+            imslice = get_box(fits_info["wcs"], (RA, DEC), width)
+            # Get noise rms in the box around source
+            noise_area = noise_data[0, 0, :, :][imslice]
+            noise_rms = noise_area.std()
+            # if image is cube then average along freq axis
+            flux_std = 0.0
+            flux_mean = 0.0
+            for frq_ax in range(nchan):
+                # In case the first two axes are swapped
+                if residual_data.shape[0] == 1:
+                    target_area = residual_data[0, frq_ax, :, :][imslice]
+                else:
+                    target_area = residual_data[frq_ax, 0, :, :][imslice]
+                # Sum of all the fluxes
+                flux_std += target_area.std()
+                flux_mean += target_area.mean()
+            # Get the average std and mean along all frequency channels
+            flux_std = flux_std/float(nchan)
+            flux_mean = flux_mean/float(nchan)
+            # Get phase centre and determine phase centre distance
+            RA0 = float(fits_info['centre'].split(',')[1].split('deg')[0])
+            DEC0 = float(fits_info['centre'].split(',')[-1].split('deg')[0])
+            phase_dist_arcsec = deg2arcsec(np.sqrt((RA-RA0)**2 + (DEC-DEC0)**2))
+            # Store all outputs in the results data structure
+            results[label].append([noise_rms,
+                                   flux_std,
+                                   flux_std/noise_rms,
+                                   phase_dist_arcsec, 'source{0}'.format(i),
+                                   flux_mean,
+                                   flux_mean/noise_rms])
+    return results
+
+
+def _source_residual_results(res_noise_images, skymodel, area_factor=2):
+    """Plot ratios of source residuals and noise
+
+    Parameters
+    ----------
+    res_noise: list
+        List of dictionaries with residual images
+    skymodel: file
+        Tigger skymodel file to locate on source residuals
+    area_factor : float
+        Factor to multiply the beam area.
+
+    Returns
+    -------
+    results : dict
+        Dictionary of source residual properties from each residual image.
+
+    """
+    # Quick converting functions
+    rad = lambda a: a*(180/np.pi)  # convert radians to degrees
+    deg2arcsec = lambda a: a*3600  # convert degrees to arcsec
+    # Dictinary to store results
+    results = dict()
+    # Get residual image names
+    res_image = res_noise_images[0]['path']
+    noise_image = res_noise_images[-1]['path']
+    # Get label
+    label = res_noise_images[0]['label']
+    if 'None' in label:
+        label = res_image[:-5]
+    # Get fits info
+    fits_info = fitsInfo(res_image)
+    # Load skymodel to get source positions
+    model_lsm = Tigger.load(skymodel)
+    # Get all sources in the model
+    model_sources = model_lsm.sources
+    # Get global rms of noise image
+    noise_sig = noise_sigma(noise_image)
+    noise_hdu = fitsio.open(noise_image)
+    noise_data = noise_hdu[0].data
+    # Get data from residual image
+    residual_hdu = fitsio.open(res_image)
+    residual_data = residual_hdu[0].data
+    # Data structure for each residuals to compare
+    results[label] = []
+    # Get the number of frequency channels
+    nchan = (residual_data.shape[1]
+             if residual_data.shape[0] == 1
+             else residual_data.shape[0])
+    for model_source in model_sources:
+        src = model_source
+        # Get phase centre Ra and Dec coordinates
+        RA0 = model_lsm.ra0
+        DEC0 = model_lsm.dec0
+        # Get source Ra and Dec coordinates
+        ra = model_source.pos.ra
+        dec = model_source.pos.dec
+        # Convert to degrees
+        RA = rad(ra)
+        DEC = rad(dec)
+        # Remove any wraps
+        if ra > np.pi:
+            ra -= 2.0*np.pi
+        # Get distance from phase centre
+        delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
+        delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
+        # Get beam size otherwise use default (5``).
+        beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
+        beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
+        # Get width of box around source
+        width = int(deg2arcsec(beam_deg[0])*area_factor)
+        # Get a image slice around source
+        imslice = get_box(fits_info["wcs"], (RA, DEC), width)
+        # Get noise rms in the box around source
+        noise_area = noise_data[0, 0, :, :][imslice]
+        noise_rms = noise_area.std()
+        # if image is cube then average along freq axis
+        flux_std = 0.0
+        flux_mean = 0.0
+        for frq_ax in range(nchan):
+            # In case the first two axes are swapped
+            if residual_data.shape[0] == 1:
+                target_area = residual_data[0, frq_ax, :, :][imslice]
+            else:
+                target_area = residual_data[frq_ax, 0, :, :][imslice]
+            # Sum of all the fluxes
+            flux_std += target_area.std()
+            flux_mean += target_area.mean()
+        # Get the average std and mean along all frequency channels
+        flux_std = flux_std/float(nchan)
+        flux_mean = flux_mean/float(nchan)
+        # Store all outputs in the results data structure
+        results[label].append([noise_rms, flux_std,
+                               flux_std/noise_rms,
+                               delta_phase_centre_arc_sec,
+                               model_source.name, src.flux.I,
+                               src.flux.I/flux_std,
+                               src.flux.I/noise_sig, flux_mean,
+                               abs(flux_mean/noise_rms)])
+    return results
+
+
 def get_argparser():
     """Get argument parser."""
     parser = argparse.ArgumentParser(
                  description="Examine radio image fidelity by obtaining: \n"
                              "- The four (4) moments of a residual image \n"
                              "- The Dynamic range in restored image \n"
-                             "- Comparing the tigger input and output model sources")
+                             "- Comparing the tigger input and output model sources \n"
+                             "- Comparing the on source/random residuals to noise")
     argument = partial(parser.add_argument)
     argument('--tigger-model',  dest='model',
              help='Name of the tigger model lsm.html file')
@@ -856,7 +1262,7 @@ def get_argparser():
              help='Name of the point spread function file or psf size in arcsec')
     argument('--residual-image',  dest='residual',
              help='Name of the residual image fits file')
-    argument('--normality-model',  dest='test_model',
+    argument('--normality-test',  dest='test_normality',
              help='Name of model to use for normality testing. \n'
                   'options: [shapiro, normaltest] \n'
                   'NB: normaltest is the D`Agostino')
@@ -866,9 +1272,15 @@ def get_argparser():
              help='Factor to multiply the beam area to get target peak area')
     argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
-                  'e.g. --compare-models model1.lsm.html, model2.lsm.html')
+                  'e.g. --compare-models model1.lsm.html model2.lsm.html')
+    argument('--compare-residuals', dest='noise', nargs="+", type=str,
+             help='List of noise-like (fits) files to compare \n'
+                  'e.g. --compare-residuals2noise residuals.fits noise.fits')
+    argument('-dp', '--data-points',  dest='points',
+             help='Data points to sample the residual/noise image')
     argument("--label",
-             help="Use this label instead of the FITS image path when saving data as JSON file")
+             help='Use this label instead of the FITS image path when saving'
+                  'data as JSON file')
     return parser
 
 
@@ -879,7 +1291,8 @@ def main():
     output_dict = dict()
     R = '\033[31m'  # red
     W = '\033[0m'   # white (normal)
-    if not args.residual and not args.restored and not args.model and not args.models:
+    if not args.residual and not args.restored and not args.model \
+            and not args.models and not args.noise:
         print("{:s}Please provide lsm.html/fits file name(s)."
               "\nOr\naimfast -h for arguments{:s}".format(R, W))
 
@@ -892,7 +1305,7 @@ def main():
         restored_label = args.restored
         model_label = args.model
 
-    if args.model:
+    if args.model and not args.noise:
         if not args.residual:
             raise RuntimeError("{:s}Please provide residual fits file{:s}".format(R, W))
 
@@ -912,15 +1325,15 @@ def main():
             print("{:s}Please provide psf fits file or psf size.\n"
                   "Otherwise a default beam size of five (5``) asec "
                   "is used{:s}".format(R, W))
-        if args.test_model in ['shapiro', 'normaltest']:
+        if args.test_normality in ['shapiro', 'normaltest']:
             if args.data_range:
                 stats = residual_image_stats(args.residual,
-                                             args.test_model,
+                                             args.test_normality,
                                              int(args.data_range))
             else:
-                stats = residual_image_stats(args.residual, args.test_model)
+                stats = residual_image_stats(args.residual, args.test_normality)
         else:
-            if not args.test_model:
+            if not args.test_normality:
                 stats = residual_image_stats(args.residual)
             else:
                 print("{:s}Please provide correct normality"
@@ -934,15 +1347,15 @@ def main():
                         }}.items())
     elif args.residual:
         if args.residual not in output_dict.keys():
-            if args.test_model in ['shapiro', 'normaltest']:
+            if args.test_normality in ['shapiro', 'normaltest']:
                 if args.data_range:
                     stats = residual_image_stats(args.residual,
-                                                 args.test_model,
+                                                 args.test_normality,
                                                  int(args.data_range))
                 else:
-                    stats = residual_image_stats(args.residual, args.test_model)
+                    stats = residual_image_stats(args.residual, args.test_normality)
             else:
-                if not args.test_model:
+                if not args.test_normality:
                     stats = residual_image_stats(args.residual)
                 else:
                     print("{:s}Please provide correct normality"
@@ -974,5 +1387,28 @@ def main():
                         dict(label="{0:s}-model2".format(args.label), path=model2),
                     ]
                 )
-    if output_dict:
+
+    if args.noise:
+        residuals = args.noise
+        print("Number of model files: {:d}".format(len(residuals)))
+        if len(residuals) > 2 or len(residuals) < 2:
+            print("{:s}Can only compare two models at a time.{:s}".format(R, W))
+        else:
+            noise1, noise2 = residuals
+            if args.model:
+                output_dict = compare_residuals(
+                        [
+                            dict(label="{0:s}-noise1".format(args.label), path=noise1),
+                            dict(label="{0:s}-noise2".format(args.label), path=noise2),
+                        ], args.model
+                    )
+            else:
+                output_dict = compare_residuals(
+                        [
+                            dict(label="{0:s}-noise1".format(args.label), path=noise1),
+                            dict(label="{0:s}-noise2".format(args.label), path=noise2),
+                        ], points=int(args.points) if args.points else 100
+                    )
+
+    if output_dict and not args.noise and not args.models:
         json_dump(output_dict)
