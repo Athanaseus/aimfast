@@ -10,7 +10,7 @@ def readme():
         return f.read()
 
 setup(name="aimfast",
-      version="0.2.0",
+      version="0.2.1",
       description="An Astronomical Image Fidelity Assessment Tool.",
       long_description=readme(),
       author="Athanaseus Ramaila",
