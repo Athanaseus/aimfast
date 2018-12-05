@@ -1395,5 +1395,5 @@ def main():
                         ], points=int(args.points) if args.points else 100
                     )
 
-#    if output_dict:
-#        json_dump(output_dict)
+    if output_dict and not args.noise:
+        json_dump(output_dict)
