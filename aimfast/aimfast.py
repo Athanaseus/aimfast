@@ -238,7 +238,22 @@ def _get_ra_dec_range(area, phase_centre="J2000,0deg,-30deg"):
 
 
 def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
-    """Provide random pixel coordinates"""
+    """Provides random pixel coordinates
+
+    Parameters
+    ----------
+    num: int
+        Number of data points
+    sky: float
+        Sky area to extract random points
+    phase_centre: str
+        Phase tracking centre of the telescope during observation
+
+    Returns
+    -------
+    COORDs: list
+        List of coordinates
+    """
     ra_range, dec_range = _get_ra_dec_range(sky_area, phase_centre)
     COORDs = []
     for i in range(num):
@@ -458,7 +473,7 @@ def image_dynamic_range(fitsname, area_factor=6):
     min_flux = 0.0
     for frq_ax in range(nchan):
         # In the case where the 0th and 1st axis of the image are not in order
-        # i.e. (0, nchan, x_pix, y_pix
+        # i.e. (0, nchan, x_pix, y_pix)
         if restored_data.shape[0] == 1:
             target_area = restored_data[0, frq_ax, :, :][imslice]
         else:
@@ -1395,5 +1410,5 @@ def main():
                         ], points=int(args.points) if args.points else 100
                     )
 
-    if output_dict and not args.noise:
+    if output_dict and not args.noise and not args.models:
         json_dump(output_dict)
