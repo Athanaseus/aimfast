@@ -4,10 +4,12 @@ matrix:
   include:
   - env: TARGET=pep8
   - env: TARGET=python2
-install:
-- docker build . -t ${TARGET} -f .travis/${TARGET}.docker
 script:
 - true
+before_install:
+- sudo apt-get install python-qt4 python-numpy
+install:
+- docker build . -t ${TARGET} -f .travis/${TARGET}.docker
 deploy:
   provider: pypi
   user: athanaseus
