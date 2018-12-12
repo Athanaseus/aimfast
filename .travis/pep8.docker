@@ -4,4 +4,4 @@ RUN docker-apt-install python-pip
 RUN pip install pycodestyle
 ADD . /code
 WORKDIR /code
-RUN pycodestyle aimfast
+RUN pycodestyle --ignore=E501 --statistics aimfast
