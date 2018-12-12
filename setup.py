@@ -1,6 +1,7 @@
 import os
 from setuptools import setup, find_packages
 
+pkg = 'aimfast'
 build_root = os.path.dirname(__file__)
 
 
@@ -9,8 +10,8 @@ def readme():
     with open(os.path.join(build_root, 'README.rst')) as f:
         return f.read()
 
-setup(name="aimfast",
-      version="0.2.1",
+setup(name=pkg,
+      version="0.3.0",
       description="An Astronomical Image Fidelity Assessment Tool.",
       long_description=readme(),
       author="Athanaseus Ramaila",
@@ -21,6 +22,7 @@ setup(name="aimfast",
       classifiers=["Intended Audience :: Developers",
                    "Programming Language :: Python :: 2",
                    "Programming Language :: Python :: 3",
+                   "Topic :: Scientific/Engineering :: Astronomy",
                    "Topic :: Software Development :: Libraries :: Python Modules"],
       platforms=["OS Independent"],
       install_requires=["astLib",
