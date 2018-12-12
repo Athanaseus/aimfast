@@ -51,7 +51,7 @@ def rad2deg(x):
 
 def rad2arcsec(x):
     """Converts `x` from radians to arcseconds."""
-    return float(x)*3600.0*180.0/np.pi
+    return float(x)*(3600.0*180.0/np.pi)
 
 
 def json_dump(data_dict, root='.'):
@@ -70,7 +70,7 @@ def json_dump(data_dict, root='.'):
     repeated image assessments will be replaced.
 
     """
-    filename = ('fidelity_results.json')
+    filename = ('{:s}/fidelity_results.json'.format(root))
     try:
         # Extract data from the json data file
         with open(filename) as data_file:
@@ -79,7 +79,7 @@ def json_dump(data_dict, root='.'):
     except IOError:
         data = data_dict
     if data:
-        with open('{:s}/{:s}'.format(root, filename), 'w') as f:
+        with open(filename, 'w') as f:
             json.dump(data, f)
 
 
