@@ -19,20 +19,20 @@ from Tigger.Coordinates import angular_dist_pos_angle
 
 
 PLOT_NUM = {'colorbar':
-               {   # num of plots: [colorbar spacing, colorbar y, colorbar len]
+            {   # num of plots: [colorbar spacing, colorbar y, colorbar len]
                 1: [0.95, 0.5, 0.95],
                 2: [0.59, 0.78, 0.4],
                 3: [0.41, 0.81, 0.34],
                 4: [0.28, 0.86, 0.31],
                 5: [0.22, 0.93, 0.2]
                }
-           }
+            }
 
 
 # Unit multipleirs for plotting
 UNIT_SCALER = {'milli': 1e3,
                'micro': 1e6,
-               'nano' : 1e9}
+               'nano': 1e9}
 
 
 # Backgound color for plots
@@ -216,7 +216,7 @@ def noise_sigma(noise_image):
     noise_std: float
         Noise image standard deviation
 
-"""
+    """
     # Read the simulated noise image
     dirty_noise_hdu = fitsio.open(noise_image)
     # Get the header data unit for the simulated noise
