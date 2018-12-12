@@ -8,8 +8,6 @@ install:
 - docker build . -t ${TARGET} -f .travis/${TARGET}.docker
 script:
 - true
-before_install:
-- sudo apt-get install python-qt4
 deploy:
   provider: pypi
   user: athanaseus
