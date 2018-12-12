@@ -2,7 +2,7 @@ FROM kernsuite/base:3
 MAINTAINER <ramaila.jat@gmail.com>
 RUN docker-apt-install python-pip
 RUN pip install --upgrade pip setuptools
-RUN pip install .[pytest]
 ADD . /code
 WORKDIR /code
+RUN pip install .[python-numpy,pytest]
 RUN py.test -s -vvv /code/aimfast
