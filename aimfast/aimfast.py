@@ -25,8 +25,7 @@ PLOT_NUM = {'colorbar':
                 2: [0.59, 0.78, 0.4],
                 3: [0.41, 0.81, 0.34],
                 4: [0.28, 0.86, 0.31],
-                5: [0.22, 0.93, 0.2]
-               }
+                5: [0.22, 0.93, 0.2]}
             }
 
 
@@ -59,7 +58,7 @@ def deg2arcsec(x):
 
 def rad2deg(x):
     """Converts 'x' from radian to degrees."""
-    return float(x) * (180/np.pi)
+    return float(x) * (180 / np.pi)
 
 
 def rad2arcsec(x):
@@ -138,7 +137,7 @@ def fitsInfo(fitsname=None):
     skyArea = (numPix * ddec)**2
     fitsinfo = {'wcs': wcs, 'ra': ra, 'dec': dec,
                 'dra': dra, 'ddec': ddec, 'raPix': raPix,
-                'decPix': decPix,  'b_size': beam_size,
+                'decPix': decPix, 'b_size': beam_size,
                 'numPix': numPix, 'centre': centre,
                 'skyArea': skyArea}
     return fitsinfo
@@ -165,29 +164,29 @@ def measure_psf(psffile, arcsec_size=20):
         secpix = abs(hdu[0].header['CDELT1'] * 3600)
     # get midpoint and size of cross-sections
     xmid, ymid = measure.maximum_position(pp)
-    sz = int(arcsec_size/secpix)
-    xsec = pp[xmid-sz:xmid+sz, ymid]
-    ysec = pp[xmid, ymid-sz:ymid+sz]
+    sz = int(arcsec_size / secpix)
+    xsec = pp[xmid - sz: xmid + sz, ymid]
+    ysec = pp[xmid, ymid - sz: ymid + sz]
 
     def fwhm(tsec):
         """Determine the full width half maximum"""
-        tmid = len(tsec)/2
+        tmid = len(tsec) / 2
         # find first minima off the peak, and flatten cross-section outside them
         xmin = measure.minimum_position(tsec[:tmid])[0]
         tsec[:xmin] = tsec[xmin]
         xmin = measure.minimum_position(tsec[tmid:])[0]
-        tsec[tmid+xmin:] = tsec[tmid+xmin]
+        tsec[tmid + xmin:] = tsec[tmid + xmin]
         if tsec[0] > .5 or tsec[-1] > .5:
-            print("PSF FWHM over {:.2f} arcsec".format(arcsec_size*2))
+            print("PSF FWHM over {:.2f} arcsec".format(arcsec_size * 2))
             return arcsec_size, arcsec_size
         x1 = interp1d(tsec[:tmid], range(tmid))(0.5)
-        x2 = interp1d(1-tsec[tmid:], range(tmid, len(tsec)))(0.5)
+        x2 = interp1d(1 - tsec[tmid:], range(tmid, len(tsec)))(0.5)
         return x1, x2
 
     ix0, ix1 = fwhm(xsec)
     iy0, iy1 = fwhm(ysec)
-    rx, ry = (ix1-ix0)*secpix, (iy1-iy0)*secpix
-    r0 = (rx+ry)/2
+    rx, ry = (ix1 - ix0) * secpix, (iy1 - iy0) * secpix
+    r0 = (rx + ry) / 2
     return r0
 
 
@@ -212,7 +211,8 @@ def get_box(wcs, radec, w):
     raPix, decPix = wcs.wcs2pix(*radec)
     raPix = int(raPix)
     decPix = int(decPix)
-    box = slice(decPix-w/2, decPix+w/2), slice(raPix-w/2, raPix+w/2)
+    box = (slice(decPix - (w / 2), decPix + (w / 2)),
+           slice(raPix - (w / 2), raPix + (w / 2)))
     return box
 
 
@@ -243,10 +243,10 @@ def _get_ra_dec_range(area, phase_centre="J2000,0deg,-30deg"):
     """Get RA and DEC range from area of observations and phase centre"""
     ra = float(phase_centre.split(',')[1].split('deg')[0])
     dec = float(phase_centre.split(',')[2].split('deg')[0])
-    d_ra = np.sqrt(area)/2
-    d_dec = np.sqrt(area)/2
-    ra_range = [ra-d_ra, ra+d_ra]
-    dec_range = [dec-d_dec, dec+d_dec]
+    d_ra = np.sqrt(area) / 2
+    d_dec = np.sqrt(area) / 2
+    ra_range = [ra - d_ra, ra + d_ra]
+    dec_range = [dec - d_dec, dec + d_dec]
     return ra_range, dec_range
 
 
@@ -366,10 +366,10 @@ def normality_testing(fitsname, test_normality='normaltest', data_range=None):
     norm_res = []
     counter = 0
     if type(data_range) is int:
-        for dataset in range(len(res_data)/data_range):
+        for dataset in range(len(res_data) / data_range):
             i = counter
             counter += data_range
-            norm_res.append(getattr(stats, test_normality)(res_data[i:counter]))
+            norm_res.append(getattr(stats, test_normality)(res_data[i: counter]))
         # Compute sum of pvalue
         if test_normality == 'normaltest':
             sum_statistics = sum([norm.statistic for norm in norm_res])
@@ -377,7 +377,7 @@ def normality_testing(fitsname, test_normality='normaltest', data_range=None):
         elif test_normality == 'shapiro':
             sum_statistics = sum([norm[0] for norm in norm_res])
             sum_pvalues = sum([norm[1] for norm in norm_res])
-        normality['NORM'] = (sum_statistics/dataset, sum_pvalues/dataset)
+        normality['NORM'] = (sum_statistics / dataset, sum_pvalues / dataset)
     else:
         norm_res = getattr(stats, test_normality)(res_data)
         if test_normality == 'normaltest':
@@ -428,9 +428,8 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     DEC = rad2deg(peak_source_flux.pos.dec)
     # Get source region and slice
     wcs = WCS(residual_hdu[0].header, mode="pyfits")
-    width = int(beam_size*area_factor)
+    width = int(beam_size * area_factor)
     imslice = get_box(wcs, (RA, DEC), width)
-    # TODO please confirm
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
     local_std = source_res_area.std()
@@ -730,8 +729,7 @@ def _source_flux_plotter(results, models):
     zipped_props = zip(flux_out_data, flux_out_err_data, flux_in_data,
                        name_labels, phase_center_dist, source_scale)
     (flux_out_data, flux_out_err_data, flux_in_data, name_labels,
-        phase_center_dist, source_scale) = zip(*sorted(
-                zipped_props, key=lambda x: x[0]))
+        phase_center_dist, source_scale) = zip(*sorted(zipped_props, key=lambda x: x[0]))
 
     flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
     reg = linregress(flux_in_data, flux_out_data)
@@ -1267,19 +1265,19 @@ def get_argparser():
                              "- Comparing the tigger input and output model sources \n"
                              "- Comparing the on source/random residuals to noise")
     argument = partial(parser.add_argument)
-    argument('--tigger-model',  dest='model',
+    argument('--tigger-model', dest='model',
              help='Name of the tigger model lsm.html file')
-    argument('--restored-image',  dest='restored',
+    argument('--restored-image', dest='restored',
              help='Name of the restored image fits file')
-    argument('-psf', '--psf-image',  dest='psf',
+    argument('-psf', '--psf-image', dest='psf',
              help='Name of the point spread function file or psf size in arcsec')
-    argument('--residual-image',  dest='residual',
+    argument('--residual-image', dest='residual',
              help='Name of the residual image fits file')
-    argument('--normality-test',  dest='test_normality',
+    argument('--normality-test', dest='test_normality',
              help='Name of model to use for normality testing. \n'
                   'options: [shapiro, normaltest] \n'
                   'NB: normaltest is the D`Agostino')
-    argument('-dr', '--data-range',  dest='data_range',
+    argument('-dr', '--data-range', dest='data_range',
              help='Data range to perform normality testing')
     argument('-af', '--area-factor', dest='factor', type=float, default=6,
              help='Factor to multiply the beam area to get target peak area')
@@ -1289,7 +1287,7 @@ def get_argparser():
     argument('--compare-residuals', dest='noise', nargs="+", type=str,
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals2noise residuals.fits noise.fits')
-    argument('-dp', '--data-points',  dest='points',
+    argument('-dp', '--data-points', dest='points',
              help='Data points to sample the residual/noise image')
     argument("--label",
              help='Use this label instead of the FITS image path when saving'
@@ -1356,8 +1354,7 @@ def main():
                         'DR': DR["global_rms"],
                         'DR_deepest_negative'   : DR["deepest_negative"],
                         'DR_global_rms'         : DR['global_rms'],
-                        'DR_local_rms'          : DR['local_rms'],
-                        }}.items())
+                        'DR_local_rms'          : DR['local_rms']}}.items())
     elif args.residual:
         if args.residual not in output_dict.keys():
             if args.test_normality in ['shapiro', 'normaltest']:
