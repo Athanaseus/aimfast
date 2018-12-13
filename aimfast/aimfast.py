@@ -1,6 +1,7 @@
 import json
 import Tigger
 import random
+import logging
 import argparse
 import numpy as np
 from scipy import stats
@@ -39,19 +40,31 @@ UNIT_SCALER = {'milli': 1e3,
 BG_COLOR = 'rgb(229,229,229)'
 
 
+def creat_logger():
+    """Create a console logger"""
+    log = logging.getLogger(__name__)
+    cfmt = logging.Formatter(('%(name)s - %(asctime)s %(levelname)s - %(message)s'))
+    log.setLevel(logging.DEBUG)
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    console.setFormatter(cfmt)
+    log.addHandler(console)
+    return log
+
+
 def deg2arcsec(x):
     """Converts 'x' from degrees to arcseconds."""
-    return float(x)*3600.00
+    return float(x) * 3600.00
 
 
 def rad2deg(x):
     """Converts 'x' from radian to degrees."""
-    return float(x)*(180/np.pi)
+    return float(x) * (180/np.pi)
 
 
 def rad2arcsec(x):
     """Converts `x` from radians to arcseconds."""
-    return float(x)*(3600.0*180.0/np.pi)
+    return float(x) * (3600.0 * 180.0 / np.pi)
 
 
 def json_dump(data_dict, root='.'):
@@ -117,12 +130,12 @@ def fitsInfo(fitsname=None):
     except:
         beam_size = None
     try:
-        centre = '{0},{1},{2}'.format('J'+str(hdr['EQUINOX']),
-                                      str(hdr['CRVAL1'])+hdr['CUNIT1'],
-                                      str(hdr['CRVAL2'])+hdr['CUNIT2'])
+        centre = '{0},{1},{2}'.format('J' + str(hdr['EQUINOX']),
+                                      str(hdr['CRVAL1']) + hdr['CUNIT1'],
+                                      str(hdr['CRVAL2']) + hdr['CUNIT2'])
     except:
         centre = 'J2000.0,0.0deg,-30.0deg'
-    skyArea = (numPix*ddec)**2
+    skyArea = (numPix * ddec)**2
     fitsinfo = {'wcs': wcs, 'ra': ra, 'dec': dec,
                 'dra': dra, 'ddec': ddec, 'raPix': raPix,
                 'decPix': decPix,  'b_size': beam_size,
@@ -149,7 +162,7 @@ def measure_psf(psffile, arcsec_size=20):
     """
     with fitsio.open(psffile) as hdu:
         pp = hdu[0].data.T[:, :, 0, 0]
-        secpix = abs(hdu[0].header['CDELT1']*3600)
+        secpix = abs(hdu[0].header['CDELT1'] * 3600)
     # get midpoint and size of cross-sections
     xmid, ymid = measure.maximum_position(pp)
     sz = int(arcsec_size/secpix)
