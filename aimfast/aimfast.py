@@ -734,21 +734,21 @@ def _source_flux_plotter(results, models):
     flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
     reg = linregress(flux_in_data, flux_out_data)
     flux_R_score = reg.rvalue
-    annotate.append(go.Annotation(
-            x=0.0012*UNIT_SCALER['milli'],
+    annotate.append(
+        go.Annotation(
+            x=0.0012 * UNIT_SCALER['milli'],
             y=flux_in_data[-1]*UNIT_SCALER['milli'] + 0.0005*UNIT_SCALER['milli'],
             xref='x{:d}'.format(counter),
             yref='y{:d}'.format(counter),
             text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
-                    reg.slope, reg.intercept*UNIT_SCALER['milli'],
-                    np.sqrt(flux_MSE)*UNIT_SCALER['milli'], flux_R_score),
+                reg.slope, reg.intercept*UNIT_SCALER['milli'],
+                np.sqrt(flux_MSE)*UNIT_SCALER['milli'], flux_R_score),
             ax=0,
             ay=-10,
             showarrow=False,
             bordercolor='#c7c7c7',
             borderwidth=2,
-            font=dict(color="black", size=15),
-        ))
+            font=dict(color="black", size=15)))
     fig.append_trace(go.Scatter(x=np.array([flux_in_data[0],
                                             flux_in_data[-1]])*UNIT_SCALER['milli'],
                                 showlegend=False,
@@ -846,7 +846,7 @@ def _source_astrometry_plotter(results, models):
     (delta_pos_data, RA_offset, DEC_offset, DELTA_PHASE0,
         flux_in_data, source_labels) = zip(
         *sorted(zipped_props, key=lambda x: x[-2]))
-    fig.append_trace(go.Scatter(x=np.array(flux_in_data)*UNIT_SCALER['milli'],
+    fig.append_trace(go.Scatter(x=np.array(flux_in_data) * UNIT_SCALER['milli'],
                                 y=np.array(delta_pos_data),
                                 mode='markers', showlegend=False,
                                 text=source_labels, name='{:s} flux_ratio'.format(header),
@@ -875,27 +875,27 @@ def _source_astrometry_plotter(results, models):
     DEC_mean = np.mean(DEC_offset)
     r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
     pi, cos, sin = np.pi, np.cos, np.sin
-    theta = np.linspace(0, 2*pi, len(DEC_offset))
-    x1 = RA_mean+(r1*cos(theta))
-    y1 = DEC_mean+(r2*sin(theta))
+    theta = np.linspace(0, 2 * pi, len(DEC_offset))
+    x1 = RA_mean+(r1 * cos(theta))
+    y1 = DEC_mean+(r2 * sin(theta))
     recovered_sources = len(DEC_offset)
     one_sigma_sources = len([(ra_off, dec_off) for ra_off, dec_off in zip(RA_offset, DEC_offset)
                             if abs(ra_off) <= max(abs(x1)) and abs(dec_off) <= max(abs(y1))])
-    annotate.append(go.Annotation(
-            x=RA_mean*3,
+    annotate.append(
+        go.Annotation(
+            x=RA_mean * 3,
             y=max(DEC_offset) + 0.05,
             xref='x{:d}'.format(counter),
             yref='y{:d}'.format(counter),
-            text="Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f}) |"
-                 "  (RA, DEC) sigma: ({:.4f}, {:.4f}) | sigma sources: {:d}".format(
-                    recovered_sources, RA_mean, DEC_mean, r1, r2, one_sigma_sources),
+            text=("Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f}) |"
+                  "  (RA, DEC) sigma: ({:.4f}, {:.4f}) | sigma sources: {:d}".format(
+                      recovered_sources, RA_mean, DEC_mean, r1, r2, one_sigma_sources)),
             ax=0,
             ay=-40,
             showarrow=False,
             bordercolor='#c7c7c7',
             borderwidth=2,
-            font=dict(color="black", size=10),
-        ))
+            font=dict(color="black", size=10)))
     fig.append_trace(go.Scatter(x=x1, y=y1,
                                 mode='lines', showlegend=False,
                                 name=r'1 sigma',
@@ -908,26 +908,26 @@ def _source_astrometry_plotter(results, models):
         {'yaxis{}'.format(counter+i): YAxis(title=u'Dec offset [arcsec]',
                                             gridcolor='rgb(255,255,255)',
                                             color='rgb(0,0,0)',
-        tickfont=dict(size=14, color='rgb(0,0,0)'),
-        titlefont=dict(size=15),
-        showgrid=True,
-        showline=True,
-        showticklabels=True,
-        tickcolor='rgb(51,153,225)',
-        ticks='outside',
-        zeroline=True)})
+                                            tickfont=dict(size=14, color='rgb(0,0,0)'),
+                                            titlefont=dict(size=15),
+                                            showgrid=True,
+                                            showline=True,
+                                            showticklabels=True,
+                                            tickcolor='rgb(51,153,225)',
+                                            ticks='outside',
+                                            zeroline=True)})
     fig['layout'].update(
         {'yaxis{}'.format(counter+i+1): YAxis(title='Delta position [arcsec]',
                                               gridcolor='rgb(255,255,255)',
                                               color='rgb(0,0,0)',
-        tickfont=dict(size=10, color='rgb(0,0,0)'),
-        titlefont=dict(size=17),
-        showgrid=True,
-        showline=True,
-        showticklabels=True,
-        tickcolor='rgb(51,153,225)',
-        ticks='outside',
-        zeroline=True)})
+                                              tickfont=dict(size=10, color='rgb(0,0,0)'),
+                                              titlefont=dict(size=17),
+                                              showgrid=True,
+                                              showline=True,
+                                              showticklabels=True,
+                                              tickcolor='rgb(51,153,225)',
+                                              ticks='outside',
+                                              zeroline=True)})
     fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title=u'RA offset [arcsec]',
                                                              titlefont=dict(size=17),
                                                              zeroline=True,
@@ -955,9 +955,7 @@ def _residual_plotter(res_noise_images, points=None, results=None):
         Structured output results.
 
     """
-    # Converter
-    TO_MICRO = UNIT_SCALER['micro']
-    # Plot titles
+    # Plot titles list
     im_titles = []
     # Get residual image names
     res_image = res_noise_images[0]['path']
@@ -991,7 +989,7 @@ def _residual_plotter(res_noise_images, points=None, results=None):
         res_noise_ratio.append(res_src[2])
         dist_from_phase.append(res_src[3])
         name_labels.append(res_src[4])
-    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(rmss)*TO_MICRO,
+    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(rmss) * UNIT_SCALER['micro'],
                                 mode='lines',
                                 showlegend=True if i == 0 else False,
                                 name='residual image 1',
@@ -1000,7 +998,7 @@ def _residual_plotter(res_noise_images, points=None, results=None):
                                 error_y=dict(type='data',
                                              color='rgb(158, 63, 221)',
                                              visible=True)), i+1, 1)
-    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(residuals)*TO_MICRO,
+    fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(residuals) * UNIT_SCALER['micro'],
                                 mode='lines', showlegend=True if i == 0 else False,
                                 name='residual image 2',
                                 text=name_labels,
@@ -1022,26 +1020,26 @@ def _residual_plotter(res_noise_images, points=None, results=None):
         {'yaxis{}'.format(counter+i): YAxis(title=u'rms [\u03BCJy]',
                                             gridcolor='rgb(255,255,255)',
                                             color='rgb(0,0,0)',
-        tickfont=dict(size=14, color='rgb(0,0,0)'),
-        titlefont=dict(size=17),
-        showgrid=True,
-        showline=True,
-        showticklabels=True,
-        tickcolor='rgb(51,153,225)',
-        ticks='outside',
-        zeroline=False)})
+                                            tickfont=dict(size=14, color='rgb(0,0,0)'),
+                                            titlefont=dict(size=17),
+                                            showgrid=True,
+                                            showline=True,
+                                            showticklabels=True,
+                                            tickcolor='rgb(51,153,225)',
+                                            ticks='outside',
+                                            zeroline=False)})
     fig['layout'].update(
         {'yaxis{}'.format(counter+i+1): YAxis(title=u'${I_{res}/I_{noise}}$',
                                               gridcolor='rgb(255,255,255)',
                                               color='rgb(0,0,0)',
-        tickfont=dict(size=10, color='rgb(0,0,0)'),
-        titlefont=dict(size=15),
-        showgrid=True,
-        showline=True,
-        showticklabels=True,
-        tickcolor='rgb(51,153,225)',
-        ticks='outside',
-        zeroline=False)})
+                                              tickfont=dict(size=10, color='rgb(0,0,0)'),
+                                              titlefont=dict(size=15),
+                                              showgrid=True,
+                                              showline=True,
+                                              showticklabels=True,
+                                              tickcolor='rgb(51,153,225)',
+                                              ticks='outside',
+                                              zeroline=False)})
     fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='Sources',
                                                              titlefont=dict(size=17),
                                                              showline=True,
@@ -1077,9 +1075,6 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
         Dictionary of source residual properties from each residual image.
 
     """
-    # Quick converting functions
-    rad = lambda a: a*(180/np.pi)  # convert radians to degrees
-    deg2arcsec = lambda a: a*3600  # convert degrees to arcsec
     # Dictinary to store results
     results = dict()
     # Get residual image names
@@ -1098,7 +1093,7 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
     beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
     # Get random pixel coordinates
     pix_coord_deg = _get_random_pixel_coord(data_points,
-                                            sky_area=fits_info['skyArea']*0.9,
+                                            sky_area=fits_info['skyArea'] * 0.9,
                                             phase_centre=fits_info['centre'])
     # Source counter
     i = 0
@@ -1119,7 +1114,7 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
         for RA, DEC in pix_coord_deg:
             i += 1
             # Get width of box around source
-            width = int(deg2arcsec(beam_deg[0])*area_factor)
+            width = int(deg2arcsec(beam_deg[0]) * area_factor)
             # Get a image slice around source
             imslice = get_box(fits_info["wcs"], (RA, DEC), width)
             # Get noise rms in the box around source
@@ -1172,9 +1167,6 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
         Dictionary of source residual properties from each residual image.
 
     """
-    # Quick converting functions
-    rad = lambda a: a*(180/np.pi)  # convert radians to degrees
-    deg2arcsec = lambda a: a*3600  # convert degrees to arcsec
     # Dictinary to store results
     results = dict()
     # Get residual image names
@@ -1212,8 +1204,8 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
         ra = model_source.pos.ra
         dec = model_source.pos.dec
         # Convert to degrees
-        RA = rad(ra)
-        DEC = rad(dec)
+        RA = rad2deg(ra)
+        DEC = rad2deg(dec)
         # Remove any wraps
         if ra > np.pi:
             ra -= 2.0*np.pi
@@ -1259,11 +1251,11 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
 def get_argparser():
     """Get argument parser."""
     parser = argparse.ArgumentParser(
-                 description="Examine radio image fidelity by obtaining: \n"
-                             "- The four (4) moments of a residual image \n"
-                             "- The Dynamic range in restored image \n"
-                             "- Comparing the tigger input and output model sources \n"
-                             "- Comparing the on source/random residuals to noise")
+        description=("Examine radio image fidelity by obtaining: \n"
+                     "- The four (4) moments of a residual image \n"
+                     "- The Dynamic range in restored image \n"
+                     "- Comparing the tigger input and output model sources \n"
+                     "- Comparing the on source/random residuals to noise"))
     argument = partial(parser.add_argument)
     argument('--tigger-model', dest='model',
              help='Name of the tigger model lsm.html file')
@@ -1350,11 +1342,11 @@ def main():
                 print("{:s}Please provide correct normality"
                       "model{:s}".format(R, W))
         output_dict[residual_label] = dict(
-                    stats.items() + {model_label: {
-                        'DR': DR["global_rms"],
-                        'DR_deepest_negative'   : DR["deepest_negative"],
-                        'DR_global_rms'         : DR['global_rms'],
-                        'DR_local_rms'          : DR['local_rms']}}.items())
+            stats.items() + {model_label: {
+                'DR': DR["global_rms"],
+                'DR_deepest_negative'   : DR["deepest_negative"],
+                'DR_global_rms'         : DR['global_rms'],
+                'DR_local_rms'          : DR['local_rms']}}.items())
     elif args.residual:
         if args.residual not in output_dict.keys():
             if args.test_normality in ['shapiro', 'normaltest']:
@@ -1378,11 +1370,10 @@ def main():
         else:
             DR = image_dynamic_range(args.restored)
         output_dict[restored_label] = {
-                            'DR': DR["global_rms"],
-                            'DR_deepest_negative' : DR["deepest_negative"],
-                            'DR_global_rms' : DR['global_rms'],
-                            'DR_local_rms'  : DR['local_rms'],
-                        }
+            'DR': DR["global_rms"],
+            'DR_deepest_negative' : DR["deepest_negative"],
+            'DR_global_rms' : DR['global_rms'],
+            'DR_local_rms'  : DR['local_rms']}
 
     if args.models:
         models = args.models
@@ -1392,11 +1383,11 @@ def main():
         else:
             model1, model2 = models
             output_dict = compare_models(
-                    [
-                        dict(label="{0:s}-model1".format(args.label), path=model1),
-                        dict(label="{0:s}-model2".format(args.label), path=model2),
-                    ]
-                )
+                [
+                    dict(label="{0:s}-model1".format(args.label), path=model1),
+                    dict(label="{0:s}-model2".format(args.label), path=model2),
+                ]
+            )
 
     if args.noise:
         residuals = args.noise
@@ -1407,18 +1398,18 @@ def main():
             noise1, noise2 = residuals
             if args.model:
                 output_dict = compare_residuals(
-                        [
-                            dict(label="{0:s}-noise1".format(args.label), path=noise1),
-                            dict(label="{0:s}-noise2".format(args.label), path=noise2),
-                        ], args.model
-                    )
+                    [
+                        dict(label="{0:s}-noise1".format(args.label), path=noise1),
+                        dict(label="{0:s}-noise2".format(args.label), path=noise2),
+                    ], args.model
+                )
             else:
                 output_dict = compare_residuals(
-                        [
-                            dict(label="{0:s}-noise1".format(args.label), path=noise1),
-                            dict(label="{0:s}-noise2".format(args.label), path=noise2),
-                        ], points=int(args.points) if args.points else 100
-                    )
+                    [
+                        dict(label="{0:s}-noise1".format(args.label), path=noise1),
+                        dict(label="{0:s}-noise2".format(args.label), path=noise2),
+                    ], points=int(args.points) if args.points else 100
+                )
 
     if output_dict and not args.noise and not args.models:
         json_dump(output_dict)
