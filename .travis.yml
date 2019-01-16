@@ -3,11 +3,10 @@ sudo: required
 matrix:
   include:
   - env: TARGET=pep8
-  - env: TARGET=python2
+  - env: TARGET=py2
+  - env: TARGET=py3
 script:
 - true
-before_install:
-- sudo apt-get install python-qt4 python-numpy
 install:
 - docker build . -t ${TARGET} -f .travis/${TARGET}.docker
 deploy:
