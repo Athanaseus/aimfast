@@ -64,7 +64,7 @@ class TestClass(object):
         input_value = 'aimfast/tests/files/cube.fits'
         output_value = aimfast.residual_image_stats(
                                   input_value, test_normality='normaltest')
-        expected_value = {"NORM": (10.276026106987608, 0.0058693402000598895),
+        expected_value = {"NORM": (10.276024662846522, 0.005869344438139088),
                           "SKEW": 0.186153,
                           "KURT": 2.870047,
                           "STDDev": 3.1e-05,
