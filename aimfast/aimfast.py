@@ -686,7 +686,31 @@ def compare_residuals(residuals, skymodel=None, points=None, plot=True):
     return res
 
 
-def _source_flux_plotter(results, models):
+def plot_flux(models, label=None, tolerance=0.00001, plot=False):
+    "plot flux"
+    model1 = models.keys()[0]
+    model2 = models.values()[0]
+    _models = [
+                dict(label="{0:s}-model1".format(label), path=model1),
+                dict(label="{0:s}-model2".format(label), path=model2),
+              ]
+    results = compare_models(_models, tolerance, plot)
+    _source_flux_plotter(results, _models, inline=True)
+
+
+def plot_astrometry(models, label=None, tolerance=0.00001, plot=False):
+    "plot astrometry"
+    model1 = models.keys()[0]
+    model2 = models.values()[0]
+    _models = [
+                dict(label="{0:s}-model1".format(label), path=model1),
+                dict(label="{0:s}-model2".format(label), path=model2),
+              ]
+    results = compare_models(_models, tolerance, plot)
+    _source_astrometry_plotter(results, _models, inline=True)
+
+
+def _source_flux_plotter(results, models, inline=False):
     """Plot flux results and save output as html file.
 
     Parameters
@@ -792,10 +816,14 @@ def _source_flux_plotter(results, models):
     fig['layout']['annotations'].update({'font': {'size': 18}})
     fig['layout']['annotations'].extend(annotate)
     outfile = 'InputOutputFluxDensity.html'
-    py.plot(fig, filename=outfile, auto_open=False)
+    if inline:
+        py.init_notebook_mode(connected=True)
+        py.iplot(fig, filename=outfile)
+    else:
+        py.plot(fig, filename=outfile, auto_open=False)
 
 
-def _source_astrometry_plotter(results, models):
+def _source_astrometry_plotter(results, models, inline=False):
     """Plot astrometry results and save output as html file.
 
     Parameters
@@ -939,7 +967,11 @@ def _source_astrometry_plotter(results, models):
     fig['layout']['annotations'].update({'font': {'size': 18}})
     fig['layout']['annotations'].extend(annotate)
     outfile = 'InputOutputPosition.html'
-    py.plot(fig, filename=outfile, auto_open=False)
+    if inline:
+        py.init_notebook_mode(connected=True)
+        py.iplot(fig, filename=outfile)
+    else:
+        py.plot(fig, filename=outfile, auto_open=False)
 
 
 def _residual_plotter(res_noise_images, points=None, results=None):
