@@ -324,9 +324,8 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None):
     # Perform normality testing
     if test_normality:
         norm_props = normality_testing(fitsname, test_normality, data_range)
-        props = dict(res_props.items() + norm_props.items())
-    else:
-        props = res_props
+        res_props.update(norm_props)
+    props = res_props
     # Return dictionary of results
     return props
 
