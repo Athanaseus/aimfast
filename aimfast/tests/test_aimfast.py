@@ -29,14 +29,14 @@ class TestClass(object):
 
     def test_noise_sigma(self):
         """Test noise sigma metho"""
-        input_value = 'files/cube.fits'
+        input_value = 'aimfast/tests/files/cube.fits'
         output_value = aimfast.noise_sigma(input_value)
         expected_value = 3.1e-05
         assert expected_value == pytest.approx(output_value, 0.01855)
 
     def test_fitsInfo(self):
         """Test fitsInfo method"""
-        input_value = 'files/cube.fits'
+        input_value = 'aimfast/tests/files/cube.fits'
         output_value = aimfast.fitsInfo(input_value)
         from astLib import astWCS
         expected = {'b_size': (0.00154309340472658,
@@ -58,3 +58,15 @@ class TestClass(object):
                 assert isinstance(val, value)
             else:
                 assert val == value
+
+    def test_residual_stats(self):
+        """Test the residuals stats method"""
+        input_value = 'aimfast/tests/files/cube.fits'
+        output_value = aimfast.residual_image_stats(
+                                  input_value, test_normality='normaltest')
+        expected_value = {"NORM": (10.276026106987608, 0.0058693402000598895),
+                          "SKEW": 0.186153,
+                          "KURT": 2.870047,
+                          "STDDev": 3.1e-05,
+                          "MEAN": 1.215e-06}
+        assert expected_value == output_value
