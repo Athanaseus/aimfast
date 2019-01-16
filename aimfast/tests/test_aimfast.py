@@ -29,26 +29,28 @@ class TestClass(object):
 
     def test_noise_sigma(self):
         """Test noise sigma metho"""
-        input_value = 'files/image.fits'
+        input_value = 'files/cube.fits'
         output_value = aimfast.noise_sigma(input_value)
-        expected_value = 2.1e-05
+        expected_value = 3.1e-05
         assert expected_value == pytest.approx(output_value, 0.01855)
 
     def test_fitsInfo(self):
         """Test fitsInfo method"""
-        input_value = 'files/image.fits'
+        input_value = 'files/cube.fits'
         output_value = aimfast.fitsInfo(input_value)
         from astLib import astWCS
-        expected = {'b_size': (0.0, 0.0, 0.0),
+        expected = {'b_size': (0.00154309340472658,
+                               0.00136912246542523,
+                               159.801295045408),
                     'centre': 'J2000.0,0.0deg,-30.0deg',
                     'ddec': 0.000277777777777778,
                     'dec': -30.0,
-                    'decPix': 2049.0,
+                    'decPix': 10,
                     'dra': 0.000277777777777778,
-                    'numPix': 4096,
+                    'numPix': 20,
                     'ra': 0.0,
-                    'raPix': 2049.0,
-                    'skyArea': 1.2945382716049403,
+                    'raPix': 10,
+                    'skyArea': 3.0864197530864246e-05,
                     'wcs': astWCS.WCS}
         for param, value in expected.items():
             val = output_value[param]
