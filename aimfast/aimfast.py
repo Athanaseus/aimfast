@@ -690,10 +690,8 @@ def plot_flux(models, label=None, tolerance=0.00001, plot=False):
     "plot flux"
     model1 = models.keys()[0]
     model2 = models.values()[0]
-    _models = [
-                dict(label="{0:s}-model1".format(label), path=model1),
-                dict(label="{0:s}-model2".format(label), path=model2),
-              ]
+    _models = [dict(label="{0:s}-model1".format(label), path=model1),
+               dict(label="{0:s}-model2".format(label), path=model2)]
     results = compare_models(_models, tolerance, plot)
     _source_flux_plotter(results, _models, inline=True)
 
@@ -702,10 +700,8 @@ def plot_astrometry(models, label=None, tolerance=0.00001, plot=False):
     "plot astrometry"
     model1 = models.keys()[0]
     model2 = models.values()[0]
-    _models = [
-                dict(label="{0:s}-model1".format(label), path=model1),
-                dict(label="{0:s}-model2".format(label), path=model2),
-              ]
+    _models = [dict(label="{0:s}-model1".format(label), path=model1),
+               dict(label="{0:s}-model2".format(label), path=model2)]
     results = compare_models(_models, tolerance, plot)
     _source_astrometry_plotter(results, _models, inline=True)
 
