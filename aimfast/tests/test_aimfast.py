@@ -69,7 +69,7 @@ class TestClass(object):
                           "KURT": 2.870047,
                           "STDDev": 3.1e-05,
                           "MEAN": 1.215e-06}
-        expected_normaltest_value = (10.276033206715848, 0.005869319364736688)
+        expected_normaltest_value = expected_value.pop("NORM")
         output_normal_value = output_value.pop("NORM")
         assert expected_value == output_value
         assert expected_normaltest_value == pytest.approx(
