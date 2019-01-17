@@ -1362,7 +1362,7 @@ def get_argparser():
                   'e.g. --compare-models model1.lsm.html model2.lsm.html')
     argument('--compare-residuals', dest='noise', nargs="+", type=str,
              help='List of noise-like (fits) files to compare \n'
-                  'e.g. --compare-residuals2noise residuals.fits noise.fits')
+                  'e.g. --compare-residuals residuals.fits noise.fits')
     argument('-dp', '--data-points', dest='points',
              help='Data points to sample the residual/noise image')
     argument("--label",
