@@ -685,8 +685,19 @@ def compare_residuals(residuals, skymodel=None, points=None,
     return res
 
 
-def plot_flux(models, label=None, tolerance=0.00001):
-    "plot flux"
+def plot_photometry(models, label=None, tolerance=0.00001):
+    """Plot model-model fluxes from lsm.html/txt models
+
+    Parameters
+    ----------
+    models : dict
+        Tigger/text formatted model files e.g {model1: model2}.
+    label : str
+        Use this label instead of the FITS image path when saving data.
+    tolerance: float
+        Radius around the source to be cross matched.
+
+    """
     model1 = models.keys()[0]
     model2 = models.values()[0]
     _models = [dict(label="{0:s}-model1".format(label), path=model1),
@@ -696,7 +707,18 @@ def plot_flux(models, label=None, tolerance=0.00001):
 
 
 def plot_astrometry(models, label=None, tolerance=0.00001):
-    "plot astrometry"
+    """Plot model-model positions from lsm.html/txt models
+
+    Parameters
+    ----------
+    models : dict
+        Tigger/text formatted model files e.g {model1: model2}.
+    label : str
+        Use this label instead of the FITS image path when saving data.
+    tolerance: float
+        Radius around the source to be cross matched.
+
+    """
     model1 = models.keys()[0]
     model2 = models.values()[0]
     _models = [dict(label="{0:s}-model1".format(label), path=model1),
@@ -707,7 +729,22 @@ def plot_astrometry(models, label=None, tolerance=0.00001):
 
 def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
                          area_factor=2.0, points=100):
-    "plot residual-noise data"
+    """Plot residual-residual or noise data
+
+    Parameters
+    ----------
+    res_noise_images: dict
+        Dictionary of residual images to plot {res1.fits: res2.fits}.
+    skymodel: file
+        Skymodel file to locate on source residuals (lsm.html/txt)
+    label : str
+        Use this label instead of the FITS image path when saving data.
+    area_factor : float
+        Factor to multiply the beam area.
+    points: int
+        Number of data point to generate in case of random residuals.
+
+    """
     res_image = res_noise_images.keys()[0]
     noise_image = res_noise_images.values()[0]
     _images = [dict(label="{0:s}-res_image".format(label), path=res_image),
@@ -724,6 +761,8 @@ def _source_flux_plotter(results, models, inline=False):
         Structured output results.
     models : list
         Tigger/text formatted model files e.g [model1, model2].
+    inline : bool
+        Allow inline plotting inside a notebook.
 
     """
     im_titles = []
@@ -837,6 +876,8 @@ def _source_astrometry_plotter(results, models, inline=False):
         Structured output results.
     models: list
         Tigger/text formatted model files e.g [model1, model2].
+    inline : bool
+        Allow inline plotting inside a notebook.
 
     """
     PLOTS = 1
@@ -990,6 +1031,8 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         Number of data point to generate in case of random residuals
     results: dict
         Structured output results.
+    inline : bool
+        Allow inline plotting inside a notebook.
 
     """
     # Plot titles list
