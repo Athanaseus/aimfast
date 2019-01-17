@@ -675,34 +675,44 @@ def compare_models(models, tolerance=0.00001, plot=True):
     return results
 
 
-def compare_residuals(residuals, skymodel=None, points=None, plot=True):
+def compare_residuals(residuals, skymodel=None, points=None,
+                      inline=False, area_factor=2.0):
     if skymodel:
-        res = _source_residual_results(residuals, skymodel, area_factor=2)
+        res = _source_residual_results(residuals, skymodel, area_factor)
     else:
         res = _random_residual_results(residuals, points)
-    if plot:
-        _residual_plotter(residuals, results=res, points=points)
+    _residual_plotter(residuals, results=res, points=points, inline=inline)
     return res
 
 
-def plot_flux(models, label=None, tolerance=0.00001, plot=False):
+def plot_flux(models, label=None, tolerance=0.00001):
     "plot flux"
     model1 = models.keys()[0]
     model2 = models.values()[0]
     _models = [dict(label="{0:s}-model1".format(label), path=model1),
                dict(label="{0:s}-model2".format(label), path=model2)]
-    results = compare_models(_models, tolerance, plot)
+    results = compare_models(_models, tolerance, False)
     _source_flux_plotter(results, _models, inline=True)
 
 
-def plot_astrometry(models, label=None, tolerance=0.00001, plot=False):
+def plot_astrometry(models, label=None, tolerance=0.00001):
     "plot astrometry"
     model1 = models.keys()[0]
     model2 = models.values()[0]
     _models = [dict(label="{0:s}-model1".format(label), path=model1),
                dict(label="{0:s}-model2".format(label), path=model2)]
-    results = compare_models(_models, tolerance, plot)
+    results = compare_models(_models, tolerance, False)
     _source_astrometry_plotter(results, _models, inline=True)
+
+
+def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
+                         area_factor=2.0, points=100):
+    "plot residual-noise data"
+    res_image = res_noise_images.keys()[0]
+    noise_image = res_noise_images.values()[0]
+    _images = [dict(label="{0:s}-res_image".format(label), path=res_image),
+               dict(label="{0:s}-noise_image".format(label), path=noise_image)]
+    compare_residuals(_images, skymodel, points, True, area_factor)
 
 
 def _source_flux_plotter(results, models, inline=False):
@@ -969,7 +979,7 @@ def _source_astrometry_plotter(results, models, inline=False):
         py.plot(fig, filename=outfile, auto_open=False)
 
 
-def _residual_plotter(res_noise_images, points=None, results=None):
+def _residual_plotter(res_noise_images, points=None, results=None, inline=False):
     """Plot ratios of random residuals and noise
 
     Parameters
@@ -1081,7 +1091,11 @@ def _residual_plotter(res_noise_images, points=None, results=None):
         outfile = 'RandomResidualNoiseRatio.html'
     else:
         outfile = 'SourceResidualNoiseRatio.html'
-    py.plot(fig, filename=outfile, auto_open=False)
+    if inline:
+        py.init_notebook_mode(connected=True)
+        py.iplot(fig, filename=outfile)
+    else:
+        py.plot(fig, filename=outfile, auto_open=False)
 
 
 def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0):
