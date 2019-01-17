@@ -10,21 +10,21 @@ class TestClass(object):
         """Test deg2arcsec method"""
         input_value = 10.5
         output_value = aimfast.deg2arcsec(input_value)
-        expected_value = input_value*3600.00
+        expected_value = input_value * 3600.00
         assert expected_value == output_value
 
     def test_rad2deg(self):
         """Test rad2deg method"""
         input_value = 1.5
         output_value = aimfast.rad2deg(input_value)
-        expected_value = input_value*(180/np.pi)
+        expected_value = input_value * (180 / np.pi)
         assert expected_value == output_value
 
     def test_rad2arcsec(self):
         """Test rad2arcsec method"""
         input_value = 1.5
         output_value = aimfast.rad2arcsec(input_value)
-        expected_value = input_value*(3600.0*180.0/np.pi)
+        expected_value = input_value * (3600.0 * 180.0 / np.pi)
         assert expected_value == output_value
 
     def test_noise_sigma(self):
@@ -69,4 +69,8 @@ class TestClass(object):
                           "KURT": 2.870047,
                           "STDDev": 3.1e-05,
                           "MEAN": 1.215e-06}
+        expected_normaltest_value = (10.276033206715848, 0.005869319364736688)
+        output_normal_value = output_value.pop("NORM")
         assert expected_value == output_value
+        assert expected_normaltest_value == pytest.approx(
+            output_normal_value, 1.0e-5)
