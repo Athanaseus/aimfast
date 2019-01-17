@@ -1,4 +1,4 @@
-FROM kernsuite/base:3
+FROM kernsuite/base:4
 MAINTAINER <ramaila.jat@gmail.com>
 RUN docker-apt-install \
     python3-setuptools \
@@ -10,4 +10,4 @@ RUN docker-apt-install \
 ADD . /code
 WORKDIR /code
 RUN pip3 install .[python-numpy,testing]
-RUN py.test -s -vvv /code/
+RUN python3 -m pytest -s -vvv /code/

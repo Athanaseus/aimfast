@@ -1,4 +1,4 @@
-FROM kernsuite/base:3
+FROM kernsuite/base:4
 MAINTAINER <ramaila.jat@gmail.com>
 RUN docker-apt-install python-pip
 RUN pip install --upgrade pip setuptools
