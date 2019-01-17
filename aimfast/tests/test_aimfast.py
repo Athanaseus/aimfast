@@ -64,13 +64,13 @@ class TestClass(object):
         input_value = 'aimfast/tests/files/cube.fits'
         output_value = aimfast.residual_image_stats(
             input_value, test_normality='normaltest')
-        expected_value = {"NORM": (10.276033206715848, 0.005869319364736688),
-                          "SKEW": 0.186153,
-                          "KURT": 2.870047,
-                          "STDDev": 3.1e-05,
-                          "MEAN": 1.215e-06}
-        expected_normaltest_value = expected_value.pop("NORM")
-        output_normaltest_value = output_value.pop("NORM")
+        expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
+                          'SKEW': 0.186153,
+                          'KURT': 2.870047,
+                          'STDDev': 3.1e-05,
+                          'MEAN': 1.215e-06}
+        expected_normaltest_value = expected_value.pop('NORM')
+        output_normaltest_value = output_value.pop('NORM')
         assert expected_value == output_value
         assert expected_normaltest_value == pytest.approx(
-            output_normaltest_value, 1.0e-5)
+            output_normaltest_value, 1.0e-6)
