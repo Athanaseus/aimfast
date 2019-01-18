@@ -1,3 +1,10 @@
+astLib
+astropy
+astro-tigger
+jsonschema
 mock
+numpy
 numpydoc
-astLib==0.9.1
+plotly
+scikit-learn
+scipy
