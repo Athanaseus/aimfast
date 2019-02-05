@@ -27,5 +27,5 @@
 0.3.0
 -----
 - Add a test suite
-- Py2 & Py3 compatibility
+- Py3 compatibility
 - Importable modules

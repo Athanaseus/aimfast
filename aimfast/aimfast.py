@@ -4,49 +4,75 @@ import random
 import logging
 import argparse
 import numpy as np
-from scipy import stats
-from plotly import tools
+
 from functools import partial
-from astLib.astWCS import WCS
-import plotly.graph_objs as go
-from plotly import offline as py
+
+from scipy import stats
 from scipy.stats import linregress
-from astropy.io import fits as fitsio
 from scipy.interpolate import interp1d
+from scipy.ndimage import measurements as measure
+
+from plotly import tools
+from plotly import offline as py
+from plotly import graph_objs as go
 from plotly.graph_objs import XAxis, YAxis
-import scipy.ndimage.measurements as measure
+
+from astLib.astWCS import WCS
+from astropy.io import fits as fitsio
+
 from sklearn.metrics import mean_squared_error
 from Tigger.Coordinates import angular_dist_pos_angle
 
 
 PLOT_NUM_FLUX = {'format':
-                 {   # num of plots: [colorbar spacing, colorbar y, colorbar len,
-                     #                plot height, plot width]
-                     1: [0.90, 0.45, 0.8, 700, 700],
-                     2: [0.59, 0.78, 0.4, 1000, 800],
-                     3: [0.41, 0.81, 0.34, 1500, 800],
-                     4: [0.28, 0.86, 0.31, 1800, 700],
-                     5: [0.207, 0.91, 0.15, 2000, 600]}
+                 {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
+                    #                plot height, plot width]
+                     1: [0.90, 0.45, 0.80, 700, 700],
+                     2: [0.59, 0.78, 0.40, 1000, 700],
+                     3: [0.41, 0.88, 0.23, 1800, 800],
+                     4: [0.28, 0.86, 0.20, 2500, 700],
+                     5: [0.207, 0.91, 0.15, 2000, 600]},
+                 'plots':
+                 {  # num of plots: [vertical spacing, horizontal spacing]
+                     1: [0.06, 0.16],
+                     2: [0.15, 0.16],
+                     3: [0.1, 0.16],
+                     4: [0.12, 0.16],
+                     5: [0.02, 0.16]},
                  }
 
 PLOT_NUM_POS = {'format':
-                {   # num of plots: [colorbar spacing, colorbar y, colorbar len,
-                     #                plot height, plot width]
+                {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
+                   #                plot height, plot width]
                      1: [0.90, 0.45, 0.8, 470, 940],
                      2: [0.59, 0.78, 0.4, 1000, 800],
                      3: [0.41, 0.81, 0.34, 1500, 800],
                      4: [0.28, 0.86, 0.31, 1800, 700],
-                     5: [0.207, 0.91, 0.15, 2000, 1000]}
+                     5: [0.207, 0.91, 0.15, 2000, 1000]},
+                'plots':
+                {  # num of plots: [vertical spacing, horizontal spacing]
+                     1: [0.02, 0.16],
+                     2: [0.02, 0.16],
+                     3: [0.02, 0.16],
+                     4: [0.02, 0.16],
+                     5: [0.02, 0.16]},
                 }
 
 PLOT_NUM_RES = {'format':
-                {   # num of plots: [colorbar spacing, colorbar y, colorbar len,
-                     #                plot height, plot width]
+                {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
+                   #                plot height, plot width]
                      1: [0.90, 0.45, 0.8, 470, 940],
                      2: [0.59, 0.78, 0.4, 1000, 800],
                      3: [0.41, 0.81, 0.34, 1500, 800],
                      4: [0.28, 0.86, 0.31, 1800, 700],
-                     5: [0.207, 0.91, 0.15, 2000, 1000]}
+                     5: [0.207, 0.91, 0.15, 2000, 1000]},
+                'plots':
+                {  # num of plots: [vertical spacing, horizontal spacing]
+                     1: [0.02, 0.16],
+                     2: [0.02, 0.16],
+                     3: [0.02, 0.16],
+                     4: [0.02, 0.16],
+                     5: [0.02, 0.16]},
                 }
 
 # Unit multipleirs for plotting
@@ -75,17 +101,20 @@ def creat_logger():
 
 def deg2arcsec(x):
     """Converts 'x' from degrees to arcseconds."""
-    return float(x) * 3600.00
+    result = float(x) * 3600.00
+    return result
 
 
 def rad2deg(x):
     """Converts 'x' from radian to degrees."""
-    return float(x) * (180 / np.pi)
+    result = float(x) * (180 / np.pi)
+    return result
 
 
 def rad2arcsec(x):
     """Converts `x` from radians to arcseconds."""
-    return float(x) * (3600.0 * 180.0 / np.pi)
+    result = float(x) * (3600.0 * 180.0 / np.pi)
+    return result
 
 
 def json_dump(data_dict, root='.'):
@@ -109,7 +138,7 @@ def json_dump(data_dict, root='.'):
         # Extract data from the json data file
         with open(filename) as data_file:
             data_existing = json.load(data_file)
-            data = dict(data_existing.items() + data_dict.items())
+            data_existing.update(data_dict)
     except IOError:
         data = data_dict
     if data:
@@ -184,7 +213,7 @@ def measure_psf(psffile, arcsec_size=20):
     with fitsio.open(psffile) as hdu:
         pp = hdu[0].data.T[:, :, 0, 0]
         secpix = abs(hdu[0].header['CDELT1'] * 3600)
-    # get midpoint and size of cross-sections
+    # Get midpoint and size of cross-sections
     xmid, ymid = measure.maximum_position(pp)
     sz = int(arcsec_size / secpix)
     xsec = pp[xmid - sz: xmid + sz, ymid]
@@ -192,13 +221,13 @@ def measure_psf(psffile, arcsec_size=20):
 
     def fwhm(tsec):
         """Determine the full width half maximum"""
-        tmid = len(tsec) / 2
-        # find first minima off the peak, and flatten cross-section outside them
+        tmid = len(tsec) / 2.0
+        # First minima off the peak, and flatten cross-section outside them
         xmin = measure.minimum_position(tsec[:tmid])[0]
         tsec[:xmin] = tsec[xmin]
         xmin = measure.minimum_position(tsec[tmid:])[0]
         tsec[tmid + xmin:] = tsec[tmid + xmin]
-        if tsec[0] > .5 or tsec[-1] > .5:
+        if tsec[0] > 0.5 or tsec[-1] > 0.5:
             print("PSF FWHM over {:.2f} arcsec".format(arcsec_size * 2))
             return arcsec_size, arcsec_size
         x1 = interp1d(tsec[:tmid], range(tmid))(0.5)
@@ -208,7 +237,7 @@ def measure_psf(psffile, arcsec_size=20):
     ix0, ix1 = fwhm(xsec)
     iy0, iy1 = fwhm(ysec)
     rx, ry = (ix1 - ix0) * secpix, (iy1 - iy0) * secpix
-    r0 = (rx + ry) / 2
+    r0 = (rx + ry) / 2.0
     return r0
 
 
@@ -233,8 +262,8 @@ def get_box(wcs, radec, w):
     raPix, decPix = wcs.wcs2pix(*radec)
     raPix = int(raPix)
     decPix = int(decPix)
-    box = (slice(decPix - (w / 2), decPix + (w / 2)),
-           slice(raPix - (w / 2), raPix + (w / 2)))
+    box = (slice(decPix - int(w / 2), decPix + int(w / 2)),
+           slice(raPix - int(w / 2), raPix + int(w / 2)))
     return box
 
 
@@ -265,8 +294,8 @@ def _get_ra_dec_range(area, phase_centre="J2000,0deg,-30deg"):
     """Get RA and DEC range from area of observations and phase centre"""
     ra = float(phase_centre.split(',')[1].split('deg')[0])
     dec = float(phase_centre.split(',')[2].split('deg')[0])
-    d_ra = np.sqrt(area) / 2
-    d_dec = np.sqrt(area) / 2
+    d_ra = np.sqrt(area) / 2.0
+    d_dec = np.sqrt(area) / 2.0
     ra_range = [ra - d_ra, ra + d_ra]
     dec_range = [dec - d_dec, dec + d_dec]
     return ra_range, dec_range
@@ -456,7 +485,6 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     local_std = source_res_area.std()
     global_std = residual_data[0, 0, ...].std()
     # Compute dynamic range
-
     DR = {
         "deepest_negative"  : peak_flux/abs(min_flux)*1e0,
         "local_rms"         : peak_flux/local_std*1e0,
@@ -496,8 +524,8 @@ def image_dynamic_range(fitsname, area_factor=6):
     nchan = (restored_data.shape[1] if restored_data.shape[0] == 1
              else restored_data.shape[0])
     # Compute number of pixel in beam and extend by factor area_factor
-    ra_num_pix = round((beam_deg[0]*area_factor)/fits_info['dra'])
-    dec_num_pix = round((beam_deg[1]*area_factor)/fits_info['ddec'])
+    ra_num_pix = round((beam_deg[0] * area_factor) / fits_info['dra'])
+    dec_num_pix = round((beam_deg[1] * area_factor) / fits_info['ddec'])
     # Create target image slice
     imslice = np.array([pix_coord[2]-ra_num_pix/2, pix_coord[2]+ra_num_pix/2,
                         pix_coord[3]-dec_num_pix/2, pix_coord[3]+dec_num_pix/2])
@@ -519,9 +547,9 @@ def image_dynamic_range(fitsname, area_factor=6):
     global_std = restored_data[0, 0, ...].std()
     # Compute dynamic range
     DR = {
-        "deepest_negative"  : peak_flux/abs(min_flux)*1e0,
-        "local_rms"         : peak_flux/local_std*1e0,
-        "global_rms"        : peak_flux/global_std*1e0,
+        "deepest_negative"  : peak_flux / abs(min_flux) * 1e0,
+        "local_rms"         : peak_flux / local_std * 1e0,
+        "global_rms"        : peak_flux / global_std * 1e0,
     }
     return DR
 
@@ -612,13 +640,13 @@ def get_detected_sources_properties(model_1, model_2, area_factor):
         I_out_list = []
         for target in sources:
             I_out_list.append(target.flux.I)
-            I_out_err_list.append(target.flux.I_err*target.flux.I_err)
-        I_out = sum([val/err for val, err in zip(I_out_list, I_out_err_list)])
+            I_out_err_list.append(target.flux.I_err * target.flux.I_err)
+        I_out = sum([val / err for val, err in zip(I_out_list, I_out_err_list)])
         if I_out != 0.0:
-            I_out_err = sum([1/I_out_error for I_out_error
+            I_out_err = sum([1.0 / I_out_error for I_out_error
                             in I_out_err_list])
-            I_out_var_err = np.sqrt(1/I_out_err)
-            I_out = I_out/I_out_err
+            I_out_var_err = np.sqrt(1.0 / I_out_err)
+            I_out = I_out / I_out_err
             I_out_err = I_out_var_err
             source = sources[0]
             RA0 = pybdsm_lsm.ra0
@@ -773,7 +801,7 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
 
     """
     _residual_images = []
-    i = -0
+    i = 0
     for res1, res2 in res_noise_images.items():
         _residual_images.append([dict(label="{0:s}-res_a_{1:d}".format(label, i), path=res1),
                                  dict(label="{0:s}-res_b_{1:d}".format(label, i), path=res2)])
@@ -808,15 +836,14 @@ def _source_flux_plotter(results, all_models, inline=False):
 
     PLOTS = len(models_compare.keys())
     fig = tools.make_subplots(rows=PLOTS, cols=1, shared_yaxes=False,
-                              print_grid=False, #horizontal_spacing=0.005,
-                              vertical_spacing=0.05,
+                              print_grid=False,
+                              vertical_spacing=PLOT_NUM_FLUX['plots'][PLOTS][0],
                               subplot_titles=sorted(im_titles))
     j = 0
     i = -1
     counter = 0
     annotate = []
     for input_model, output_model in sorted(models_compare.items()):
-        #output_model = models[1]['path']
         i += 1
         counter += 1
         name_labels = []
@@ -834,13 +861,14 @@ def _source_flux_plotter(results, all_models, inline=False):
             phase_center_dist.append(results[heading]['position'][n][-3])
             source_scale.append(results[heading]['shape'][n][3])
         zipped_props = zip(flux_out_data, flux_out_err_data, flux_in_data,
-                       name_labels, phase_center_dist, source_scale)
+                           name_labels, phase_center_dist, source_scale)
         (flux_out_data, flux_out_err_data, flux_in_data, name_labels,
             phase_center_dist, source_scale) = zip(*sorted(zipped_props, key=lambda x: x[0]))
 
         flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
         reg = linregress(flux_in_data, flux_out_data)
         flux_R_score = reg.rvalue
+
         annotate.append(
             go.Annotation(
                 x=0.0012 * FLUX_UNIT_SCALER['milli'][0],
@@ -848,61 +876,59 @@ def _source_flux_plotter(results, all_models, inline=False):
                 xref='x{:d}'.format(counter),
                 yref='y{:d}'.format(counter),
                 text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
-                    reg.slope, reg.intercept*FLUX_UNIT_SCALER['milli'][0],
-                    np.sqrt(flux_MSE)*FLUX_UNIT_SCALER['milli'][0], flux_R_score),
+                    reg.slope, reg.intercept * FLUX_UNIT_SCALER['milli'][0],
+                    np.sqrt(flux_MSE) * FLUX_UNIT_SCALER['milli'][0], flux_R_score),
                 ax=0,
                 ay=-10,
                 showarrow=False,
                 bordercolor='#c7c7c7',
                 borderwidth=2,
                 font=dict(color="black", size=12.5)))
-        fig.append_trace(go.Scatter(x=np.array([flux_in_data[0],
-                                            flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
-                                    showlegend=False,
-                                    marker=dict(color='rgb(0,0,255)'),
-                                    y=np.array([flux_in_data[0],
-                                            flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
-                                    mode='line'), i+1, 1)
-        fig.append_trace(go.Scatter(x=np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
-                                    y=np.array(flux_out_data)*FLUX_UNIT_SCALER['milli'][0],
-                                    mode='markers', showlegend=False,
-                                    text=name_labels, name='{:s} flux_ratio'.format(heading),
-                                    marker=dict(color=phase_center_dist,
-                                                showscale=True, colorscale='Jet',
-                                                reversescale=False,
-                                                colorbar=dict(
-                                                title='Distance from phase center (arcsec)',
-                                                titleside='right',
-                                                titlefont=dict(size=16), #x=1.0,
-                                                len=PLOT_NUM_FLUX['format'][PLOTS][2],
-                                                y=PLOT_NUM_FLUX['format'][PLOTS][1]-j),
-                                            ),
-                                error_y=dict(type='data',
-                                             array=np.array(flux_out_err_data)*FLUX_UNIT_SCALER['milli'][0],
-                                             color='rgb(158, 63, 221)',
-                                             visible=True)), i+1, 1)
+        fig.append_trace(
+            go.Scatter(
+                x=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
+                showlegend=False,
+                marker=dict(color='rgb(0,0,255)'),
+                y=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
+                mode='line'), i+1, 1)
+        fig.append_trace(
+            go.Scatter(
+                x=np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
+                y=np.array(flux_out_data)*FLUX_UNIT_SCALER['milli'][0],
+                mode='markers', showlegend=False,
+                text=name_labels, name='{:s} flux_ratio'.format(heading),
+                marker=dict(color=phase_center_dist, showscale=True, colorscale='Jet',
+                            reversescale=False, colorbar=dict(
+                                title='Distance from phase center (arcsec)',
+                                titleside='right',
+                                titlefont=dict(size=16),
+                                len=PLOT_NUM_FLUX['format'][PLOTS][2],
+                                y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
+                error_y=dict(type='data',
+                             array=np.array(flux_out_err_data)*FLUX_UNIT_SCALER['milli'][0],
+                             color='rgb(158, 63, 221)',
+                             visible=True)), i+1, 1)
         fig['layout'].update(title='', height=PLOT_NUM_FLUX['format'][PLOTS][3],
                              width=PLOT_NUM_FLUX['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)',
                              plot_bgcolor=BG_COLOR,
                              legend=dict(x=0.8, y=1.0),)
         fig['layout'].update(
-                {'yaxis{}'.format(counter): YAxis(title='Output flux({:s})'.format(
-                                                    FLUX_UNIT_SCALER['milli'][1]),
-                                          gridcolor='rgb(255,255,255)',
-                                          tickfont=dict(size=15),
-                                          titlefont=dict(size=17),
-                                          showgrid=True,
-                                          showline=False,
-                                          showticklabels=True,
-                                          tickcolor='rgb(51,153,225)',
-                                          ticks='outside',
-                                          zeroline=False)})
-        fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title=u'Input Flux ({:s})'.format(
-                                                                FLUX_UNIT_SCALER['milli'][1]),
-                                                             position=0.0,
-                                                             titlefont=dict(size=17),
-                                                             overlaying='x')})
+                {'yaxis{}'.format(counter): YAxis(
+                    title='Output flux({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                    gridcolor='rgb(255,255,255)',
+                    tickfont=dict(size=15),
+                    titlefont=dict(size=17),
+                    showgrid=True,
+                    showline=False,
+                    showticklabels=True,
+                    tickcolor='rgb(51,153,225)',
+                    ticks='outside',
+                    zeroline=False)})
+        fig['layout'].update(
+                {'xaxis{}'.format(counter+i): XAxis(
+                    title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                    position=0.0, titlefont=dict(size=17), overlaying='x')})
         if counter == PLOTS:
             fig['layout']['annotations'].update({'font': {'size': 12}})
             fig['layout']['annotations'].extend(annotate)
@@ -942,9 +968,9 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         im_titles.append('<b>{:s} Delta Position</b>'.format(header.upper()))
 
     PLOTS = len(models_compare.keys())
-    fig = tools.make_subplots(rows=PLOTS, cols=2, shared_yaxes=False,
+    fig = tools.make_subplots(rows=PLOTS, cols=2,
+                              shared_yaxes=False,
                               print_grid=False,
-        #                      horizontal_spacing=0.29,
                               vertical_spacing=0.06,
                               subplot_titles=im_titles)
     j = 0
@@ -975,41 +1001,45 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         (delta_pos_data, RA_offset, DEC_offset, DELTA_PHASE0,
             flux_in_data, source_labels) = zip(
             *sorted(zipped_props, key=lambda x: x[-2]))
-        fig.append_trace(go.Scatter(x=np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0],
-                                    y=np.array(delta_pos_data),
-                                    mode='markers', showlegend=False,
-                                    text=source_labels, name='{:s} flux_ratio'.format(header),
-                                    marker=dict(color=DELTA_PHASE0, showscale=True,
-                                                colorscale='Jet', reversescale=True,
-                                                colorbar=dict(title='Distance from phase center (arcsec)',
-                                                              titleside='right',
-                                                              len=PLOT_NUM_POS['format'][PLOTS][2],
-                                                              y=PLOT_NUM_POS['format'][PLOTS][1]-j)
-                                                )), i+1, 2)
-        fig.append_trace(go.Scatter(x=np.array(RA_offset), y=np.array(DEC_offset),
-                                    mode='markers', showlegend=False,
-                                    text=source_labels, name='{:s} flux_ratio'.format(heading),
-                                    marker=dict(color=np.array(flux_out_data) * FLUX_UNIT_SCALER['milli'][0],
-                                                showscale=True,
-                                                colorscale='Viridis',
-                                                reversescale=True,
-                                                colorbar=dict(title='Output flux (mJy)',
-                                                              titleside='right',
-                                                              len=PLOT_NUM_POS['format'][PLOTS][2],
-                                                              y=PLOT_NUM_POS['format'][PLOTS][1]-j,
-                                                              x=0.4)
-                                                )), i+1, 1)
-
+        fig.append_trace(
+                go.Scatter(
+                    x=np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0],
+                    y=np.array(delta_pos_data),
+                    mode='markers', showlegend=False,
+                    text=source_labels, name='{:s} flux_ratio'.format(header),
+                    marker=dict(color=DELTA_PHASE0, showscale=True,
+                                colorscale='Jet', reversescale=True,
+                                colorbar=dict(title='Distance from phase center (arcsec)',
+                                              titleside='right',
+                                              len=PLOT_NUM_POS['format'][PLOTS][2],
+                                              y=PLOT_NUM_POS['format'][PLOTS][1]-j))),
+                i+1, 2)
+        fig.append_trace(
+                go.Scatter(
+                    x=np.array(RA_offset), y=np.array(DEC_offset),
+                    mode='markers', showlegend=False,
+                    text=source_labels, name='{:s} flux_ratio'.format(heading),
+                    marker=dict(color=np.array(flux_out_data) * FLUX_UNIT_SCALER['milli'][0],
+                                showscale=True,
+                                colorscale='Viridis',
+                                reversescale=True,
+                                colorbar=dict(title='Output flux (mJy)',
+                                              titleside='right',
+                                              len=PLOT_NUM_POS['format'][PLOTS][2],
+                                              y=PLOT_NUM_POS['format'][PLOTS][1]-j,
+                                              x=0.4))),
+                i+1, 1)
         RA_mean = np.mean(RA_offset)
         DEC_mean = np.mean(DEC_offset)
         r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
         pi, cos, sin = np.pi, np.cos, np.sin
-        theta = np.linspace(0, 2 * pi, len(DEC_offset))
+        theta = np.linspace(0, 2.0 * pi, len(DEC_offset))
         x1 = RA_mean+(r1 * cos(theta))
         y1 = DEC_mean+(r2 * sin(theta))
         recovered_sources = len(DEC_offset)
-        one_sigma_sources = len([(ra_off, dec_off) for ra_off, dec_off in zip(RA_offset, DEC_offset)
-                                if abs(ra_off) <= max(abs(x1)) and abs(dec_off) <= max(abs(y1))])
+        one_sigma_sources = len([
+            (ra_off, dec_off) for ra_off, dec_off in zip(RA_offset, DEC_offset)
+            if abs(ra_off) <= max(abs(x1)) and abs(dec_off) <= max(abs(y1))])
         annotate.append(
             go.Annotation(
                 x=0,#RA_mean * 3,
@@ -1039,47 +1069,50 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                                     name=r'1 sigma',
                                     text=r'1 sigma ~ {:f}'.format(np.sqrt(r1*r2)),
                                     marker=dict(color='rgb(0, 0, 255)')), i+1, 1)
-        fig['layout'].update(title='', height=PLOT_NUM_POS['format'][PLOTS][3],#height=1700, width=950,
+        fig['layout'].update(title='', height=PLOT_NUM_POS['format'][PLOTS][3],
                              width=PLOT_NUM_POS['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
                              legend=dict(xanchor=True, x=1.2, y=1))
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i): YAxis(title=u'Dec offset [arcsec]',
-                                                gridcolor='rgb(255,255,255)',
-                                                color='rgb(0,0,0)',
-                                                tickfont=dict(size=14, color='rgb(0,0,0)'),
-                                                titlefont=dict(size=15),
-                                                showgrid=True,
-                                                showline=True,
-                                                showticklabels=True,
-                                                tickcolor='rgb(51,153,225)',
-                                                ticks='outside',
-                                                zeroline=True)})
+            {'yaxis{}'.format(counter+i): YAxis(
+                title=u'Dec offset [arcsec]',
+                gridcolor='rgb(255,255,255)',
+                color='rgb(0,0,0)',
+                tickfont=dict(size=14, color='rgb(0,0,0)'),
+                titlefont=dict(size=15),
+                showgrid=True,
+                showline=True,
+                showticklabels=True,
+                tickcolor='rgb(51,153,225)',
+                ticks='outside',
+                zeroline=True)})
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i+1): YAxis(title='Delta position [arcsec]',
-                                                  gridcolor='rgb(255,255,255)',
-                                                  color='rgb(0,0,0)',
-                                                  tickfont=dict(size=10, color='rgb(0,0,0)'),
-                                                  titlefont=dict(size=17),
-                                                  showgrid=True,
-                                                  showline=True,
-                                                  showticklabels=True,
-                                                  tickcolor='rgb(51,153,225)',
-                                                  ticks='outside',
-                                                  zeroline=True)})
-        fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title=u'RA offset (")',
-                                                                 titlefont=dict(size=17),
-                                                                 zeroline=False,
-                                                                 position=1.0,
-                                                                 overlaying='x',)})
-        fig['layout'].update({'xaxis{}'.format(counter+i+1): XAxis(title='Input Flux ({:s})'.format(
-                                                                       FLUX_UNIT_SCALER['milli'][1]),
-                                                                   position=0.0,
-                                                                   overlaying='x',
-                                                                   titlefont=dict(size=17),
-                                                                   zeroline=True)})
-#        fig['layout']['annotations'].update({'font': {'size': 10}})
-#        fig['layout']['annotations'].extend(annotate)
+            {'yaxis{}'.format(counter+i+1): YAxis(
+                title='Delta position [arcsec]',
+                gridcolor='rgb(255,255,255)',
+                color='rgb(0,0,0)',
+                tickfont=dict(size=10, color='rgb(0,0,0)'),
+                titlefont=dict(size=17),
+                showgrid=True,
+                showline=True,
+                showticklabels=True,
+                tickcolor='rgb(51,153,225)',
+                ticks='outside',
+                zeroline=True)})
+        fig['layout'].update(
+            {'xaxis{}'.format(counter+i): XAxis(
+                title=u'RA offset (")',
+                titlefont=dict(size=17),
+                zeroline=False,
+                position=1.0,
+                overlaying='x',)})
+        fig['layout'].update(
+                {'xaxis{}'.format(counter+i+1): XAxis(
+                    title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                    position=0.0,
+                    overlaying='x',
+                    titlefont=dict(size=17),
+                    zeroline=True)})
 
         if counter == PLOTS:
             fig['layout']['annotations'].update({'font': {'size': 12}})
@@ -1150,42 +1183,64 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
             res_noise_ratio.append(res_src[2])
             dist_from_phase.append(res_src[3])
             name_labels.append(res_src[4])
-        fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(rmss) * FLUX_UNIT_SCALER['micro'][0],
-                                    mode='lines',
-                                    showlegend=True if i == 0 else False,
-                                    name='residual 1',
-                                    text=name_labels,
-                                    marker=dict(color='rgb(255,0,0)'),
-                                    error_y=dict(type='data',
-                                                 color='rgb(158, 63, 221)',
-                                                 visible=True)), i+1, 1)
-        fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(residuals) * FLUX_UNIT_SCALER['micro'][0],
-                                    mode='lines', showlegend=True if i == 0 else False,
-                                    name='residual 2',
-                                    text=name_labels,
-                                    marker=dict(color='rgb(0,0,255)'),
-                                    error_y=dict(type='data',
-                                                 color='rgb(158, 63, 221)', visible=True)), i+1, 1)
-        fig.append_trace(go.Scatter(x=range(len(rmss)), y=np.array(res_noise_ratio),
-                                    mode='markers', showlegend=False,
-                                    text=name_labels,
-                                    marker=dict(color=dist_from_phase, showscale=True, colorscale='Jet',
-                                    colorbar=dict(title='Phase center dist (arcsec)',
-                                                  titleside='right',
-                                                  len=PLOT_NUM_FLUX['format'][PLOTS][2],
-                                                  y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
-                                    error_y=dict(type='data',
-                                                 color='rgb(158, 63, 221)', visible=True)), i+1, 2)
+        fig.append_trace(
+            go.Scatter(
+                x=range(len(rmss)),
+                y=np.array(rmss) * FLUX_UNIT_SCALER['micro'][0],
+                mode='lines',
+                showlegend=True if i == 0 else False,
+                name='residual 1',
+                text=name_labels,
+                marker=dict(color='rgb(255,0,0)'),
+                error_y=dict(type='data', color='rgb(158, 63, 221)',
+                             visible=True)),
+            i+1, 1)
+        fig.append_trace(
+            go.Scatter(
+                x=range(len(rmss)),
+                y=np.array(residuals) * FLUX_UNIT_SCALER['micro'][0],
+                mode='lines', showlegend=True if i == 0 else False,
+                name='residual 2',
+                text=name_labels,
+                marker=dict(color='rgb(0,0,255)'),
+                error_y=dict(type='data', color='rgb(158, 63, 221)',
+                             visible=True)),
+            i+1, 1)
+        fig.append_trace(
+            go.Scatter(
+                x=range(len(rmss)), y=np.array(res_noise_ratio),
+                mode='markers', showlegend=False,
+                text=name_labels,
+                marker=dict(color=dist_from_phase,
+                            showscale=True,
+                            colorscale='Jet',
+                            colorbar=dict(
+                                title='Phase center dist (arcsec)',
+                                titleside='right',
+                                len=PLOT_NUM_FLUX['format'][PLOTS][2],
+                                y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
+                error_y=dict(type='data', color='rgb(158, 63, 221)',
+                             visible=True)),
+            i+1, 2)
+        fig.append_trace(
+            go.Scatter(
+                x=[range(len(rmss))[0], range(len(rmss))[-1]],
+                y=[np.mean(residuals) / np.mean(rmss),
+                   np.mean(residuals) / np.mean(rmss)],
+                mode='line', showlegend=False,
+                marker=dict(color='rgb(0,300,0)'),
+                text=name_labels),
+            i+1, 2)
         annotate.append(
             go.Annotation(
                 x=0.00005 * FLUX_UNIT_SCALER['micro'][0],
-                y=7.8 + max(residuals)*FLUX_UNIT_SCALER['micro'][0], #+ #0.0005*FLUX_UNIT_SCALER['micro'][0],
+                y=7.8 + max(residuals) * FLUX_UNIT_SCALER['micro'][0],
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
-                text="res1: {:.2f} | res2: {:.2f} | res1-res2: {:.2f} ".format(
-                     np.mean(residuals)*FLUX_UNIT_SCALER['micro'][0],
-                     np.mean(rmss)*FLUX_UNIT_SCALER['micro'][0],
-                     np.mean(residuals)/np.mean(rmss)),
+                text="res1: {:.2f} | res2: {:.2f} | res1-res2: {:.2f}".format(
+                     np.mean(residuals) * FLUX_UNIT_SCALER['micro'][0],
+                     np.mean(rmss) * FLUX_UNIT_SCALER['micro'][0],
+                     np.mean(residuals) / np.mean(rmss)),
                 ax=0,
                 ay=-10,
                 showarrow=False,
@@ -1194,42 +1249,49 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                 font=dict(color="black", size=12.5)))
         fig['layout'].update(title='', height=PLOT_NUM_RES['format'][PLOTS][3],
                              width=PLOT_NUM_RES['format'][PLOTS][4],
-                             paper_bgcolor='rgb(255,255,255)', plot_bgcolor='rgb(229,229,229)',
+                             paper_bgcolor='rgb(255,255,255)',
+                             plot_bgcolor=BG_COLOR,
                              legend=dict(xanchor=True, x=.40, y=1.05))
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i): YAxis(title=u'rms [\u03BCJy]',
-                                                gridcolor='rgb(255,255,255)',
-                                                color='rgb(0,0,0)',
-                                                tickfont=dict(size=14, color='rgb(0,0,0)'),
-                                                titlefont=dict(size=17),
-                                                showgrid=True,
-                                                showline=True,
-                                                showticklabels=True,
-                                                tickcolor='rgb(51,153,225)',
-                                                ticks='outside',
-                                                zeroline=False)})
+            {'yaxis{}'.format(counter+i): YAxis(
+                title=u'rms [\u03BCJy/beam]',
+                gridcolor='rgb(255,255,255)',
+                color='rgb(0,0,0)',
+                tickfont=dict(size=14, color='rgb(0,0,0)'),
+                titlefont=dict(size=17),
+                showgrid=True,
+                showline=True,
+                showticklabels=True,
+                tickcolor='rgb(51,153,225)',
+                ticks='outside',
+                zeroline=False)})
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i+1): YAxis(title=u'${I_{res}/I_{noise}}$',
-                                                  gridcolor='rgb(255,255,255)',
-                                                  color='rgb(0,0,0)',
-                                                  tickfont=dict(size=10, color='rgb(0,0,0)'),
-                                                  titlefont=dict(size=15),
-                                                  showgrid=True,
-                                                  showline=True,
-                                                  showticklabels=True,
-                                                  tickcolor='rgb(51,153,225)',
-                                                  ticks='outside',
-                                                  zeroline=False)})
-        fig['layout'].update({'xaxis{}'.format(counter+i): XAxis(title='Sources',
-                                                                 titlefont=dict(size=17),
-                                                                 showline=True,
-                                                                 zeroline=False,
-                                                                 position=0.0,
-                                                                 overlaying='x')})
-        fig['layout'].update({'xaxis{}'.format(counter+i+1): XAxis(title='Sources',
-                                                                   titlefont=dict(size=17),
-                                                                   showline=True,
-                                                                   zeroline=False)})
+            {'yaxis{}'.format(counter+i+1): YAxis(
+                title='res1-to-res2',
+                gridcolor='rgb(255,255,255)',
+                color='rgb(0,0,0)',
+                tickfont=dict(size=10, color='rgb(0,0,0)'),
+                titlefont=dict(size=15),
+                showgrid=True,
+                showline=True,
+                showticklabels=True,
+                tickcolor='rgb(51,153,225)',
+                ticks='outside',
+                zeroline=False)})
+        fig['layout'].update(
+            {'xaxis{}'.format(counter+i): XAxis(
+                title='Sources',
+                titlefont=dict(size=17),
+                showline=True,
+                zeroline=False,
+                position=0.0,
+                overlaying='x')})
+        fig['layout'].update(
+            {'xaxis{}'.format(counter+i+1): XAxis(
+                title='Sources',
+                titlefont=dict(size=17),
+                showline=True,
+                zeroline=False)})
         i += 1
         j += PLOT_NUM_RES['format'][PLOTS][0]
         if counter == PLOTS:
@@ -1266,28 +1328,12 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
     """
     # dictinary to store results
     results = dict()
-    # Get residual image names
-    #res_image = res_noise_images[0]['path']
-    #noise_image = res_noise_images[-1]['path']
-    # Residual-noise dictionary
-    #res_noise_image_dict = {res_image: noise_image}
-    # Get label
-    #label = res_noise_images[0]['label']
-    #if 'None' in label:
-    #    label = res_image[:-5]
-    # Get fits info
-    #fits_info = fitsInfo(res_image)
-    # Get beam size otherwise use default (5``).
-    #beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
-    # Get random pixel coordinates
-    #pix_coord_deg = _get_random_pixel_coord(data_points,
-    ##                                        sky_area=fits_info['skyArea'] * 0.9,
-    #                                        phase_centre=fits_info['centre'])
     # Get beam size otherwise use default (5``).
     beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
     # Source counter
     i = 0
     for images in res_noise_images:
+        # Get residual image names
         res_image = images[0]['path']
         noise_image = images[-1]['path']
         # Get fits info
@@ -1341,11 +1387,11 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
             phase_dist_arcsec = deg2arcsec(np.sqrt((RA-RA0)**2 + (DEC-DEC0)**2))
             # Store all outputs in the results data structure
             results[res_image].append([noise_rms,
-                                   flux_std,
-                                   flux_std/noise_rms,
-                                   phase_dist_arcsec, 'source{0}'.format(i),
-                                   flux_mean,
-                                   flux_mean/noise_rms])
+                                       flux_std,
+                                       flux_std/noise_rms,
+                                       phase_dist_arcsec, 'source{0}'.format(i),
+                                       flux_mean,
+                                       flux_mean/noise_rms])
     return results
 
 
@@ -1416,7 +1462,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
         beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
         beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
         # Get width of box around source
-        width = int(deg2arcsec(beam_deg[0])*area_factor)
+        width = int(deg2arcsec(beam_deg[0]) * area_factor)
         # Get a image slice around source
         imslice = get_box(fits_info["wcs"], (RA, DEC), width)
         # Get noise rms in the box around source
