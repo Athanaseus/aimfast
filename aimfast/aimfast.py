@@ -147,6 +147,7 @@ def json_dump(data_dict, root='.'):
         with open(filename) as data_file:
             data_existing = json.load(data_file)
             data_existing.update(data_dict)
+            data = data_existing
     except IOError:
         data = data_dict
     if data:
@@ -692,7 +693,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor):
     return targets_flux, targets_scale, targets_position
 
 
-def compare_models(models, tolerance=0.0000001, plot=True):
+def compare_models(models, tolerance=0.000001, plot=True):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -719,15 +720,18 @@ def compare_models(models, tolerance=0.0000001, plot=True):
         results[heading]['flux'] = []
         results[heading]['shape'] = []
         results[heading]['position'] = []
-        props = get_detected_sources_properties('{:s}'.format(input_model["path"]),
-                                                '{:s}'.format(output_model["path"]),
+        props = get_detected_sources_properties('{}'.format(input_model["path"]),
+                                                '{}'.format(output_model["path"]),
                                                 tolerance)  # TOD0 area to be same as beam
         for i in range(len(props[0])):
-            results[heading]['flux'].append(props[0].items()[i][-1])
+            flux_prop = list(props[0].items())
+            results[heading]['flux'].append(flux_prop[i][-1])
         for i in range(len(props[1])):
-            results[heading]['shape'].append(props[1].items()[i][-1])
+            shape_prop = list(props[1].items())
+            results[heading]['shape'].append(shape_prop[i][-1])
         for i in range(len(props[2])):
-            results[heading]['position'].append(props[2].items()[i][-1])
+            pos_prop = list(props[2].items())
+            results[heading]['position'].append(pos_prop[i][-1])
     if plot:
         _source_flux_plotter(results, models)
         _source_astrometry_plotter(results, models)
@@ -760,8 +764,8 @@ def plot_photometry(models, label=None, tolerance=0.00001):
     _models = []
     i = 0
     for model1, model2 in models.items():
-        _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i), path=model1),
-                        dict(label="{0:s}-model_b_{1:d}".format(label, i), path=model2)])
+        _models.append([dict(label="{}-model_a_{}".format(label, i), path=model1),
+                        dict(label="{}-model_b_{}".format(label, i), path=model2)])
         i += 1
     results = compare_models(_models, tolerance, False)
     _source_flux_plotter(results, _models, inline=True)
@@ -891,14 +895,14 @@ def _source_flux_plotter(results, all_models, inline=False):
                 showarrow=False,
                 bordercolor='#c7c7c7',
                 borderwidth=2,
-                font=dict(color="black", size=12.5)))
+                font=dict(color="black", size=12)))
         fig.append_trace(
             go.Scatter(
                 x=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
                 showlegend=False,
                 marker=dict(color='rgb(0,0,255)'),
                 y=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
-                mode='line'), i+1, 1)
+                mode='lines'), i+1, 1)
         fig.append_trace(
             go.Scatter(
                 x=np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
@@ -938,8 +942,7 @@ def _source_flux_plotter(results, all_models, inline=False):
                 title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
                 position=0.0, titlefont=dict(size=17), overlaying='x')})
         if counter == PLOTS:
-            fig['layout']['annotations'].update({'font': {'size': 12}})
-            fig['layout']['annotations'].extend(annotate)
+            fig['layout']['annotations'] = annotate
         j += PLOT_NUM_FLUX['format'][PLOTS][0]
     outfile = 'InputOutputFluxDensity.html'
     if inline:
@@ -1080,7 +1083,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         fig['layout'].update(title='', height=PLOT_NUM_POS['format'][PLOTS][3],
                              width=PLOT_NUM_POS['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
-                             legend=dict(xanchor=True, x=1.2, y=1))
+                             legend=dict(xanchor='auto', x=1.2, y=1))
         fig['layout'].update(
             {'yaxis{}'.format(counter+i): YAxis(
                 title=u'Dec offset [arcsec]',
@@ -1123,8 +1126,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 zeroline=True)})
 
         if counter == PLOTS:
-            fig['layout']['annotations'].update({'font': {'size': 12}})
-            fig['layout']['annotations'].extend(annotate)
+            fig['layout']['annotations'] = annotate
         j += PLOT_NUM_POS['format'][PLOTS][0]
 
     outfile = 'InputOutputPosition.html'
@@ -1235,7 +1237,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                 x=[range(len(rmss))[0], range(len(rmss))[-1]],
                 y=[np.mean(residuals) / np.mean(rmss),
                    np.mean(residuals) / np.mean(rmss)],
-                mode='line', showlegend=False,
+                mode='lines', showlegend=False,
                 marker=dict(color='rgb(0,300,0)'),
                 text=name_labels),
             i+1, 2)
@@ -1254,7 +1256,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                 showarrow=False,
                 bordercolor='#c7c7c7',
                 borderwidth=2,
-                font=dict(color="black", size=12.5)))
+                font=dict(color="black", size=12)))
         fig['layout'].update(title='', height=PLOT_NUM_RES['format'][PLOTS][3],
                              width=PLOT_NUM_RES['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)',
@@ -1303,7 +1305,6 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         i += 1
         j += PLOT_NUM_RES['format'][PLOTS][0]
         if counter == PLOTS:
-            fig['layout']['annotations'].update({'font': {'size': 12}})
             fig['layout']['annotations'].extend(annotate)
     if points:
         outfile = 'RandomResidualNoiseRatio.html'
@@ -1638,8 +1639,8 @@ def main():
             model1, model2 = models
             output_dict = compare_models(
                 [
-                    dict(label="{0:s}-model1".format(args.label), path=model1),
-                    dict(label="{0:s}-model2".format(args.label), path=model2),
+                    [dict(label="{}-model_a_".format(args.label), path=model1),
+                    dict(label="{}-model_b_".format(args.label), path=model2)],
                 ]
             )
 
