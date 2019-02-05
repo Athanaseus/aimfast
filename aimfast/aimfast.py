@@ -99,6 +99,14 @@ def creat_logger():
     return log
 
 
+def get_aimfast_data(filename='fidelity_results.json', dir='.'):
+    "Extracts data from the json data file"
+    file = '{:s}/{:s}'.format(dir, filename)
+    with open(file) as f:
+        data = json.load(f)
+        return data
+
+
 def deg2arcsec(x):
     """Converts 'x' from degrees to arcseconds."""
     result = float(x) * 3600.00
@@ -1657,5 +1665,5 @@ def main():
                     ], points=int(args.points) if args.points else 100
                 )
 
-    if output_dict and not args.noise and not args.models:
+    if output_dict:# and not args.noise and not args.models:
         json_dump(output_dict)
