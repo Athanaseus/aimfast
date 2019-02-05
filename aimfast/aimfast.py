@@ -44,35 +44,35 @@ PLOT_NUM_FLUX = {'format':
 PLOT_NUM_POS = {'format':
                 {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
                    #                plot height, plot width]
-                     1: [0.90, 0.45, 0.8, 470, 940],
-                     2: [0.59, 0.78, 0.4, 1000, 800],
-                     3: [0.41, 0.81, 0.34, 1500, 800],
-                     4: [0.28, 0.86, 0.31, 1800, 700],
-                     5: [0.207, 0.91, 0.15, 2000, 1000]},
+                    1: [0.90, 0.45, 0.8, 470, 940],
+                    2: [0.59, 0.78, 0.4, 1000, 800],
+                    3: [0.41, 0.81, 0.34, 1500, 800],
+                    4: [0.28, 0.86, 0.31, 1800, 700],
+                    5: [0.207, 0.91, 0.15, 2000, 1000]},
                 'plots':
                 {  # num of plots: [vertical spacing, horizontal spacing]
-                     1: [0.02, 0.16],
-                     2: [0.02, 0.16],
-                     3: [0.02, 0.16],
-                     4: [0.02, 0.16],
-                     5: [0.02, 0.16]},
+                    1: [0.02, 0.16],
+                    2: [0.02, 0.16],
+                    3: [0.02, 0.16],
+                    4: [0.02, 0.16],
+                    5: [0.02, 0.16]},
                 }
 
 PLOT_NUM_RES = {'format':
                 {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
                    #                plot height, plot width]
-                     1: [0.90, 0.45, 0.8, 470, 940],
-                     2: [0.59, 0.78, 0.4, 1000, 800],
-                     3: [0.41, 0.81, 0.34, 1500, 800],
-                     4: [0.28, 0.86, 0.31, 1800, 700],
-                     5: [0.207, 0.91, 0.15, 2000, 1000]},
+                    1: [0.90, 0.45, 0.8, 470, 940],
+                    2: [0.59, 0.78, 0.4, 1000, 800],
+                    3: [0.41, 0.81, 0.34, 1500, 800],
+                    4: [0.28, 0.86, 0.31, 1800, 700],
+                    5: [0.207, 0.91, 0.15, 2000, 1000]},
                 'plots':
                 {  # num of plots: [vertical spacing, horizontal spacing]
-                     1: [0.02, 0.16],
-                     2: [0.02, 0.16],
-                     3: [0.02, 0.16],
-                     4: [0.02, 0.16],
-                     5: [0.02, 0.16]},
+                    1: [0.02, 0.16],
+                    2: [0.02, 0.16],
+                    3: [0.02, 0.16],
+                    4: [0.02, 0.16],
+                    5: [0.02, 0.16]},
                 }
 
 # Unit multipleirs for plotting
@@ -914,21 +914,21 @@ def _source_flux_plotter(results, all_models, inline=False):
                              plot_bgcolor=BG_COLOR,
                              legend=dict(x=0.8, y=1.0),)
         fig['layout'].update(
-                {'yaxis{}'.format(counter): YAxis(
-                    title='Output flux({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
-                    gridcolor='rgb(255,255,255)',
-                    tickfont=dict(size=15),
-                    titlefont=dict(size=17),
-                    showgrid=True,
-                    showline=False,
-                    showticklabels=True,
-                    tickcolor='rgb(51,153,225)',
-                    ticks='outside',
-                    zeroline=False)})
+            {'yaxis{}'.format(counter): YAxis(
+                title='Output flux({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                gridcolor='rgb(255,255,255)',
+                tickfont=dict(size=15),
+                titlefont=dict(size=17),
+                showgrid=True,
+                showline=False,
+                showticklabels=True,
+                tickcolor='rgb(51,153,225)',
+                ticks='outside',
+                zeroline=False)})
         fig['layout'].update(
-                {'xaxis{}'.format(counter+i): XAxis(
-                    title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
-                    position=0.0, titlefont=dict(size=17), overlaying='x')})
+            {'xaxis{}'.format(counter+i): XAxis(
+                title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                position=0.0, titlefont=dict(size=17), overlaying='x')})
         if counter == PLOTS:
             fig['layout']['annotations'].update({'font': {'size': 12}})
             fig['layout']['annotations'].extend(annotate)
@@ -1002,33 +1002,33 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             flux_in_data, source_labels) = zip(
             *sorted(zipped_props, key=lambda x: x[-2]))
         fig.append_trace(
-                go.Scatter(
-                    x=np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0],
-                    y=np.array(delta_pos_data),
-                    mode='markers', showlegend=False,
-                    text=source_labels, name='{:s} flux_ratio'.format(header),
-                    marker=dict(color=DELTA_PHASE0, showscale=True,
-                                colorscale='Jet', reversescale=True,
-                                colorbar=dict(title='Distance from phase center (arcsec)',
-                                              titleside='right',
-                                              len=PLOT_NUM_POS['format'][PLOTS][2],
-                                              y=PLOT_NUM_POS['format'][PLOTS][1]-j))),
-                i+1, 2)
+            go.Scatter(
+                x=np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0],
+                y=np.array(delta_pos_data),
+                mode='markers', showlegend=False,
+                text=source_labels, name='{:s} flux_ratio'.format(header),
+                marker=dict(color=DELTA_PHASE0, showscale=True,
+                            colorscale='Jet', reversescale=True,
+                            colorbar=dict(title='Distance from phase center (arcsec)',
+                                          titleside='right',
+                                          len=PLOT_NUM_POS['format'][PLOTS][2],
+                                          y=PLOT_NUM_POS['format'][PLOTS][1]-j))),
+            i+1, 2)
         fig.append_trace(
-                go.Scatter(
-                    x=np.array(RA_offset), y=np.array(DEC_offset),
-                    mode='markers', showlegend=False,
-                    text=source_labels, name='{:s} flux_ratio'.format(heading),
-                    marker=dict(color=np.array(flux_out_data) * FLUX_UNIT_SCALER['milli'][0],
-                                showscale=True,
-                                colorscale='Viridis',
-                                reversescale=True,
-                                colorbar=dict(title='Output flux (mJy)',
-                                              titleside='right',
-                                              len=PLOT_NUM_POS['format'][PLOTS][2],
-                                              y=PLOT_NUM_POS['format'][PLOTS][1]-j,
-                                              x=0.4))),
-                i+1, 1)
+            go.Scatter(
+                x=np.array(RA_offset), y=np.array(DEC_offset),
+                mode='markers', showlegend=False,
+                text=source_labels, name='{:s} flux_ratio'.format(heading),
+                marker=dict(color=np.array(flux_out_data) * FLUX_UNIT_SCALER['milli'][0],
+                            showscale=True,
+                            colorscale='Viridis',
+                            reversescale=True,
+                            colorbar=dict(title='Output flux (mJy)',
+                                          titleside='right',
+                                          len=PLOT_NUM_POS['format'][PLOTS][2],
+                                          y=PLOT_NUM_POS['format'][PLOTS][1]-j,
+                                          x=0.4))),
+            i+1, 1)
         RA_mean = np.mean(RA_offset)
         DEC_mean = np.mean(DEC_offset)
         r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
@@ -1042,19 +1042,19 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             if abs(ra_off) <= max(abs(x1)) and abs(dec_off) <= max(abs(y1))])
         annotate.append(
             go.Annotation(
-                x=0,#RA_mean * 3,
+                x=0,
                 y=max(DEC_offset) + 0.18,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
                 text=("Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f})".format(
-                          recovered_sources, RA_mean, DEC_mean)),
+                      recovered_sources, RA_mean, DEC_mean)),
                 ax=0,
                 ay=-40,
                 showarrow=False,
                 font=dict(color="black", size=10)))
         annotate.append(
             go.Annotation(
-                x=0,#RA_mean * 3,
+                x=0,
                 y=max(DEC_offset) + 0.19 + 0.055,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
@@ -1107,12 +1107,12 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 position=1.0,
                 overlaying='x',)})
         fig['layout'].update(
-                {'xaxis{}'.format(counter+i+1): XAxis(
-                    title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
-                    position=0.0,
-                    overlaying='x',
-                    titlefont=dict(size=17),
-                    zeroline=True)})
+            {'xaxis{}'.format(counter+i+1): XAxis(
+                title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                position=0.0,
+                overlaying='x',
+                titlefont=dict(size=17),
+                zeroline=True)})
 
         if counter == PLOTS:
             fig['layout']['annotations'].update({'font': {'size': 12}})
