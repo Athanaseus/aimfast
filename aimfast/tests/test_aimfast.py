@@ -73,4 +73,13 @@ class TestClass(object):
         output_normaltest_value = output_value.pop('NORM')
         assert expected_value == output_value
         assert expected_normaltest_value == pytest.approx(
-            output_normaltest_value, 1.0e-6)
+            output_normaltest_value, 1.0e-4)
+
+    def test_get_detected_sources_properties(self):
+        """Test get detected sources properties"""
+        input_dir = 'aimfast/tests/files'
+        model1 = '{:s}/catalog.txt'.format(input_dir)
+        model2 = '{:s}/catalog.lsm.html'.format(input_dir)
+        expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
+        output = aimfast.get_detected_sources_properties(model1, model2, 2)
+        pass
