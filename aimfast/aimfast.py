@@ -1640,7 +1640,7 @@ def main():
             output_dict = compare_models(
                 [
                     [dict(label="{}-model_a_".format(args.label), path=model1),
-                    dict(label="{}-model_b_".format(args.label), path=model2)],
+                     dict(label="{}-model_b_".format(args.label), path=model2)],
                 ]
             )
 
@@ -1666,5 +1666,5 @@ def main():
                     ], points=int(args.points) if args.points else 100
                 )
 
-    if output_dict:# and not args.noise and not args.models:
+    if output_dict:
         json_dump(output_dict)
