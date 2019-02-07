@@ -1,3 +1,4 @@
+import os
 import json
 import Tigger
 import random
@@ -18,9 +19,11 @@ from plotly import graph_objs as go
 from plotly.graph_objs import XAxis, YAxis
 
 from astLib.astWCS import WCS
+from astropy.table import Table
 from astropy.io import fits as fitsio
 
 from sklearn.metrics import mean_squared_error
+from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
 
 
@@ -605,6 +608,50 @@ def get_src_scale(source_shape):
     return scale_out_arc_sec, scale_out_err_arc_sec
 
 
+def get_model(catalog):
+    """Get model"""
+
+    def tigger_src(src, idx):
+
+        name = "SRC%d" % idx
+        flux = ModelClasses.Polarization(float(src["int_flux"]), 0, 0, 0,
+                                         I_err=float(src["err_int_flux"]))
+        ra, ra_err = map(np.deg2rad, (float(src["ra"]), float(src["err_ra"])))
+        dec, dec_err = map(np.deg2rad, (float(src["dec"]),
+                                        float(src["err_dec"])))
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+        ex, ex_err = map(np.deg2rad, (float(src["a"]), float(src["err_a"])))
+        ey, ey_err = map(np.deg2rad, (float(src["b"]), float(src["err_b"])))
+        pa, pa_err = map(np.deg2rad, (float(src["pa"]), float(src["err_pa"])))
+
+        if ex and ey:
+            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
+                                          ey_err=ey_err, pa_err=pa_err)
+        else:
+            shape = None
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        # Adding source peak flux (error) as extra flux attributes for sources,
+        # and to avoid null values for point sources I_peak = src["Total_flux"]
+        if shape:
+            source.setAttribute("I_peak", float(src["peak_flux"]))
+            source.setAttribute("I_peak_err", float(src["err_peak_flux"]))
+        else:
+            source.setAttribute("I_peak", float(src["int_flux"]))
+            source.setAttribute("I_peak_err", float(src["err_int_flux"]))
+
+        return source
+
+    ext = os.path.splitext(catalog)
+    if ext in ['.html', '.txt']:
+        model = Tigger.load(catalog)
+    if ext in ['.tab', '.csv']:
+        model = []
+        data = Table.read(catalog, format=ext)
+        for i, src in enumerate(data):
+            model.sources.append(tigger_src(src, i))
+    return model
+
+
 def get_detected_sources_properties(model_1, model_2, area_factor):
     """Extracts the output simulation sources properties.
 
@@ -623,8 +670,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor):
         Tuple of target flux, morphology and astrometry information
 
     """
-    model_lsm = Tigger.load(model_1)
-    pybdsm_lsm = Tigger.load(model_2)
+    model_lsm = get_model(model_1)
+    pybdsm_lsm = get_model(model_2)
     # Sources from the input model
     model_sources = model_lsm.sources
     # {"source_name": [I_out, I_out_err, I_in, source_name]}
