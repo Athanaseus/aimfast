@@ -372,7 +372,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None):
     # Get the header data unit for the residual rms
     residual_data = residual_hdu[0].data
     # Get the mean value
-    res_props['MEAN'] = round(abs(residual_data.mean()), 10)
+    res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
     # Get the sigma value
     res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
     # Flatten image
@@ -386,6 +386,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None):
         norm_props = normality_testing(fitsname, test_normality, data_range)
         res_props.update(norm_props)
     props = res_props
+    print(props)
     # Return dictionary of results
     return props
 
