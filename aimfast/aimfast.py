@@ -4,6 +4,7 @@ import Tigger
 import random
 import logging
 import argparse
+import tempfile
 import numpy as np
 
 from functools import partial
@@ -641,12 +642,17 @@ def get_model(catalog):
 
         return source
 
-    ext = os.path.splitext(catalog)
+    tfile = tempfile.NamedTemporaryFile(suffix='.txt')
+    tfile.flush()
+    with open(tfile.name, "w") as stdw:
+        stdw.write("#format:name ra_d dec_d i emaj_s emin_s pa_d\n")
+    model = Tigger.load(tfile.name)
+    tfile.close()
+    ext = os.path.splitext(catalog)[-1]
     if ext in ['.html', '.txt']:
         model = Tigger.load(catalog)
     if ext in ['.tab', '.csv']:
-        model = []
-        data = Table.read(catalog, format=ext)
+        data = Table.read(catalog, format='ascii')
         for i, src in enumerate(data):
             model.sources.append(tigger_src(src, i))
     return model
