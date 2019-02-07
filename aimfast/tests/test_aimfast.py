@@ -68,7 +68,7 @@ class TestClass(object):
                           'SKEW': 0.186153,
                           'KURT': 2.870047,
                           'STDDev': 3.1e-05,
-                          'MEAN': 1.215e-06}
+                          'MEAN': 1.21497e-06}
         expected_normaltest_value = expected_value.pop('NORM')
         output_normaltest_value = output_value.pop('NORM')
         assert expected_value == output_value
