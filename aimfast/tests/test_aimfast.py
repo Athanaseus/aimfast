@@ -92,4 +92,7 @@ class TestClass(object):
         # Remove the reisdual stats
         expected.pop('cube.fits')
         assert models == [model1, model2]
-        assert expected == output
+        assert(len(expected[expected_label]['flux']) ==
+               len(output[expected_label]['flux']))
+        assert(len(expected[expected_label]['position']) ==
+               len(output[expected_label]['position']))
