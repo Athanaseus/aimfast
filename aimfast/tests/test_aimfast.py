@@ -77,9 +77,19 @@ class TestClass(object):
 
     def test_get_detected_sources_properties(self):
         """Test get detected sources properties"""
+        expected_label = 'None-model_a_'
+        label = None
         input_dir = 'aimfast/tests/files'
-        model1 = '{:s}/catalog.txt'.format(input_dir)
-        model2 = '{:s}/catalog.lsm.html'.format(input_dir)
+        model1 = 'catalog.txt'
+        model2 = 'catalog.lsm.html'
+        model1_path = '{:s}/{:s}'.format(input_dir, model1)
+        model2_path = '{:s}/{:s}'.format(input_dir, model2)
+        models = [[dict(label="{}-model_a_".format(label), path=model1_path),
+                   dict(label="{}-model_b_".format(label), path=model2_path)]]
         expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
-        output = aimfast.get_detected_sources_properties(model1, model2, 2)
-        pass
+        output = aimfast.compare_models(models, tolerance=0.000001, plot=False)
+        models = expected[expected_label]['models']
+        # Remove the reisdual stats
+        expected.pop('cube.fits')
+        assert models == [model1, model2]
+        assert expected == output
