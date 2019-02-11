@@ -658,7 +658,8 @@ def get_model(catalog):
     return model
 
 
-def get_detected_sources_properties(model_1, model_2, area_factor):
+def get_detected_sources_properties(model_1, model_2, area_factor,
+                                    phase_centre=None):
     """Extracts the output simulation sources properties.
 
     Parameters
@@ -669,6 +670,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor):
         Tigger formatted or txt model 2 file.
     area_factor : float
         Area factor to multiply the psf size around source.
+    phase_centre : str
+        Phase centre of catalog (if not already embeded)
 
     Returns
     -------
@@ -711,9 +714,12 @@ def get_detected_sources_properties(model_1, model_2, area_factor):
             I_out_var_err = np.sqrt(1.0 / I_out_err)
             I_out = I_out / I_out_err
             I_out_err = I_out_var_err
-            source = sources[0]
             RA0 = pybdsm_lsm.ra0
             DEC0 = pybdsm_lsm.dec0
+            if phase_centre:
+                RA0 = np.deg2rad(float(phase_centre.split(',')[1].split('deg')[0]))
+                DEC0 = np.deg2rad(float(phase_centre.split(',')[-1].split('deg')[0]))
+            source = sources[0]
             ra = source.pos.ra
             dec = source.pos.dec
             source_name = source.name
@@ -722,8 +728,11 @@ def get_detected_sources_properties(model_1, model_2, area_factor):
                 ra -= 2.0*np.pi
             delta_pos_angle = angular_dist_pos_angle(RA, DEC, ra, dec)
             delta_pos_angle_arc_sec = rad2arcsec(delta_pos_angle[0])
-            delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
-            delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
+            if RA0 or DEC0:
+                delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
+                delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
+            else:
+                delta_phase_centre_arc_sec = None
             targets_position[name] = [delta_pos_angle_arc_sec,
                                       rad2arcsec(abs(ra - RA)),
                                       rad2arcsec(abs(dec - DEC)),
@@ -747,7 +756,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor):
     return targets_flux, targets_scale, targets_position
 
 
-def compare_models(models, tolerance=0.000001, plot=True):
+def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -758,6 +767,8 @@ def compare_models(models, tolerance=0.000001, plot=True):
         Tolerace in detecting source from model 2.
     plot : bool
         Output html plot from which a png can be obtained.
+    phase_centre : str
+        Phase centre of catalog (if not already embeded)
 
     Returns
     -------
@@ -776,7 +787,7 @@ def compare_models(models, tolerance=0.000001, plot=True):
         results[heading]['position'] = []
         props = get_detected_sources_properties('{}'.format(input_model["path"]),
                                                 '{}'.format(output_model["path"]),
-                                                tolerance)  # TOD0 area to be same as beam
+                                                tolerance, phase_centre)
         for i in range(len(props[0])):
             flux_prop = list(props[0].items())
             results[heading]['flux'].append(flux_prop[i][-1])
@@ -802,7 +813,7 @@ def compare_residuals(residuals, skymodel=None, points=None,
     return res
 
 
-def plot_photometry(models, label=None, tolerance=0.00001):
+def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None):
     """Plot model-model fluxes from lsm.html/txt models
 
     Parameters
@@ -813,6 +824,8 @@ def plot_photometry(models, label=None, tolerance=0.00001):
         Use this label instead of the FITS image path when saving data.
     tolerance: float
         Radius around the source to be cross matched.
+    phase_centre : str
+        Phase centre of catalog (if not already embeded)
 
     """
     _models = []
@@ -821,11 +834,11 @@ def plot_photometry(models, label=None, tolerance=0.00001):
         _models.append([dict(label="{}-model_a_{}".format(label, i), path=model1),
                         dict(label="{}-model_b_{}".format(label, i), path=model2)])
         i += 1
-    results = compare_models(_models, tolerance, False)
+    results = compare_models(_models, tolerance, False, phase_centre)
     _source_flux_plotter(results, _models, inline=True)
 
 
-def plot_astrometry(models, label=None, tolerance=0.00001):
+def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None):
     """Plot model-model positions from lsm.html/txt models
 
     Parameters
@@ -836,6 +849,8 @@ def plot_astrometry(models, label=None, tolerance=0.00001):
         Use this label instead of the FITS image path when saving data.
     tolerance: float
         Radius around the source to be cross matched.
+    phase_centre : str
+        Phase centre of catalog (if not already embeded)
 
     """
     _models = []
@@ -844,7 +859,7 @@ def plot_astrometry(models, label=None, tolerance=0.00001):
         _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i), path=model1),
                         dict(label="{0:s}-model_b_{1:d}".format(label, i), path=model2)])
         i += 1
-    results = compare_models(_models, tolerance, False)
+    results = compare_models(_models, tolerance, False, phase_centre)
     _source_astrometry_plotter(results, _models, inline=True)
 
 
@@ -969,7 +984,8 @@ def _source_flux_plotter(results, all_models, inline=False):
                                 titleside='right',
                                 titlefont=dict(size=16),
                                 len=PLOT_NUM_FLUX['format'][PLOTS][2],
-                                y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
+                                y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)) if
+                                phase_center_dist[-1] else dict(),
                 error_y=dict(type='data',
                              array=np.array(flux_out_err_data)*FLUX_UNIT_SCALER['milli'][0],
                              color='rgb(158, 63, 221)',
@@ -1077,7 +1093,8 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                             colorbar=dict(title='Distance from phase center (arcsec)',
                                           titleside='right',
                                           len=PLOT_NUM_POS['format'][PLOTS][2],
-                                          y=PLOT_NUM_POS['format'][PLOTS][1]-j))),
+                                          y=PLOT_NUM_POS['format'][PLOTS][1]-j))
+                                          if DELTA_PHASE0[-1] else dict()),
             i+1, 2)
         fig.append_trace(
             go.Scatter(
@@ -1590,6 +1607,8 @@ def get_argparser():
                   'e.g. --compare-residuals residuals.fits noise.fits')
     argument('-dp', '--data-points', dest='points',
              help='Data points to sample the residual/noise image')
+    argument('-ptc', '--phase-centre', dest='phase',
+             help='Phase tracking centre of the catalogs e.g. "J2000.0,0.0deg,-30.0"')
     argument("--label",
              help='Use this label instead of the FITS image path when saving'
                   'data as JSON file')
@@ -1695,7 +1714,8 @@ def main():
                 [
                     [dict(label="{}-model_a_".format(args.label), path=model1),
                      dict(label="{}-model_b_".format(args.label), path=model2)],
-                ]
+                ],
+                phase_centre=args.phase
             )
 
     if args.noise:
