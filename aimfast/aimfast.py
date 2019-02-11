@@ -1231,10 +1231,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         # Get residual image names
         output_model = res_ims[-1]['path']
         input_model = res_ims[0]['path']
-        if 'html' in output_model:
-            header = output_model.split('/')[-1][:-9]
-        else:
-            header = output_model.split('/')[-1][:-4]
+        header = output_model.split('/')[-1][:-5]
         residuals_compare[input_model] = output_model
         # Assign plot titles
         im_titles.append('<b>{:s} RMS</b>'.format(header.upper()))
@@ -1266,7 +1263,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
             name_labels.append(res_src[4])
         fig.append_trace(
             go.Scatter(
-                x=range(len(rmss)),
+                x=np.array(range(len(rmss))),
                 y=np.array(rmss) * FLUX_UNIT_SCALER['micro'][0],
                 mode='lines',
                 showlegend=True if i == 0 else False,
@@ -1278,7 +1275,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
             i+1, 1)
         fig.append_trace(
             go.Scatter(
-                x=range(len(rmss)),
+                x=np.array(range(len(rmss))),
                 y=np.array(residuals) * FLUX_UNIT_SCALER['micro'][0],
                 mode='lines', showlegend=True if i == 0 else False,
                 name='residual 2',
@@ -1289,7 +1286,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
             i+1, 1)
         fig.append_trace(
             go.Scatter(
-                x=range(len(rmss)), y=np.array(res_noise_ratio),
+                x=np.array(range(len(rmss))), y=np.array(res_noise_ratio),
                 mode='markers', showlegend=False,
                 text=name_labels,
                 marker=dict(color=dist_from_phase,
@@ -1305,7 +1302,8 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
             i+1, 2)
         fig.append_trace(
             go.Scatter(
-                x=[range(len(rmss))[0], range(len(rmss))[-1]],
+                x=[np.array(range(len(rmss)))[0],
+                   np.array(range(len(rmss)))[-1]],
                 y=[np.mean(residuals) / np.mean(rmss),
                    np.mean(residuals) / np.mean(rmss)],
                 mode='lines', showlegend=False,
@@ -1332,7 +1330,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                              width=PLOT_NUM_RES['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)',
                              plot_bgcolor=BG_COLOR,
-                             legend=dict(xanchor=True, x=.40, y=1.05))
+                             legend=dict(xanchor='auto', x=.40, y=1.05))
         fig['layout'].update(
             {'yaxis{}'.format(counter+i): YAxis(
                 title=u'rms [\u03BCJy/beam]',
@@ -1376,7 +1374,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         i += 1
         j += PLOT_NUM_RES['format'][PLOTS][0]
         if counter == PLOTS:
-            fig['layout']['annotations'].extend(annotate)
+            fig['layout']['annotations'] = annotate
     if points:
         outfile = 'RandomResidualNoiseRatio.html'
     else:
@@ -1466,8 +1464,8 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
             DEC0 = float(fits_info['centre'].split(',')[-1].split('deg')[0])
             phase_dist_arcsec = deg2arcsec(np.sqrt((RA-RA0)**2 + (DEC-DEC0)**2))
             # Store all outputs in the results data structure
-            results[res_image].append([noise_rms,
-                                       flux_std,
+            results[res_image].append([noise_rms*1e0,
+                                       flux_std*1e0,
                                        flux_std/noise_rms,
                                        phase_dist_arcsec, 'source{0}'.format(i),
                                        flux_mean,
@@ -1495,82 +1493,96 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
     """
     # Dictinary to store results
     results = dict()
-    # Get residual image names
-    res_image = res_noise_images[0]['path']
-    noise_image = res_noise_images[-1]['path']
-    # Get label
-    label = res_noise_images[0]['label']
-    if 'None' in label:
-        label = res_image[:-5]
-    # Get fits info
-    fits_info = fitsInfo(res_image)
-    # Load skymodel to get source positions
-    model_lsm = Tigger.load(skymodel)
-    # Get all sources in the model
-    model_sources = model_lsm.sources
-    # Get global rms of noise image
-    noise_sig = noise_sigma(noise_image)
-    noise_hdu = fitsio.open(noise_image)
-    noise_data = noise_hdu[0].data
-    # Get data from residual image
-    residual_hdu = fitsio.open(res_image)
-    residual_data = residual_hdu[0].data
-    # Data structure for each residuals to compare
-    results[label] = []
-    # Get the number of frequency channels
-    nchan = (residual_data.shape[1]
-             if residual_data.shape[0] == 1
-             else residual_data.shape[0])
-    for model_source in model_sources:
-        src = model_source
-        # Get phase centre Ra and Dec coordinates
-        RA0 = model_lsm.ra0
-        DEC0 = model_lsm.dec0
-        # Get source Ra and Dec coordinates
-        ra = model_source.pos.ra
-        dec = model_source.pos.dec
-        # Convert to degrees
-        RA = rad2deg(ra)
-        DEC = rad2deg(dec)
-        # Remove any wraps
-        if ra > np.pi:
-            ra -= 2.0*np.pi
-        # Get distance from phase centre
-        delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
-        delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
+    # Get beam size otherwise use default (5``).
+    beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
+    # Source counter
+    i = 0
+    for images in res_noise_images:
+        # Get residual image names
+        res_image = images[0]['path']
+        noise_image = images[-1]['path']
+        # Get fits info
+        fits_info = fitsInfo(res_image)
         # Get beam size otherwise use default (5``).
-        beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
         beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
-        # Get width of box around source
-        width = int(deg2arcsec(beam_deg[0]) * area_factor)
-        # Get a image slice around source
-        imslice = get_box(fits_info["wcs"], (RA, DEC), width)
-        # Get noise rms in the box around source
-        noise_area = noise_data[0, 0, :, :][imslice]
-        noise_rms = noise_area.std()
-        # if image is cube then average along freq axis
-        flux_std = 0.0
-        flux_mean = 0.0
-        for frq_ax in range(nchan):
-            # In case the first two axes are swapped
-            if residual_data.shape[0] == 1:
-                target_area = residual_data[0, frq_ax, :, :][imslice]
-            else:
-                target_area = residual_data[frq_ax, 0, :, :][imslice]
-            # Sum of all the fluxes
-            flux_std += target_area.std()
-            flux_mean += target_area.mean()
-        # Get the average std and mean along all frequency channels
-        flux_std = flux_std/float(nchan)
-        flux_mean = flux_mean/float(nchan)
-        # Store all outputs in the results data structure
-        results[label].append([noise_rms, flux_std,
-                               flux_std/noise_rms,
-                               delta_phase_centre_arc_sec,
-                               model_source.name, src.flux.I,
-                               src.flux.I/flux_std,
-                               src.flux.I/noise_sig, flux_mean,
-                               abs(flux_mean/noise_rms)])
+        # Open noise header
+        noise_hdu = fitsio.open(noise_image)
+        # Get data from noise image
+        noise_data = noise_hdu[0].data
+        # Data structure for each residuals to compare
+        results[res_image] = []
+        residual_hdu = fitsio.open(res_image)
+        # Get the header data unit for the residual rms
+        residual_data = residual_hdu[0].data
+        # Get label
+        label = images[0]['label']
+        # Load skymodel to get source positions
+        model_lsm = Tigger.load(skymodel)
+        # Get all sources in the model
+        model_sources = model_lsm.sources
+        # Get global rms of noise image
+        noise_sig = noise_sigma(noise_image)
+        noise_hdu = fitsio.open(noise_image)
+        noise_data = noise_hdu[0].data
+        # Get data from residual image
+        residual_hdu = fitsio.open(res_image)
+        residual_data = residual_hdu[0].data
+        # Data structure for each residuals to compare
+        results[label] = []
+        # Get the number of frequency channels
+        nchan = (residual_data.shape[1]
+                 if residual_data.shape[0] == 1
+                 else residual_data.shape[0])
+        for model_source in model_sources:
+            src = model_source
+            # Get phase centre Ra and Dec coordinates
+            RA0 = model_lsm.ra0
+            DEC0 = model_lsm.dec0
+            # Get source Ra and Dec coordinates
+            ra = model_source.pos.ra
+            dec = model_source.pos.dec
+            # Convert to degrees
+            RA = rad2deg(ra)
+            DEC = rad2deg(dec)
+            # Remove any wraps
+            if ra > np.pi:
+                ra -= 2.0*np.pi
+            # Get distance from phase centre
+            delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
+            delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
+            # Get beam size otherwise use default (5``).
+            beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
+            beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
+            # Get width of box around source
+            width = int(deg2arcsec(beam_deg[0]) * area_factor)
+            # Get a image slice around source
+            imslice = get_box(fits_info["wcs"], (RA, DEC), width)
+            # Get noise rms in the box around source
+            noise_area = noise_data[0, 0, :, :][imslice]
+            noise_rms = noise_area.std()
+            # if image is cube then average along freq axis
+            flux_std = 0.0
+            flux_mean = 0.0
+            for frq_ax in range(nchan):
+                # In case the first two axes are swapped
+                if residual_data.shape[0] == 1:
+                    target_area = residual_data[0, frq_ax, :, :][imslice]
+                else:
+                    target_area = residual_data[frq_ax, 0, :, :][imslice]
+                # Sum of all the fluxes
+                flux_std += target_area.std()
+                flux_mean += target_area.mean()
+            # Get the average std and mean along all frequency channels
+            flux_std = flux_std/float(nchan)
+            flux_mean = flux_mean/float(nchan)
+            # Store all outputs in the results data structure
+            results[label].append([noise_rms*1e0, flux_std*1e0,
+                                   flux_std/noise_rms,
+                                   delta_phase_centre_arc_sec,
+                                   model_source.name, src.flux.I,
+                                   src.flux.I/flux_std,
+                                   src.flux.I/noise_sig, flux_mean,
+                                   abs(flux_mean/noise_rms)])
     return results
 
 
@@ -1611,7 +1623,7 @@ def get_argparser():
              help='Phase tracking centre of the catalogs e.g. "J2000.0,0.0deg,-30.0"')
     argument("--label",
              help='Use this label instead of the FITS image path when saving'
-                  'data as JSON file')
+                  'data as JSON file.')
     return parser
 
 
@@ -1706,39 +1718,41 @@ def main():
     if args.models:
         models = args.models
         print("Number of model files: {:d}".format(len(models)))
-        if len(models) > 2 or len(models) < 2:
+        if len(models) < 1:
             print("{:s}Can only compare two models at a time.{:s}".format(R, W))
         else:
-            model1, model2 = models
-            output_dict = compare_models(
-                [
-                    [dict(label="{}-model_a_".format(args.label), path=model1),
-                     dict(label="{}-model_b_".format(args.label), path=model2)],
-                ],
-                phase_centre=args.phase
-            )
+            models_list = []
+            for i, comp_mod in enumerate(models):
+                model1, model2 = comp_mod.split(':')
+                models_list.append(
+                    [dict(label="{0}-model_a_{1}".format(args.label, i),
+                          path=model2),
+                     dict(label="{0}-model_b_{1}".format(args.label, i),
+                          path=model2)],
+                )
+            output_dict = compare_models(models_list, phase_centre=args.phase)
 
     if args.noise:
         residuals = args.noise
         print("Number of model files: {:d}".format(len(residuals)))
-        if len(residuals) > 2 or len(residuals) < 2:
+        if len(residuals) < 1:
             print("{:s}Can only compare two models at a time.{:s}".format(R, W))
         else:
-            noise1, noise2 = residuals
-            if args.model:
-                output_dict = compare_residuals(
-                    [
-                        dict(label="{0:s}-noise1".format(args.label), path=noise1),
-                        dict(label="{0:s}-noise2".format(args.label), path=noise2),
-                    ], args.model
+            residuals_list = []
+            for i, comp_res in enumerate(residuals):
+                res1, res2 = comp_res.split(':')
+                residuals_list.append(
+                    [dict(label="{0}-res_a_{1}".format(args.label, i),
+                          path=res1),
+                     dict(label="{0}-res_b_{1}".format(args.label, i),
+                          path=res2)],
                 )
+            if args.model:
+                output_dict = compare_residuals(residuals_list, args.model)
             else:
                 output_dict = compare_residuals(
-                    [
-                        dict(label="{0:s}-noise1".format(args.label), path=noise1),
-                        dict(label="{0:s}-noise2".format(args.label), path=noise2),
-                    ], points=int(args.points) if args.points else 100
-                )
+                    residuals_list,
+                    points=int(args.points) if args.points else 100)
 
     if output_dict:
         json_dump(output_dict)
