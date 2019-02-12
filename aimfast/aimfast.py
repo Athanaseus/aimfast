@@ -1495,8 +1495,6 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
     results = dict()
     # Get beam size otherwise use default (5``).
     beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
-    # Source counter
-    i = 0
     for images in res_noise_images:
         # Get residual image names
         res_image = images[0]['path']
@@ -1509,13 +1507,11 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
         noise_hdu = fitsio.open(noise_image)
         # Get data from noise image
         noise_data = noise_hdu[0].data
-        # Data structure for each residuals to compare
-        results[res_image] = []
-        residual_hdu = fitsio.open(res_image)
-        # Get the header data unit for the residual rms
-        residual_data = residual_hdu[0].data
         # Get label
-        label = images[0]['label']
+        if 'None' in images[0]['label']:
+            label = res_image
+        else:
+            label = images[0]['label']
         # Load skymodel to get source positions
         model_lsm = Tigger.load(skymodel)
         # Get all sources in the model
