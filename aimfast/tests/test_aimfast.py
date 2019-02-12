@@ -99,8 +99,34 @@ class TestClass(object):
 
     def test_random_residual_results(self):
         """Test comparison of random residuals in images"""
-        pass
+        expected_label = 'None-res_a_1'
+        label = None
+        input_dir = 'aimfast/tests/files'
+        res1 = 'cube1.fits'
+        res2 = 'cube2.fits'
+        res1_path = '{:s}/{:s}'.format(input_dir, res1)
+        res2_path = '{:s}/{:s}'.format(input_dir, res2)
+        res_imgs = [[dict(label="{}-res_a_1_".format(label), path=res1_path),
+                    dict(label="{}-res_b_1_".format(label), path=res2_path)]]
+        expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
+        output = aimfast._random_residual_results(res_imgs, data_points=50,
+                                                  area_factor=2.0)
+        assert len(expected[res1]) == len(output[res1_path])
 
     def test_source_residual_results(self):
         """Test comparison of source residuals in images"""
-        pass
+        expected_label = 'None-res_b_1'
+        label = None
+        input_dir = 'aimfast/tests/files'
+        res1 = 'cube1.fits'
+        res2 = 'cube2.fits'
+        skymodel = 'catalog.lsm.html'
+        skymodel_path = '{:s}/{:s}'.format(input_dir, skymodel)
+        res1_path = '{:s}/{:s}'.format(input_dir, res1)
+        res2_path = '{:s}/{:s}'.format(input_dir, res2)
+        res_imgs = [[dict(label="{}-res_b_1_".format(label), path=res2_path),
+                    dict(label="{}-res_a_1_".format(label), path=res1_path)]]
+        expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
+        output = aimfast._source_residual_results(res_imgs, skymodel_path,
+                                                  area_factor=2)
+        assert len(expected[res2]) == len(output[res2_path])
