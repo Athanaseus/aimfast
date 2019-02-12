@@ -633,7 +633,8 @@ def get_src_scale(source_shape):
 def get_model(catalog):
     """Get model"""
 
-    def tigger_src(src, idx):
+    def tigger_src_ascii(src, idx):
+        """Get ascii catalog source as a tigger source """
 
         name = "SRC%d" % idx
         flux = ModelClasses.Polarization(float(src["int_flux"]), 0, 0, 0,
@@ -663,6 +664,36 @@ def get_model(catalog):
 
         return source
 
+    def tigger_src_fits(src, idx):
+        """Get fits catalog source as a tigger source """
+
+        name = "SRC%d" % idx
+        flux = ModelClasses.Polarization(float(src["Total_flux"]), 0, 0, 0,
+                                         I_err=float(src["E_Total_flux"]))
+        ra, ra_err = map(np.deg2rad, (float(src["RA"]), float(src["E_RA"])))
+        dec, dec_err = map(np.deg2rad, (float(src["DEC"]), float(src["E_DEC"])))
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+        ex, ex_err = map(np.deg2rad, (float(src["DC_Maj"]), float(src["E_DC_Maj"])))
+        ey, ey_err = map(np.deg2rad, (float(src["DC_Min"]), float(src["E_DC_Min"])))
+        pa, pa_err = map(np.deg2rad, (float(src["PA"]), float(src["E_PA"])))
+
+        if ex and ey:
+            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
+                                          ey_err=ey_err, pa_err=pa_err)
+        else:
+            shape = None
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        # Adding source peak flux (error) as extra flux attributes for sources,
+        # and to avoid null values for point sources I_peak = src["Total_flux"]
+        if shape:
+            source.setAttribute("I_peak", src["Peak_flux"])
+            source.setAttribute("I_peak_err", src["E_peak_flux"])
+        else:
+            source.setAttribute("I_peak", src["Total_flux"])
+            source.setAttribute("I_peak_err", src["E_Total_flux"])
+
+        return source
+
     tfile = tempfile.NamedTemporaryFile(suffix='.txt')
     tfile.flush()
     with open(tfile.name, "w") as stdw:
@@ -675,7 +706,11 @@ def get_model(catalog):
     if ext in ['.tab', '.csv']:
         data = Table.read(catalog, format='ascii')
         for i, src in enumerate(data):
-            model.sources.append(tigger_src(src, i))
+            model.sources.append(tigger_src_ascii(src, i))
+    if ext in ['.fits']:
+        data = Table.read(catalog, format='fits')
+        for i, src in enumerate(data):
+            model.sources.append(tigger_src_fits(src, i))
     return model
 
 
