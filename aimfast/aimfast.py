@@ -32,51 +32,72 @@ PLOT_NUM_FLUX = {'format':
                  {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
                     #                plot height, plot width]
                      1: [0.90, 0.45, 0.80, 700, 700],
-                     2: [0.59, 0.78, 0.40, 1000, 700],
-                     3: [0.41, 0.88, 0.23, 1800, 800],
-                     4: [0.28, 0.86, 0.20, 2500, 700],
-                     5: [0.207, 0.91, 0.15, 2000, 600]},
+                     2: [0.59, 0.78, 0.40, 1000, 600],
+                     3: [0.38, 0.88, 0.30, 1900, 700],
+                     4: [0.27, 0.91, 0.18, 2800, 700],
+                     5: [0.207, 0.91, 0.15, 2000, 600],
+                     6: [0.177, 0.94, 0.15, 2500, 600],
+                     7: [0.15, 0.95, 0.13, 2800, 600]},
                  'plots':
                  {  # num of plots: [vertical spacing, horizontal spacing]
                      1: [0.06, 0.16],
                      2: [0.15, 0.16],
                      3: [0.1, 0.16],
-                     4: [0.12, 0.16],
-                     5: [0.02, 0.16]},
+                     4: [0.06, 0.16],
+                     5: [0.04, 0.16],
+                     6: [0.06, 0.16],
+                     7: [0.04, 0.16]},
                  }
 
 PLOT_NUM_POS = {'format':
                 {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
                    #                plot height, plot width]
-                    1: [0.90, 0.45, 0.8, 470, 940],
-                    2: [0.59, 0.78, 0.4, 1000, 800],
-                    3: [0.41, 0.81, 0.34, 1500, 800],
-                    4: [0.28, 0.86, 0.31, 1800, 700],
-                    5: [0.207, 0.91, 0.15, 2000, 1000]},
+                    1: [0.90, 0.45, 0.80, 470, 940],
+                    2: [0.59, 0.78, 0.40, 1000, 1000],
+                    3: [0.37, 0.87, 0.30, 1700, 1200],
+                    4: [0.27, 0.90, 0.20, 1800, 1000],
+                    5: [0.207, 0.91, 0.15, 2000, 1000],
+                    6: [0.177, 0.94, 0.13, 3000, 1000],
+                    7: [0.15, 0.94, 0.12, 3000, 1000]},
                 'plots':
                 {  # num of plots: [vertical spacing, horizontal spacing]
-                    1: [0.02, 0.16],
-                    2: [0.02, 0.16],
-                    3: [0.02, 0.16],
-                    4: [0.02, 0.16],
-                    5: [0.02, 0.16]},
+                    1: [0.1, 0.2],
+                    2: [0.14, 0.21],
+                    3: [0.10, 0.22],
+                    4: [0.06, 0.23],
+                    5: [0.04, 0.24],
+                    6: [0.05, 0.25],
+                    7: [0.08, 0.26]},
                 }
 
 PLOT_NUM_RES = {'format':
                 {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
                    #                plot height, plot width]
                     1: [0.90, 0.45, 0.8, 470, 940],
-                    2: [0.59, 0.78, 0.4, 1000, 800],
-                    3: [0.41, 0.81, 0.34, 1500, 800],
-                    4: [0.28, 0.86, 0.31, 1800, 700],
-                    5: [0.207, 0.91, 0.15, 2000, 1000]},
+                    2: [0.59, 0.78, 0.4, 1000, 1000],
+                    3: [0.37, 0.87, 0.3, 1700, 1200],
+                    4: [0.27, 0.90, 0.20, 1800, 1000],
+                    5: [0.207, 0.91, 0.15, 2000, 1000],
+                    6: [0.177, 0.94, 0.13, 2200, 1000],
+                    7: [0.15, 0.95, 0.15, 3000, 1000]},
                 'plots':
                 {  # num of plots: [vertical spacing, horizontal spacing]
-                    1: [0.02, 0.16],
-                    2: [0.02, 0.16],
-                    3: [0.02, 0.16],
-                    4: [0.02, 0.16],
-                    5: [0.02, 0.16]},
+                    1: [0.1, 0.16],
+                    2: [0.14, 0.21],
+                    3: [0.10, 0.22],
+                    4: [0.06, 0.23],
+                    5: [0.02, 0.16],
+                    6: [0.03, 0.25],
+                    7: [0.08, 0.26]},
+                'legend':
+                {  # num of plots: [x pos, y pos]
+                    1: [0.48, 1.08],
+                    2: [0.48, 1.00],
+                    3: [0.48, 1.00],
+                    4: [0.48, 1.00],
+                    5: [0.48, 1.00],
+                    6: [0.48, 1.00],
+                    7: [0.48, 1.00]},
                 }
 
 # Unit multipleirs for plotting
@@ -1052,7 +1073,8 @@ def _source_astrometry_plotter(results, all_models, inline=False):
     fig = tools.make_subplots(rows=PLOTS, cols=2,
                               shared_yaxes=False,
                               print_grid=False,
-                              vertical_spacing=0.06,
+                              vertical_spacing=PLOT_NUM_POS['plots'][PLOTS][0],
+                              horizontal_spacing=PLOT_NUM_POS['plots'][PLOTS][1],
                               subplot_titles=im_titles)
     j = 0
     i = -1
@@ -1157,7 +1179,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                              legend=dict(xanchor='auto', x=1.2, y=1))
         fig['layout'].update(
             {'yaxis{}'.format(counter+i): YAxis(
-                title=u'Dec offset [arcsec]',
+                title=u'Dec offset (")',
                 gridcolor='rgb(255,255,255)',
                 color='rgb(0,0,0)',
                 tickfont=dict(size=14, color='rgb(0,0,0)'),
@@ -1170,7 +1192,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 zeroline=True)})
         fig['layout'].update(
             {'yaxis{}'.format(counter+i+1): YAxis(
-                title='Delta position [arcsec]',
+                title='Delta position (")',
                 gridcolor='rgb(255,255,255)',
                 color='rgb(0,0,0)',
                 tickfont=dict(size=10, color='rgb(0,0,0)'),
@@ -1330,7 +1352,9 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                              width=PLOT_NUM_RES['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)',
                              plot_bgcolor=BG_COLOR,
-                             legend=dict(xanchor='auto', x=.40, y=1.05))
+                             legend=dict(xanchor='auto',
+                                         x=PLOT_NUM_RES['legend'][PLOTS][0],
+                                         y=PLOT_NUM_RES['legend'][PLOTS][1]))
         fig['layout'].update(
             {'yaxis{}'.format(counter+i): YAxis(
                 title=u'rms [\u03BCJy/beam]',
@@ -1346,7 +1370,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                 zeroline=False)})
         fig['layout'].update(
             {'yaxis{}'.format(counter+i+1): YAxis(
-                title='res1-to-res2',
+                title='Res1-to-Res2',
                 gridcolor='rgb(255,255,255)',
                 color='rgb(0,0,0)',
                 tickfont=dict(size=10, color='rgb(0,0,0)'),
