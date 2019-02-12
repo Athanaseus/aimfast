@@ -985,7 +985,7 @@ def _source_flux_plotter(results, all_models, inline=False):
                                 titlefont=dict(size=16),
                                 len=PLOT_NUM_FLUX['format'][PLOTS][2],
                                 y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)) if
-                                phase_center_dist[-1] else dict(),
+                phase_center_dist[-1] else dict(),
                 error_y=dict(type='data',
                              array=np.array(flux_out_err_data)*FLUX_UNIT_SCALER['milli'][0],
                              color='rgb(158, 63, 221)',
@@ -1094,7 +1094,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                                           titleside='right',
                                           len=PLOT_NUM_POS['format'][PLOTS][2],
                                           y=PLOT_NUM_POS['format'][PLOTS][1]-j))
-                                          if DELTA_PHASE0[-1] else dict()),
+                if DELTA_PHASE0[-1] else dict()),
             i+1, 2)
         fig.append_trace(
             go.Scatter(
