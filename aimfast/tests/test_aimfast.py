@@ -29,14 +29,14 @@ class TestClass(object):
 
     def test_noise_sigma(self):
         """Test noise sigma metho"""
-        input_value = 'aimfast/tests/files/cube.fits'
+        input_value = 'aimfast/tests/files/cube1.fits'
         output_value = aimfast.noise_sigma(input_value)
         expected_value = 3.1e-05
         assert expected_value == pytest.approx(output_value, 0.01855)
 
     def test_fitsInfo(self):
         """Test fitsInfo method"""
-        input_value = 'aimfast/tests/files/cube.fits'
+        input_value = 'aimfast/tests/files/cube1.fits'
         output_value = aimfast.fitsInfo(input_value)
         from astLib import astWCS
         expected = {'b_size': (0.00154309340472658,
@@ -61,7 +61,7 @@ class TestClass(object):
 
     def test_residual_stats(self):
         """Test the residuals stats method"""
-        input_value = 'aimfast/tests/files/cube.fits'
+        input_value = 'aimfast/tests/files/cube1.fits'
         output_value = aimfast.residual_image_stats(
             input_value, test_normality='normaltest')
         expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
@@ -90,9 +90,17 @@ class TestClass(object):
         output = aimfast.compare_models(models, tolerance=0.000001, plot=False)
         models = expected[expected_label]['models']
         # Remove the reisdual stats
-        expected.pop('cube.fits')
+        expected.pop('cube1.fits')
         assert models == [model1, model2]
         assert(len(expected[expected_label]['flux'])
                == len(output[expected_label]['flux']))
         assert(len(expected[expected_label]['position'])
                == len(output[expected_label]['position']))
+
+    def test_random_residual_results(self):
+        """Test comparison of random residuals in images"""
+        pass
+
+    def test_source_residual_results(self):
+        """Test comparison of source residuals in images"""
+        pass
