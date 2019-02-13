@@ -782,6 +782,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             targets_flux[name] = [I_out, I_out_err, I_in, source_name]
             if ra > np.pi:
                 ra -= 2.0*np.pi
+            if RA > np.pi:
+                RA -= 2.0*np.pi
             delta_pos_angle = angular_dist_pos_angle(RA, DEC, ra, dec)
             delta_pos_angle_arc_sec = rad2arcsec(delta_pos_angle[0])
             if RA0 or DEC0:
@@ -1008,7 +1010,7 @@ def _source_flux_plotter(results, all_models, inline=False):
 
         annotate.append(
             go.Annotation(
-                x=0.0012 * FLUX_UNIT_SCALER['milli'][0],
+                x=flux_in_data[0] * FLUX_UNIT_SCALER['milli'][0] + 0.0015*FLUX_UNIT_SCALER['milli'][0],
                 y=flux_in_data[-1]*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
                 xref='x{:d}'.format(counter),
                 yref='y{:d}'.format(counter),
