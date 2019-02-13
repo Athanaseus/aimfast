@@ -502,20 +502,22 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     # Get detected sources
     model_sources = model_lsm.sources
     # Obtain peak flux source
-    sources_flux = dict([(model_source, model_source.getTag('I_peak'))
-                        for model_source in model_sources])
-    peak_source_flux = [(_model_source, flux)
-                        for _model_source, flux in sources_flux.items()
-                        if flux == max(sources_flux.values())][0][0]
-    peak_flux = peak_source_flux.getTag('I_peak')
-    # In case no I_peak is not found use the integrated flux
-    if not peak_flux:
-        sources_flux = dict([(model_source, model_source.flux.I)
+    try:
+        sources_flux = dict([(model_source, model_source.getTag('I_peak'))
                             for model_source in model_sources])
         peak_source_flux = [(_model_source, flux)
                             for _model_source, flux in sources_flux.items()
                             if flux == max(list(sources_flux.values()))][0][0]
-        peak_flux = peak_source_flux.flux.I
+        peak_flux = peak_source_flux.getTag('I_peak')
+    except TypeError:
+        # In case no I_peak is not found use the integrated flux
+        if not peak_flux:
+            sources_flux = dict([(model_source, model_source.flux.I)
+                                for model_source in model_sources])
+            peak_source_flux = [(_model_source, flux)
+                                for _model_source, flux in sources_flux.items()
+                                if flux == max(list(sources_flux.values()))][0][0]
+            peak_flux = peak_source_flux.flux.I
     # Get astrometry of the source in degrees
     RA = rad2deg(peak_source_flux.pos.ra)
     DEC = rad2deg(peak_source_flux.pos.dec)
@@ -1498,7 +1500,7 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
         residual_data = residual_hdu[0].data
         # Get random pixel coordinates
         pix_coord_deg = _get_random_pixel_coord(data_points,
-                                                sky_area=fits_info['skyArea'] * 0.9,
+                                                sky_area=f}its_info['skyArea'] * 0.9,
                                                 phase_centre=fits_info['centre'])
         # Get the number of frequency channels
         nchan = (residual_data.shape[1]
@@ -1746,12 +1748,11 @@ def main():
             else:
                 print("{:s}Please provide correct normality"
                       "model{:s}".format(R, W))
-        output_dict[residual_label] = dict(
-            stats.items() + {model_label: {
-                'DR': DR["global_rms"],
+        output_dict[residual_label] = stats.update({model_label: {
+                'DR'                    : DR["global_rms"],
                 'DR_deepest_negative'   : DR["deepest_negative"],
                 'DR_global_rms'         : DR['global_rms'],
-                'DR_local_rms'          : DR['local_rms']}}.items())
+                'DR_local_rms'          : DR['local_rms']}})
     elif args.residual:
         if args.residual not in output_dict.keys():
             if args.test_normality in ['shapiro', 'normaltest']:
@@ -1775,10 +1776,10 @@ def main():
         else:
             DR = image_dynamic_range(args.restored)
         output_dict[restored_label] = {
-            'DR': DR["global_rms"],
+            'DR'                  : DR["global_rms"],
             'DR_deepest_negative' : DR["deepest_negative"],
-            'DR_global_rms' : DR['global_rms'],
-            'DR_local_rms'  : DR['local_rms']}
+            'DR_global_rms'       : DR['global_rms'],
+            'DR_local_rms'        : DR['local_rms']}
 
     if args.models:
         models = args.models
