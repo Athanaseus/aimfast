@@ -508,6 +508,14 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
                         for _model_source, flux in sources_flux.items()
                         if flux == max(sources_flux.values())][0][0]
     peak_flux = peak_source_flux.getTag('I_peak')
+    # In case no I_peak is not found use the integrated flux
+    if not peak_flux:
+        sources_flux = dict([(model_source, model_source.flux.I)
+                            for model_source in model_sources])
+        peak_source_flux = [(_model_source, flux)
+                            for _model_source, flux in sources_flux.items()
+                            if flux == max(sources_flux.values())][0][0]
+        peak_flux = peak_source_flux.flux.I
     # Get astrometry of the source in degrees
     RA = rad2deg(peak_source_flux.pos.ra)
     DEC = rad2deg(peak_source_flux.pos.dec)

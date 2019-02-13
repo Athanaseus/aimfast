@@ -130,3 +130,29 @@ class TestClass(object):
         output = aimfast._source_residual_results(res_imgs, skymodel_path,
                                                   area_factor=2)
         assert len(expected[res2]) == len(output[res2_path])
+
+    def test_model_dynamic_range(self):
+        """Test dynamic range from model"""
+        input_model = 'DR_catalog.txt'
+        residual = 'cube1.fits'
+        input_dir = 'aimfast/tests/files'
+        model_path = '{:s}/{:s}'.format(input_dir, input_model)
+        res_path = '{:s}/{:s}'.format(input_dir, residual)
+        output_value = aimfast.model_dynamic_range(model_path, res_path,
+                                                   area_factor=1)
+        expected_value = {"deepest_negative"  : 130.40011268142158,
+                          "local_rms"         : 286.64778198522015,
+                          "global_rms"        : 174.74979385790667}
+        assert expected_value == output_value
+
+    def test_image_dynamic_range(self):
+        """Test dynamic range from image"""
+        input_image = 'cube1.fits'
+        input_dir = 'aimfast/tests/files'
+        image_path = '{:s}/{:s}'.format(input_dir, input_image)
+        output_value = aimfast.image_dynamic_range(image_path,
+                                                   area_factor=1)
+        expected_value = {"deepest_negative"  : 1.4872031158104637,
+                          "local_rms"         : 3.098743200302124,
+                          "global_rms"        : 3.394456386566162}
+        assert expected_value == output_value
