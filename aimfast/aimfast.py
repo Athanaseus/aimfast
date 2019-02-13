@@ -514,7 +514,7 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
                             for model_source in model_sources])
         peak_source_flux = [(_model_source, flux)
                             for _model_source, flux in sources_flux.items()
-                            if flux == max(sources_flux.values())][0][0]
+                            if flux == max(list(sources_flux.values()))][0][0]
         peak_flux = peak_source_flux.flux.I
     # Get astrometry of the source in degrees
     RA = rad2deg(peak_source_flux.pos.ra)
@@ -572,7 +572,7 @@ def image_dynamic_range(fitsname, area_factor=6):
     # Create target image slice
     imslice = np.array([pix_coord[2]-ra_num_pix/2, pix_coord[2]+ra_num_pix/2,
                         pix_coord[3]-dec_num_pix/2, pix_coord[3]+dec_num_pix/2])
-    imslice = np.array(map(int, imslice))
+    imslice = np.array(list(map(int, imslice)))
     # If image is cube then average along freq axis
     min_flux = 0.0
     for frq_ax in range(nchan):
