@@ -1,6 +1,5 @@
 0.1.0
 -----
-- implement Py3 compatibility
 - Allows tigger model lsm.html or text file to determine Dynamic Range
   using residual image
 - Compare input-output flux tigger models and plot correlation
@@ -24,3 +23,10 @@
 0.2.1
 -----
 - Compare the on source/random residuals to noise
+
+0.3.0
+-----
+- Add a test suite
+- Py3 compatible
+- Importable modules
+- Supports ascii/fits catalogs

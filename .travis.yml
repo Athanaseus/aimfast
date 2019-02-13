@@ -1,13 +1,14 @@
 language: python
-sudo: false
-python:
-- '2.7'
-install:
-- python setup.py install
+sudo: required
+matrix:
+  include:
+  - env: TARGET=pep8
+  - env: TARGET=py2
+  - env: TARGET=py3
 script:
 - true
-before_install:
-- sudo apt-get install python-qt4
+install:
+- docker build . -t ${TARGET} -f .travis/${TARGET}.docker
 deploy:
   provider: pypi
   user: athanaseus
