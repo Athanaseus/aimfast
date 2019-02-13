@@ -502,6 +502,7 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     # Get detected sources
     model_sources = model_lsm.sources
     # Obtain peak flux source
+    peak_flux = None
     try:
         sources_flux = dict([(model_source, model_source.getTag('I_peak'))
                             for model_source in model_sources])
@@ -510,6 +511,8 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
                             if flux == max(list(sources_flux.values()))][0][0]
         peak_flux = peak_source_flux.getTag('I_peak')
     except TypeError:
+        pass
+    if not peak_flux:
         # In case no I_peak is not found use the integrated flux
         sources_flux = dict([(model_source, model_source.flux.I)
                             for model_source in model_sources])
@@ -1748,10 +1751,10 @@ def main():
                 print("{:s}Please provide correct normality"
                       "model{:s}".format(R, W))
         output_dict[residual_label] = stats.update({model_label: {
-                'DR'                    : DR["global_rms"],
-                'DR_deepest_negative'   : DR["deepest_negative"],
-                'DR_global_rms'         : DR['global_rms'],
-                'DR_local_rms'          : DR['local_rms']}})
+            'DR'                    : DR["global_rms"],
+            'DR_deepest_negative'   : DR["deepest_negative"],
+            'DR_global_rms'         : DR['global_rms'],
+            'DR_local_rms'          : DR['local_rms']}})
     elif args.residual:
         if args.residual not in output_dict.keys():
             if args.test_normality in ['shapiro', 'normaltest']:
