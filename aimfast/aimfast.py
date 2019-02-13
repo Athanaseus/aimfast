@@ -511,13 +511,12 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
         peak_flux = peak_source_flux.getTag('I_peak')
     except TypeError:
         # In case no I_peak is not found use the integrated flux
-        if not peak_flux:
-            sources_flux = dict([(model_source, model_source.flux.I)
-                                for model_source in model_sources])
-            peak_source_flux = [(_model_source, flux)
-                                for _model_source, flux in sources_flux.items()
-                                if flux == max(list(sources_flux.values()))][0][0]
-            peak_flux = peak_source_flux.flux.I
+        sources_flux = dict([(model_source, model_source.flux.I)
+                            for model_source in model_sources])
+        peak_source_flux = [(_model_source, flux)
+                            for _model_source, flux in sources_flux.items()
+                            if flux == max(list(sources_flux.values()))][0][0]
+        peak_flux = peak_source_flux.flux.I
     # Get astrometry of the source in degrees
     RA = rad2deg(peak_source_flux.pos.ra)
     DEC = rad2deg(peak_source_flux.pos.dec)
@@ -1500,7 +1499,7 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
         residual_data = residual_hdu[0].data
         # Get random pixel coordinates
         pix_coord_deg = _get_random_pixel_coord(data_points,
-                                                sky_area=f}its_info['skyArea'] * 0.9,
+                                                sky_area=fits_info['skyArea'] * 0.9,
                                                 phase_centre=fits_info['centre'])
         # Get the number of frequency channels
         nchan = (residual_data.shape[1]
