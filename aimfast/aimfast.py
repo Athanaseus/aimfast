@@ -1778,7 +1778,7 @@ def main():
 
     if args.restored and args.residual:
         if args.factor:
-            DR = image_dynamic_range(args.restored, args.residual
+            DR = image_dynamic_range(args.restored, args.residual,
                                      area_factor=args.factor)
         else:
             DR = image_dynamic_range(args.restored, args.residual)
