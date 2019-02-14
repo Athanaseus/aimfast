@@ -18,7 +18,7 @@ def requirements():
 
 
 setup(name=pkg,
-      version="0.3.0",
+      version="0.3.1",
       description="An Astronomical Image Fidelity Assessment Tool.",
       long_description=readme(),
       author="Athanaseus Ramaila",

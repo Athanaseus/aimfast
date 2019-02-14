@@ -1,5 +1,6 @@
 .. _source: https://github.com/Athanaseus/aimfast
 .. _plot.ly: https://plot.ly/
+
 =======
 aimfast
 =======
@@ -29,9 +30,9 @@ Dynamic range is a measure of the degree to which imaging artifacts around
 strong sources are suppressed, which in turn implies a higher fidelity of
 the on-source reconstruction.
 Here we determine it in three ways: Obtaining the quotient of
-    - highest peak flux (:math:`flux_{peak}`) and the absolute of the minimum flux (:math:`flux_{min}`) around the peak in the restored image.
-    - highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{local_rms}`) around the peak in the restored image.
-    - highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{grobal_rms}`) in the residual image.
+- highest peak flux (:math:`flux_{peak}`) and the absolute of the minimum flux (:math:`flux_{min}`) around the peak in the residual image.
+- highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{local_rms}`) around the peak in the residual image.
+- highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{grobal_rms}`) in the residual image.
 
 .. math::
 
@@ -133,25 +134,7 @@ Get the four (4) statistical moments of the residual image
 
     $ aimfast --residual-image cube.residual.fits
 
-Get the dynamic range of the restored image, where argument -af is the multiplying factor of the peak source area  
-
-.. code-block:: bash
-    
-    $ aimfast --restored-image cube.image.fits -af 5
-
-
-NB: Outputs will be printed on the terminal and dumped into `fidelity_results.json` file.
-Moreover if the source file names are distinct the output results will be
-appended to the same json file.
-
-.. code-block:: bash
-
-    $ cat fidelity_results.json
-    $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05, "MEAN": 4.747e-07},
-           "cube.image.fits": {"DR": 53.868}}
-
-
-Get combination of the four (4) moments and dynamic range in one step:
+Get combination of the four (4) moments and dynamic range in one step where argument -af is the multiplying factor of the peak source area:
 
 .. code-block:: bash
 
@@ -162,6 +145,16 @@ or using sky model file (tigger lsm.html or text file):
 .. code-block:: bash
 
     $ aimfast --residual-image cube.residual.fits --tigger-model model.lsm.html -af 5
+
+NB: Outputs will be printed on the terminal and dumped into `fidelity_results.json` file.
+Moreover if the source file names are distinct the output results will be
+appended to the same json file.
+
+.. code-block:: bash
+
+    $ cat fidelity_results.json
+    $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05, "MEAN": 4.747e-07},
+           "cube.image.fits": {"DR": 53.868}}
 
 Additionally, normality testing of the residual image can be performed using the D’Agostino (normaltest) and
 Shapiro-Wilk (shapiro) analysis, which returns a tuple result, e.g {'NORM': (123.3, 0.1)}, with the
@@ -176,7 +169,7 @@ It returns an interactive html correlation plots, from which a `.png` file can b
 
 .. code-block:: bash
 
-    $ aimfast --compare-models model1.lsm.html model2.lsm.html -af 5 -psf <size_arcsec | psf.fits> 
+    $ aimfast --compare-models model1.lsm.html:model2.lsm.html -af 5 -psf <size_arcsec | psf.fits> 
 
 Where --psf-image | -psf is the Name of the point spread function file or psf size in arcsec.
 
@@ -204,13 +197,13 @@ Furthermore, a comparison of residuals/noise can be performed as follows: To get
 
 .. code-block:: bash
 
-    $ aimfast --compare-residuals residual1.fits residual2.fits -dp 100
+    $ aimfast --compare-residuals residual1.fits:residual2.fits -dp 100
 
 where -dp is the number of data points to sample. To get on source residual flux measurements in a `residual1.fits` and `residual2.fits` images
 
 .. code-block:: bash
 
-    $ aimfast --compare-residuals residual1.fits residual2.fits --tigger-model model.lsm.html
+    $ aimfast --compare-residuals residual1.fits:residual2.fits --tigger-model model.lsm.html
 
 where --tigger-model is the name of the tigger model lsm.html file to locate exact source residuals.
 For random or on source residual noise comparisons, the plot on the left shows the residuals on image 1 and image 2 overlayed and the plot on the right shows the ratios. The colorbar shows the distance of the sources from the phase centre.

@@ -540,13 +540,15 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     return DR
 
 
-def image_dynamic_range(fitsname, area_factor=6):
+def image_dynamic_range(fitsname, residual, area_factor=6):
     """Gets the dynamic range in a restored image.
 
     Parameters
     ----------
     fitsname : fits file
         Restored image (cube).
+    residual : fits file
+        Residual image (cube).
     area_factor: int
         Factor to multiply the beam area.
 
@@ -560,10 +562,12 @@ def image_dynamic_range(fitsname, area_factor=6):
     # Get beam size otherwise use default (5``).
     beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
     beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
-    # Open the restored image
+    # Open the restored and residual images
     restored_hdu = fitsio.open(fitsname)
-    # Get the header data unit for the residual rms
+    residual_hdu = fitsio.open(residual)
+    # Get the header data unit for the peak and residual rms
     restored_data = restored_hdu[0].data
+    residual_data = residual_hdu[0].data
     # Get the max value
     peak_flux = abs(restored_data.max())
     # Get pixel coordinates of the peak flux
@@ -582,16 +586,16 @@ def image_dynamic_range(fitsname, area_factor=6):
     for frq_ax in range(nchan):
         # In the case where the 0th and 1st axis of the image are not in order
         # i.e. (0, nchan, x_pix, y_pix)
-        if restored_data.shape[0] == 1:
-            target_area = restored_data[0, frq_ax, :, :][imslice]
+        if residual_data.shape[0] == 1:
+            target_area = residual_data[0, frq_ax, :, :][imslice]
         else:
-            target_area = restored_data[frq_ax, 0, :, :][imslice]
+            target_area = residual_data[frq_ax, 0, :, :][imslice]
         min_flux += target_area.min()
         if frq_ax == nchan - 1:
             min_flux = min_flux/float(nchan)
     # Compute dynamic range
     local_std = target_area.std()
-    global_std = restored_data[0, 0, ...].std()
+    global_std = residual_data[0, 0, ...].std()
     # Compute dynamic range
     DR = {
         "deepest_negative"  : peak_flux / abs(min_flux) * 1e0,
@@ -1022,7 +1026,8 @@ def _source_flux_plotter(results, all_models, inline=False):
 
         annotate.append(
             go.Annotation(
-                x=flux_in_data[0] * FLUX_UNIT_SCALER['milli'][0] + 0.0015*FLUX_UNIT_SCALER['milli'][0],
+                x=(sorted(flux_in_data)[-1]/2.0 - sorted(flux_in_data)[0]/2.0
+                   + sorted(flux_in_data)[0]) * FLUX_UNIT_SCALER['milli'][0],
                 y=flux_in_data[-1]*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
                 xref='x{:d}'.format(counter),
                 yref='y{:d}'.format(counter),
@@ -1772,11 +1777,12 @@ def main():
                           "model{:s}".format(R, W))
             output_dict[residual_label] = stats
 
-    if args.restored:
+    if args.restored and args.residual:
         if args.factor:
-            DR = image_dynamic_range(args.restored, area_factor=args.factor)
+            DR = image_dynamic_range(args.restored, args.residual,
+                                     area_factor=args.factor)
         else:
-            DR = image_dynamic_range(args.restored)
+            DR = image_dynamic_range(args.restored, args.residual)
         output_dict[restored_label] = {
             'DR'                  : DR["global_rms"],
             'DR_deepest_negative' : DR["deepest_negative"],
