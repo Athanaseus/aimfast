@@ -169,7 +169,7 @@ It returns an interactive html correlation plots, from which a `.png` file can b
 
 .. code-block:: bash
 
-    $ aimfast --compare-models model1.lsm.html model2.lsm.html -af 5 -psf <size_arcsec | psf.fits> 
+    $ aimfast --compare-models model1.lsm.html:model2.lsm.html -af 5 -psf <size_arcsec | psf.fits> 
 
 Where --psf-image | -psf is the Name of the point spread function file or psf size in arcsec.
 
@@ -197,13 +197,13 @@ Furthermore, a comparison of residuals/noise can be performed as follows: To get
 
 .. code-block:: bash
 
-    $ aimfast --compare-residuals residual1.fits residual2.fits -dp 100
+    $ aimfast --compare-residuals residual1.fits:residual2.fits -dp 100
 
 where -dp is the number of data points to sample. To get on source residual flux measurements in a `residual1.fits` and `residual2.fits` images
 
 .. code-block:: bash
 
-    $ aimfast --compare-residuals residual1.fits residual2.fits --tigger-model model.lsm.html
+    $ aimfast --compare-residuals residual1.fits:residual2.fits --tigger-model model.lsm.html
 
 where --tigger-model is the name of the tigger model lsm.html file to locate exact source residuals.
 For random or on source residual noise comparisons, the plot on the left shows the residuals on image 1 and image 2 overlayed and the plot on the right shows the ratios. The colorbar shows the distance of the sources from the phase centre.
