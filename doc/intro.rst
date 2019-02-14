@@ -29,8 +29,8 @@ Dynamic range is a measure of the degree to which imaging artifacts around
 strong sources are suppressed, which in turn implies a higher fidelity of
 the on-source reconstruction.
 Here we determine it in three ways: Obtaining the quotient of
-    - highest peak flux (:math:`flux_{peak}`) and the absolute of the minimum flux (:math:`flux_{min}`) around the peak in the restored image.
-    - highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{local_rms}`) around the peak in the restored image.
+    - highest peak flux (:math:`flux_{peak}`) and the absolute of the minimum flux (:math:`flux_{min}`) around the peak in the residual image.
+    - highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{local_rms}`) around the peak in the residual image.
     - highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{grobal_rms}`) in the residual image.
 
 .. math::
@@ -137,7 +137,8 @@ Get the dynamic range of the restored image, where argument -af is the multiplyi
 
 .. code-block:: bash
     
-    $ aimfast --restored-image cube.image.fits -af 5
+    $ aimfast --restored-image cube.image.fits --residual-image cube.residual.fits -af 5
+ 
 
 
 NB: Outputs will be printed on the terminal and dumped into `fidelity_results.json` file.

@@ -147,10 +147,13 @@ class TestClass(object):
 
     def test_image_dynamic_range(self):
         """Test dynamic range from image"""
-        input_image = 'cube1.fits'
+        restored_image = 'cube1.fits'
+        residual_image = 'cube2.fits'
         input_dir = 'aimfast/tests/files'
-        image_path = '{:s}/{:s}'.format(input_dir, input_image)
-        output_value = aimfast.image_dynamic_range(image_path,
+        restored_image_path = '{:s}/{:s}'.format(input_dir, restored_image)
+        residual_image_path = '{:s}/{:s}'.format(input_dir, residual_image)
+        output_value = aimfast.image_dynamic_range(restored_image_path,
+                                                   residual_image_path,
                                                    area_factor=1)
         expected_value = {"deepest_negative"  : 1.4872031158104637,
                           "local_rms"         : 3.098743200302124,
