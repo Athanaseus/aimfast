@@ -1026,7 +1026,8 @@ def _source_flux_plotter(results, all_models, inline=False):
 
         annotate.append(
             go.Annotation(
-                x=flux_in_data[0] * FLUX_UNIT_SCALER['milli'][0] + 0.0015*FLUX_UNIT_SCALER['milli'][0],
+                x=(sorted(flux_in_data)[-1]/2.0 - sorted(flux_in_data)[0]/2.0
+                   + sorted(flux_in_data)[0]) * FLUX_UNIT_SCALER['milli'][0],
                 y=flux_in_data[-1]*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
                 xref='x{:d}'.format(counter),
                 yref='y{:d}'.format(counter),
