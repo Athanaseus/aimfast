@@ -15,7 +15,6 @@ Contents:
 
    intro
    modules
-   aimfast
    footer
 
 

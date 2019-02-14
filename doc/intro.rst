@@ -1,5 +1,6 @@
 .. _source: https://github.com/Athanaseus/aimfast
 .. _plot.ly: https://plot.ly/
+
 =======
 aimfast
 =======
@@ -29,9 +30,9 @@ Dynamic range is a measure of the degree to which imaging artifacts around
 strong sources are suppressed, which in turn implies a higher fidelity of
 the on-source reconstruction.
 Here we determine it in three ways: Obtaining the quotient of
-    - highest peak flux (:math:`flux_{peak}`) and the absolute of the minimum flux (:math:`flux_{min}`) around the peak in the residual image.
-    - highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{local_rms}`) around the peak in the residual image.
-    - highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{grobal_rms}`) in the residual image.
+- highest peak flux (:math:`flux_{peak}`) and the absolute of the minimum flux (:math:`flux_{min}`) around the peak in the residual image.
+- highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{local_rms}`) around the peak in the residual image.
+- highest peak flux (:math:`flux_{peak}`) and the rms flux (:math:`flux_{grobal_rms}`) in the residual image.
 
 .. math::
 

@@ -33,8 +33,8 @@ MOCK_MODULES = ['numpy', 'scipy', 'astropy', 'astropy.io', 'astLib',
                 'scipy.ndimage', 'scipy.ndimage.measurements', 'sklearn',
                 'Tigger.Coordinates', 'sklearn.metrics.mean_squared_error']
 
-for mod_name in MOCK_MODULES:
-    sys.modules[mod_name] = mock.Mock()
+#for mod_name in MOCK_MODULES:
+#    sys.modules[mod_name] = mock.Mock()
 
 # -- General configuration ------------------------------------------------
 
