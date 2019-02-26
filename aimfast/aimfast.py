@@ -800,8 +800,10 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                 ra -= 2.0*np.pi
             if RA > np.pi:
                 RA -= 2.0*np.pi
-            delta_pos_angle = angular_dist_pos_angle(RA, DEC, ra, dec)
-            delta_pos_angle_arc_sec = rad2arcsec(delta_pos_angle[0])
+            delta_pos_angle_arc_sec = angular_dist_pos_angle(
+                                         rad2arcsec(RA), rad2arcsec(DEC),
+                                         rad2arcsec(ra), rad2arcsec(dec))[0]
+            delta_pos_angle_arc_sec = float('{0:.7f}'.format(delta_pos_angle_arc_sec))
             if RA0 or DEC0:
                 delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
                 delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
@@ -1755,11 +1757,12 @@ def main():
             else:
                 print("{:s}Please provide correct normality"
                       "model{:s}".format(R, W))
-        output_dict[residual_label] = stats.update({model_label: {
+        stats.update({model_label: {
             'DR'                    : DR["global_rms"],
             'DR_deepest_negative'   : DR["deepest_negative"],
             'DR_global_rms'         : DR['global_rms'],
             'DR_local_rms'          : DR['local_rms']}})
+        output_dict[residual_label] = stats
     elif args.residual:
         if args.residual not in output_dict.keys():
             if args.test_normality in ['shapiro', 'normaltest']:
