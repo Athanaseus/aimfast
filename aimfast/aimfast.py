@@ -801,8 +801,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             if RA > np.pi:
                 RA -= 2.0*np.pi
             delta_pos_angle_arc_sec = angular_dist_pos_angle(
-                                          rad2arcsec(RA), rad2arcsec(DEC),
-                                          rad2arcsec(ra), rad2arcsec(dec))[0]
+                rad2arcsec(RA), rad2arcsec(DEC),
+                rad2arcsec(ra), rad2arcsec(dec))[0]
             delta_pos_angle_arc_sec = float('{0:.7f}'.format(delta_pos_angle_arc_sec))
             if RA0 or DEC0:
                 delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
