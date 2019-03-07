@@ -123,6 +123,7 @@ def creat_logger():
     log.addHandler(console)
     return log
 
+
 LOGGER = creat_logger()
 LOGGER.info("Welcome to aimfast")
 
