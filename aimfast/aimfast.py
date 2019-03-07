@@ -124,9 +124,14 @@ def creat_logger():
     return log
 
 
+LOGGER = creat_logger()
+LOGGER.info("Welcome to aimfast")
+
+
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
     "Extracts data from the json data file"
     file = '{:s}/{:s}'.format(dir, filename)
+    LOGGER.info('Extracting data from the json data file')
     with open(file) as f:
         data = json.load(f)
         return data
@@ -166,6 +171,7 @@ def json_dump(data_dict, root='.'):
     repeated image assessments will be replaced.
 
     """
+    LOGGER.info('Dumping dictionary into the json file')
     filename = ('{:s}/fidelity_results.json'.format(root))
     try:
         # Extract data from the json data file
@@ -262,7 +268,7 @@ def measure_psf(psffile, arcsec_size=20):
         xmin = measure.minimum_position(tsec[tmid:])[0]
         tsec[tmid + xmin:] = tsec[tmid + xmin]
         if tsec[0] > 0.5 or tsec[-1] > 0.5:
-            print("PSF FWHM over {:.2f} arcsec".format(arcsec_size * 2))
+            LOGGER.info("PSF FWHM over {:.2f} arcsec".format(arcsec_size * 2))
             return arcsec_size, arcsec_size
         x1 = interp1d(tsec[:tmid], range(tmid))(0.5)
         x2 = interp1d(1 - tsec[tmid:], range(tmid, len(tsec)))(0.5)
@@ -411,7 +417,6 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None):
         norm_props = normality_testing(fitsname, test_normality, data_range)
         res_props.update(norm_props)
     props = res_props
-    print(props)
     # Return dictionary of results
     return props
 
@@ -731,7 +736,7 @@ def get_model(catalog):
 
 
 def get_detected_sources_properties(model_1, model_2, area_factor,
-                                    phase_centre=None):
+                                    phase_centre=None, all_sources=False):
     """Extracts the output simulation sources properties.
 
     Parameters
@@ -744,6 +749,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         Area factor to multiply the psf size around source.
     phase_centre : str
         Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point-like source)
 
     Returns
     -------
@@ -781,6 +788,20 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             I_out_err_list.append(target.flux.I_err * target.flux.I_err)
         I_out = sum([val / err for val, err in zip(I_out_list, I_out_err_list)])
         if I_out != 0.0:
+            source = sources[0]
+            try:
+                shape_in = model_source.shape.getShape()
+            except AttributeError:
+                shape_in = (0, 0, 0)
+            if source.shape:
+                shape_out = tuple(map(rad2arcsec, source.shape.getShape()))
+                shape_out_err = tuple(map(rad2arcsec, source.shape.getShapeErr()))
+            else:
+                shape_out = (0, 0, 0)
+                shape_out_err = (0, 0, 0)
+            if not all_sources:
+                if shape_out[0] > 2.0:
+                    continue
             I_out_err = sum([1.0 / I_out_error for I_out_error
                             in I_out_err_list])
             I_out_var_err = np.sqrt(1.0 / I_out_err)
@@ -791,7 +812,6 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             if phase_centre:
                 RA0 = np.deg2rad(float(phase_centre.split(',')[1].split('deg')[0]))
                 DEC0 = np.deg2rad(float(phase_centre.split(',')[-1].split('deg')[0]))
-            source = sources[0]
             ra = source.pos.ra
             dec = source.pos.dec
             source_name = source.name
@@ -814,25 +834,16 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                                       rad2arcsec(abs(dec - DEC)),
                                       delta_phase_centre_arc_sec, I_in,
                                       source_name]
-            try:
-                shape_in = model_source.shape.getShape()
-            except AttributeError:
-                shape_in = (0, 0, 0)
-            if source.shape:
-                shape_out = tuple(map(rad2arcsec, source.shape.getShape()))
-                shape_out_err = tuple(map(rad2arcsec, source.shape.getShapeErr()))
-            else:
-                shape_out = (0, 0, 0)
-                shape_out_err = (0, 0, 0)
             src_scale = get_src_scale(source.shape)
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
-    print("Number of sources recovered: {:d}".format(len(targets_scale)))
+    LOGGER.info("Number of sources recovered: {:d}".format(len(targets_scale)))
     return targets_flux, targets_scale, targets_position
 
 
-def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None):
+def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
+                   all_sources=False):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -845,6 +856,8 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None):
         Output html plot from which a png can be obtained.
     phase_centre : str
         Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point-like source)
 
     Returns
     -------
@@ -863,7 +876,8 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None):
         results[heading]['position'] = []
         props = get_detected_sources_properties('{}'.format(input_model["path"]),
                                                 '{}'.format(output_model["path"]),
-                                                tolerance, phase_centre)
+                                                tolerance, phase_centre,
+                                                all_sources)
         for i in range(len(props[0])):
             flux_prop = list(props[0].items())
             results[heading]['flux'].append(flux_prop[i][-1])
@@ -889,7 +903,8 @@ def compare_residuals(residuals, skymodel=None, points=None,
     return res
 
 
-def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None):
+def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
+                    all_sources=False):
     """Plot model-model fluxes from lsm.html/txt models
 
     Parameters
@@ -902,6 +917,8 @@ def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None):
         Radius around the source to be cross matched.
     phase_centre : str
         Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point-like source)
 
     """
     _models = []
@@ -910,11 +927,12 @@ def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None):
         _models.append([dict(label="{}-model_a_{}".format(label, i), path=model1),
                         dict(label="{}-model_b_{}".format(label, i), path=model2)])
         i += 1
-    results = compare_models(_models, tolerance, False, phase_centre)
+    results = compare_models(_models, tolerance, False, phase_centre, all_sources)
     _source_flux_plotter(results, _models, inline=True)
 
 
-def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None):
+def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
+                    all_sources=False):
     """Plot model-model positions from lsm.html/txt models
 
     Parameters
@@ -927,6 +945,8 @@ def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None):
         Radius around the source to be cross matched.
     phase_centre : str
         Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point-like source)
 
     """
     _models = []
@@ -935,7 +955,7 @@ def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None):
         _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i), path=model1),
                         dict(label="{0:s}-model_b_{1:d}".format(label, i), path=model2)])
         i += 1
-    results = compare_models(_models, tolerance, False, phase_centre)
+    results = compare_models(_models, tolerance, False, phase_centre, all_sources)
     _source_astrometry_plotter(results, _models, inline=True)
 
 
@@ -1097,6 +1117,7 @@ def _source_flux_plotter(results, all_models, inline=False):
         py.iplot(fig, filename=outfile)
     else:
         py.plot(fig, filename=outfile, auto_open=False)
+        LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
 
 
 def _source_astrometry_plotter(results, all_models, inline=False):
@@ -1284,6 +1305,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         py.iplot(fig, filename=outfile)
     else:
         py.plot(fig, filename=outfile, auto_open=False)
+        LOGGER.info('Saving astrometry comparisons in {}'.format(outfile))
 
 
 def _residual_plotter(res_noise_images, points=None, results=None, inline=False):
@@ -1391,7 +1413,8 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         annotate.append(
             go.Annotation(
                 x=0.00005 * FLUX_UNIT_SCALER['micro'][0],
-                y=7.8 + max(residuals) * FLUX_UNIT_SCALER['micro'][0],
+                y=7.8 + max(max(residuals) * FLUX_UNIT_SCALER['micro'][0],
+                            max(rmss) * FLUX_UNIT_SCALER['micro'][0]),
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
                 text="res1: {:.2f} | res2: {:.2f} | res1-res2: {:.2f}".format(
@@ -1484,6 +1507,7 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2.0)
         Dictionary of source residual properties from each residual image.
 
     """
+    LOGGER.info("Plotting ratios of random residuals and noise")
     # dictinary to store results
     results = dict()
     # Get beam size otherwise use default (5``).
@@ -1571,6 +1595,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
         Dictionary of source residual properties from each residual image.
 
     """
+    LOGGER.info("Plotting ratios of source residuals and noise")
     # Dictinary to store results
     results = dict()
     # Get beam size otherwise use default (5``).
@@ -1680,6 +1705,7 @@ def get_argparser():
     argument('--residual-image', dest='residual',
              help='Name of the residual image fits file')
     argument('--normality-test', dest='test_normality',
+             choices=('shapiro', 'normaltest'),
              help='Name of model to use for normality testing. \n'
                   'options: [shapiro, normaltest] \n'
                   'NB: normaltest is the D`Agostino')
@@ -1687,6 +1713,9 @@ def get_argparser():
              help='Data range to perform normality testing')
     argument('-af', '--area-factor', dest='factor', type=float, default=6,
              help='Factor to multiply the beam area to get target peak area')
+    argument('-as', '--all-source', dest='all', default=False, action='store_true',
+             help='Compare all sources irrespective of shape, otherwise only '
+                  'point-like sources are compared')
     argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html model2.lsm.html')
@@ -1792,6 +1821,7 @@ def main():
             'DR_global_rms'       : DR['global_rms'],
             'DR_local_rms'        : DR['local_rms']}
 
+    LOGGER.info(output_dict)
     if args.models:
         models = args.models
         print("Number of model files: {:d}".format(len(models)))
@@ -1807,13 +1837,14 @@ def main():
                      dict(label="{0}-model_b_{1}".format(args.label, i),
                           path=model2)],
                 )
-            output_dict = compare_models(models_list, phase_centre=args.phase)
+            output_dict = compare_models(models_list, phase_centre=args.phase,
+                                         all_sources=args.all)
 
     if args.noise:
         residuals = args.noise
-        print("Number of model files: {:d}".format(len(residuals)))
+        LOGGER.info("Number of catalog pairs to compare: {:d}".format(len(residuals)))
         if len(residuals) < 1:
-            print("{:s}Can only compare two models at a time.{:s}".format(R, W))
+            print("{:s}Can only compare atleast one pair models.{:s}".format(R, W))
         else:
             residuals_list = []
             for i, comp_res in enumerate(residuals):
