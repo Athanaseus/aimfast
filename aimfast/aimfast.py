@@ -748,7 +748,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
     phase_centre : str
         Phase centre of catalog (if not already embeded)
     all_source: bool
-        Compare all sources in the catalog (else only point like source)
+        Compare all sources in the catalog (else only point-like source)
 
     Returns
     -------
@@ -865,7 +865,7 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
     phase_centre : str
         Phase centre of catalog (if not already embeded)
     all_source: bool
-        Compare all sources in the catalog (else only point like source)
+        Compare all sources in the catalog (else only point-like source)
 
     Returns
     -------
@@ -926,7 +926,7 @@ def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
     phase_centre : str
         Phase centre of catalog (if not already embeded)
     all_source: bool
-        Compare all sources in the catalog (else only point like source)
+        Compare all sources in the catalog (else only point-like source)
 
     """
     _models = []
@@ -954,7 +954,7 @@ def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
     phase_centre : str
         Phase centre of catalog (if not already embeded)
     all_source: bool
-        Compare all sources in the catalog (else only point like source)
+        Compare all sources in the catalog (else only point-like source)
 
     """
     _models = []
@@ -1721,7 +1721,7 @@ def get_argparser():
              help='Factor to multiply the beam area to get target peak area')
     argument('-as', '--all-source', dest='all', default=False, action='store_true',
              help='Compare all sources irrespective of shape, otherwise only '
-                  'point like sources are compared')
+                  'point-like sources are compared')
     argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html model2.lsm.html')
