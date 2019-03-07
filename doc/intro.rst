@@ -171,7 +171,7 @@ It returns an interactive html correlation plots, from which a `.png` file can b
 
     $ aimfast --compare-models model1.lsm.html:model2.lsm.html -af 5 -psf <size_arcsec | psf.fits> 
 
-Where --psf-image | -psf is the Name of the point spread function file or psf size in arcsec.
+Where --psf-image | -psf is the Name of the point spread function file or psf size in arcsec. Moreover -as flag can be used to compare all source irrespective of shape (otherwise only point-like source with maj<2" are used).
 
 For Flux density, the more the data points rest on the y=x (or I_out=I_in), the more correlated the two models are.
 
