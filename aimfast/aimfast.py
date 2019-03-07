@@ -834,16 +834,6 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                                       rad2arcsec(abs(dec - DEC)),
                                       delta_phase_centre_arc_sec, I_in,
                                       source_name]
-#            try:
-#                shape_in = model_source.shape.getShape()
-#            except AttributeError:
-#                shape_in = (0, 0, 0)
-#            if source.shape:
-#                shape_out = tuple(map(rad2arcsec, source.shape.getShape()))
-#                shape_out_err = tuple(map(rad2arcsec, source.shape.getShapeErr()))
-#            else:
-#                shape_out = (0, 0, 0)
-#                shape_out_err = (0, 0, 0)
             src_scale = get_src_scale(source.shape)
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
