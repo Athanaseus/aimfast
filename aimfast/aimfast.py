@@ -747,6 +747,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         Area factor to multiply the psf size around source.
     phase_centre : str
         Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point like source)
 
     Returns
     -------
@@ -862,6 +864,8 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
         Output html plot from which a png can be obtained.
     phase_centre : str
         Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point like source)
 
     Returns
     -------
@@ -921,6 +925,8 @@ def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
         Radius around the source to be cross matched.
     phase_centre : str
         Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point like source)
 
     """
     _models = []
@@ -947,6 +953,8 @@ def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
         Radius around the source to be cross matched.
     phase_centre : str
         Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point like source)
 
     """
     _models = []
