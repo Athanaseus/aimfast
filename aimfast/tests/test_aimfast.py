@@ -87,7 +87,8 @@ class TestClass(object):
         models = [[dict(label="{}-model_a_".format(label), path=model1_path),
                    dict(label="{}-model_b_".format(label), path=model2_path)]]
         expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
-        output = aimfast.compare_models(models, tolerance=0.000001, plot=False)
+        output = aimfast.compare_models(models, tolerance=0.000001, plot=False,
+                                        all_sources=True)
         models = expected[expected_label]['models']
         # Remove the reisdual stats
         expected.pop('cube1.fits')
