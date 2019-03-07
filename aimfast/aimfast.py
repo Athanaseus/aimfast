@@ -124,12 +124,13 @@ def creat_logger():
     return log
 
 LOGGER = creat_logger()
+LOGGER.info("Welcome to aimfast")
 
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
     "Extracts data from the json data file"
     file = '{:s}/{:s}'.format(dir, filename)
-    LOGGER.info('Extracts data from the json data file')
+    LOGGER.info('Extracting data from the json data file')
     with open(file) as f:
         data = json.load(f)
         return data
@@ -1125,6 +1126,7 @@ def _source_flux_plotter(results, all_models, inline=False):
         py.iplot(fig, filename=outfile)
     else:
         py.plot(fig, filename=outfile, auto_open=False)
+        LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
 
 
 def _source_astrometry_plotter(results, all_models, inline=False):
@@ -1312,6 +1314,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         py.iplot(fig, filename=outfile)
     else:
         py.plot(fig, filename=outfile, auto_open=False)
+        LOGGER.info('Saving astrometry comparisons in {}'.format(outfile))
 
 
 def _residual_plotter(res_noise_images, points=None, results=None, inline=False):
@@ -1848,9 +1851,9 @@ def main():
 
     if args.noise:
         residuals = args.noise
-        print("Number of model files: {:d}".format(len(residuals)))
+        LOGGER.info("Number of catalog pairs to compare: {:d}".format(len(residuals)))
         if len(residuals) < 1:
-            print("{:s}Can only compare two models at a time.{:s}".format(R, W))
+            print("{:s}Can only compare atleast one pair models.{:s}".format(R, W))
         else:
             residuals_list = []
             for i, comp_res in enumerate(residuals):
