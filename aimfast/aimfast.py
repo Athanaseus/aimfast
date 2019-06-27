@@ -371,7 +371,8 @@ def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
     return COORDs
 
 
-def residual_image_stats(fitsname, test_normality=None, data_range=None):
+def residual_image_stats(fitsname, test_normality=None, data_range=None,
+                         threshold=None, chans=None, mask=None):
     """Gets statistcal properties of a residual image.
 
     Parameters
@@ -382,6 +383,12 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None):
         Perform normality testing using either `shapiro` or `normaltest`.
     data_range : int, optional
         Range of data to perform normality testing.
+    threshold : float, optional
+        Cut-off threshold to select channels in a cube
+    chans : str, optional
+        Channels to compute stats (e.g. 0~50;100~200)
+    mask : file
+        Fits mask to get stats in image
 
     Returns
     -------
@@ -402,8 +409,17 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None):
     residual_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
     residual_data = residual_hdu[0].data
+    # Get residual data
+    if threshold:
+        pass
+    if chans:
+        pass
+    if mask:
+        pass
     # Get the mean value
     res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
+    # Get the rms value
+    res_props['RMS'] = float("{0:.6f}".format(np.sqrt(np.mean(np.square(residual_data)))))
     # Get the sigma value
     res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
     # Flatten image
