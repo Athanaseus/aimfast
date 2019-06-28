@@ -23,7 +23,7 @@ from astLib.astWCS import WCS
 from astropy.table import Table
 from astropy.io import fits as fitsio
 
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
 from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
 
@@ -106,6 +106,15 @@ FLUX_UNIT_SCALER = {'jansky': [1e0, 'Jy'],
                     'micro': [1e6, u'\u03bcJy'],
                     'nano': [1e9, 'nJy'],
                     }
+
+# Binning colors
+BIN_COLORS = {
+                  1: '#f0f8ff',
+                  2: '#dcdcdc',
+                  3: '#ffe4c4',
+                  4: '#ff7f50',
+                  5: '#7fffd4'
+             }
 
 
 # Backgound color for plots
@@ -786,6 +795,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
     # {"source_name: [shape_out=(maj, min, angle), shape_out_err=, shape_in=,
     #                 scale_out, scale_out_err, I_in, source_name]
     targets_scale = dict()         # recovered sources scale
+    # {"source_name": [spi_out, spi_out_err, spi_in, delta_phase_centre_arc_sec, I_in]}
+    targets_spectrum = dict()         # recovered sources scale
     for model_source in model_sources:
         I_out = 0.0
         I_out_err = 0.0
@@ -793,6 +804,11 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         RA = model_source.pos.ra
         DEC = model_source.pos.dec
         I_in = model_source.flux.I
+        try:
+            spi_in = model_source.spectrum.spi
+        except:
+            spi_in = None
+            LOGGER.info("No spectrum info for source {}".format(name))
         sources = pybdsm_lsm.getSourcesNear(RA, DEC, area_factor)
         # More than one source detected, thus we sum up all the detected sources
         # within a radius equal to the beam size in radians around the true target
@@ -830,6 +846,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                 DEC0 = np.deg2rad(float(phase_centre.split(',')[-1].split('deg')[0]))
             ra = source.pos.ra
             dec = source.pos.dec
+            ra_err = source.pos.ra_err
+            dec_err = source.pos.dec_err
             source_name = source.name
             targets_flux[name] = [I_out, I_out_err, I_in, source_name]
             if ra > np.pi:
@@ -846,16 +864,24 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             else:
                 delta_phase_centre_arc_sec = None
             targets_position[name] = [delta_pos_angle_arc_sec,
-                                      rad2arcsec(abs(ra - RA)),
-                                      rad2arcsec(abs(dec - DEC)),
+                                      rad2arcsec(ra - RA),
+                                      rad2arcsec(dec - DEC),
                                       delta_phase_centre_arc_sec, I_in,
+                                      rad2arcsec(ra_err),
+                                      rad2arcsec(dec_err),
                                       source_name]
             src_scale = get_src_scale(source.shape)
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
+            if source.spectrum:
+                spi_out = source.spectrum.spi
+                spi_out_err = source.getTags()[0][-1]
+            targets_spectrum[name] = [spi_out, spi_out_err, spi_in,
+                                     delta_phase_centre_arc_sec, I_in,
+                                     source_name]
     LOGGER.info("Number of sources recovered: {:d}".format(len(targets_scale)))
-    return targets_flux, targets_scale, targets_position
+    return targets_flux, targets_scale, targets_position, targets_spectrum
 
 
 def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
@@ -890,6 +916,7 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
         results[heading]['flux'] = []
         results[heading]['shape'] = []
         results[heading]['position'] = []
+        results[heading]['spectrum'] = []
         props = get_detected_sources_properties('{}'.format(input_model["path"]),
                                                 '{}'.format(output_model["path"]),
                                                 tolerance, phase_centre,
@@ -903,9 +930,15 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
         for i in range(len(props[2])):
             pos_prop = list(props[2].items())
             results[heading]['position'].append(pos_prop[i][-1])
+        for i in range(len(props[3])):
+            spi_prop = list(props[3].items())
+            results[heading]['spectrum'].append(spi_prop[i][-1])
+
     if plot:
         _source_flux_plotter(results, models)
         _source_astrometry_plotter(results, models)
+        _source_morphology_plotter(results, models)
+        _source_spectrum_plotter(results, models)
     return results
 
 
@@ -920,7 +953,7 @@ def compare_residuals(residuals, skymodel=None, points=None,
 
 
 def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
-                    all_sources=False):
+                    all_sources=False, dir='.'):
     """Plot model-model fluxes from lsm.html/txt models
 
     Parameters
@@ -940,15 +973,17 @@ def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
     _models = []
     i = 0
     for model1, model2 in models.items():
-        _models.append([dict(label="{}-model_a_{}".format(label, i), path=model1),
-                        dict(label="{}-model_b_{}".format(label, i), path=model2)])
+        _models.append([dict(label="{}-model_a_{}".format(label, i),
+                             path='{}/{}'.format(dir, model1)),
+                        dict(label="{}-model_b_{}".format(label, i),
+                             path="{}/{}".format(dir, model2))])
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
     _source_flux_plotter(results, _models, inline=True)
 
 
 def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
-                    all_sources=False):
+                    all_sources=False, dir='.'):
     """Plot model-model positions from lsm.html/txt models
 
     Parameters
@@ -968,15 +1003,77 @@ def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
     _models = []
     i = 0
     for model1, model2 in models.items():
-        _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i), path=model1),
-                        dict(label="{0:s}-model_b_{1:d}".format(label, i), path=model2)])
+        _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i),
+                             path='{}/{}'.format(dir, model1)),
+                        dict(label="{0:s}-model_b_{1:d}".format(label, i),
+                             path="{}/{}".format(dir, model2))])
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
     _source_astrometry_plotter(results, _models, inline=True)
 
 
+def plot_morphology(models, label=None, tolerance=0.00001, phase_centre=None,
+                    all_sources=False, dir='.'):
+    """Plot model-model morphology from lsm.html/txt models
+
+    Parameters
+    ----------
+    models : dict
+        Tigger/text formatted model files e.g {model1: model2}.
+    label : str
+        Use this label instead of the FITS image path when saving data.
+    tolerance: float
+        Radius around the source to be cross matched.
+    phase_centre : str
+        Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point-like source)
+
+    """
+    _models = []
+    i = 0
+    for model1, model2 in models.items():
+        _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i),
+                             path='{}/{}'.format(dir, model1)),
+                        dict(label="{0:s}-model_b_{1:d}".format(label, i),
+                             path="{}/{}".format(dir, model2))])
+        i += 1
+    results = compare_models(_models, tolerance, False, phase_centre, all_sources)
+    _source_morphology_plotter(results, _models, inline=True)
+
+
+def plot_spectrum(models, label=None, tolerance=0.00001, phase_centre=None,
+                    all_sources=False, dir='.'):
+    """Plot model-model spectrum from lsm.html/txt models
+
+    Parameters
+    ----------
+    models : dict
+        Tigger/text formatted model files e.g {model1: model2}.
+    label : str
+        Use this label instead of the FITS image path when saving data.
+    tolerance: float
+        Radius around the source to be cross matched.
+    phase_centre : str
+        Phase centre of catalog (if not already embeded)
+    all_source: bool
+        Compare all sources in the catalog (else only point-like source)
+
+    """
+    _models = []
+    i = 0
+    for model1, model2 in models.items():
+        _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i),
+                             path='{}/{}'.format(dir, model1)),
+                        dict(label="{0:s}-model_b_{1:d}".format(label, i),
+                             path="{}/{}".format(dir, model2))])
+        i += 1
+    results = compare_models(_models, tolerance, False, phase_centre, all_sources)
+    _source_spectrum_plotter(results, _models, inline=True)
+
+
 def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
-                         area_factor=2.0, points=100):
+                         area_factor=2.0, points=100, dir='.'):
     """Plot residual-residual or noise data
 
     Parameters
@@ -993,11 +1090,15 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
         Number of data point to generate in case of random residuals.
 
     """
+    if skymodel:
+        skymodel = '{}/{}'.format(dir, skymodel)
     _residual_images = []
     i = 0
     for res1, res2 in res_noise_images.items():
-        _residual_images.append([dict(label="{0:s}-res_a_{1:d}".format(label, i), path=res1),
-                                 dict(label="{0:s}-res_b_{1:d}".format(label, i), path=res2)])
+        _residual_images.append([dict(label="{0:s}-res_a_{1:d}".format(label, i),
+                                 path='{}/{}'.format(dir, res1)),
+                                 dict(label="{0:s}-res_b_{1:d}".format(label, i),
+                                 path='{}/{}'.format(dir, res2))])
         i += 1
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
 
@@ -1051,7 +1152,7 @@ def _source_flux_plotter(results, all_models, inline=False):
             flux_out_err_data.append(results[heading]['flux'][n][1])
             flux_in_data.append(results[heading]['flux'][n][2])
             name_labels.append(results[heading]['flux'][n][3])
-            phase_center_dist.append(results[heading]['position'][n][-3])
+            phase_center_dist.append(results[heading]['position'][n][3])
             source_scale.append(results[heading]['shape'][n][3])
         zipped_props = zip(flux_out_data, flux_out_err_data, flux_in_data,
                            name_labels, phase_center_dist, source_scale)
@@ -1177,7 +1278,9 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         i += 1
         counter += 1
         RA_offset = []
+        RA_err = []
         DEC_offset = []
+        DEC_err = []
         DELTA_PHASE0 = []
         source_labels = []
         flux_in_data = []
@@ -1191,7 +1294,9 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             DEC_offset.append(results[heading]['position'][n][2])
             DELTA_PHASE0.append(results[heading]['position'][n][3])
             flux_in_data.append(results[heading]['position'][n][4])
-            source_labels.append(results[heading]['position'][n][5])
+            RA_err.append(results[heading]['position'][n][5])
+            DEC_err.append(results[heading]['position'][n][6])
+            source_labels.append(results[heading]['position'][n][7])
         zipped_props = zip(delta_pos_data, RA_offset, DEC_offset,
                            DELTA_PHASE0, flux_in_data, source_labels)
         (delta_pos_data, RA_offset, DEC_offset, DELTA_PHASE0,
@@ -1224,7 +1329,15 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                                           titleside='right',
                                           len=PLOT_NUM_POS['format'][PLOTS][2],
                                           y=PLOT_NUM_POS['format'][PLOTS][1]-j,
-                                          x=0.4))),
+                                          x=0.4)),
+                error_y=dict(type='data',
+                             array=np.array(DEC_err),
+                             color='rgb(158, 63, 221)',
+                             visible=True),
+                error_x=dict(type='data',
+                             array=np.array(RA_err),
+                             color='rgb(158, 63, 221)',
+                             visible=True)),
             i+1, 1)
         RA_mean = np.mean(RA_offset)
         DEC_mean = np.mean(DEC_offset)
@@ -1239,8 +1352,8 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             if abs(ra_off) <= max(abs(x1)) and abs(dec_off) <= max(abs(y1))])
         annotate.append(
             go.Annotation(
-                x=0,
-                y=max(DEC_offset) + 0.18,
+                x=RA_mean,
+                y=max(DEC_offset) + 0.05,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
                 text=("Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f})".format(
@@ -1251,8 +1364,8 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 font=dict(color="black", size=10)))
         annotate.append(
             go.Annotation(
-                x=0,
-                y=max(DEC_offset) + 0.19 + 0.055,
+                x=RA_mean,
+                y=max(DEC_offset) + 0.05 + 0.02,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
                 text=("Sigma sources: {:d} | (RA, DEC) sigma: ({:.4f}, {:.4f})".format(
@@ -1322,6 +1435,309 @@ def _source_astrometry_plotter(results, all_models, inline=False):
     else:
         py.plot(fig, filename=outfile, auto_open=False)
         LOGGER.info('Saving astrometry comparisons in {}'.format(outfile))
+
+
+def _source_morphology_plotter(results, all_models, inline=False):
+    """Plot morphology results and save output as html file.
+
+    Parameters
+    ----------
+    results: dict
+        Structured output results.
+    models: list
+        Tigger/text formatted model files e.g [model1, model2].
+    inline : bool
+        Allow inline plotting inside a notebook.
+
+    """
+    im_titles = []
+    models_compare = dict()
+    for models in all_models:
+        output_model = models[-1]['path']
+        input_model = models[0]['path']
+        if 'html' in output_model:
+            header = output_model.split('/')[-1][:-9]
+        else:
+            header = output_model.split('/')[-1][:-4]
+        models_compare[input_model] = output_model
+        im_titles.append('<b>{:s} Position Offset</b>'.format(header.upper()))
+        im_titles.append('<b>{:s} Delta Position</b>'.format(header.upper()))
+
+    PLOTS = len(models_compare.keys())
+    fig = tools.make_subplots(rows=PLOTS, cols=2,
+                              shared_yaxes=False,
+                              print_grid=False,
+                              vertical_spacing=PLOT_NUM_POS['plots'][PLOTS][0],
+                              horizontal_spacing=PLOT_NUM_POS['plots'][PLOTS][1],
+                              subplot_titles=im_titles)
+    j = 0
+    i = -1
+    counter = 0
+    annotate = []
+    for input_model, output_model in sorted(models_compare.items()):
+        i += 1
+        counter+=1
+        SCALE = []
+        SCALE_ERR = []
+        flux_in_data = []
+        DELTA_PHASE0 = []
+        source_labels = []
+        MAJ_MIN_angle_in = []
+        MAJ_MIN_angle_out = []
+        MAJ_MIN_angle_err = []
+        unresolved = []
+        heading = all_models[i][0]['label']
+        for n in range(len(results[heading]['flux'])):
+            MAJ_MIN_angle_out.append(results[heading]['shape'][n][0])
+            MAJ_MIN_angle_err.append(results[heading]['shape'][n][1])
+            MAJ_MIN_angle_in.append(results[heading]['shape'][n][2])
+            SCALE.append(results[heading]['shape'][n][3])
+            SCALE_ERR.append(results[heading]['shape'][n][4])
+            flux_in_data.append(results[heading]['shape'][n][5])
+            source_labels.append(results[heading]['shape'][n][6])
+            DELTA_PHASE0.append(results[heading]['position'][n][5])
+        try:
+            zipped_props = zip(MAJ_MIN_angle_out, MAJ_MIN_angle_in, DELTA_PHASE0, SCALE, SCALE_ERR)
+            MAJ_MIN_angle_out, MAJ_MIN_angle_in, DELTA_PHASE0, SCALE, SCALE_ERR = zip(
+                *sorted(zipped_props, key=lambda x: x[0]))
+            maj_in = [maj_min_angle_in[0] for maj_min_angle_in in MAJ_MIN_angle_in]
+            maj_out = [maj_min_angle_out[0] for maj_min_angle_out in MAJ_MIN_angle_out]
+            maj_out_err = [maj_min_angle_out[0] for maj_min_angle_out in MAJ_MIN_angle_out] 
+            min_in = [maj_min_angle_in[1] for maj_min_angle_in in MAJ_MIN_angle_in]
+            min_out = [maj_min_angle_out[1] for maj_min_angle_out in MAJ_MIN_angle_out]
+            min_out_err = [maj_min_angle_err[1] for maj_min_angle_err in MAJ_MIN_angle_err]
+            angle_offset = [(maj_min_angle_out[2] - maj_min_angle_in[2]) for maj_min_angle_out, maj_min_angle_in in zip(
+                MAJ_MIN_angle_out, MAJ_MIN_angle_in)]
+            flux_MSE = mean_squared_error(maj_in, maj_out)
+            reg = linregress(maj_in, maj_out)
+            flux_R_score = reg.rvalue
+            fig.append_trace(go.Scatter(x=np.array([sorted(maj_in)[0], sorted(maj_in)[-1]]),
+                                        showlegend=False,
+                                        marker = dict(color = 'rgb(0,0,255)'),
+                                        y=np.array([sorted(maj_in)[0], sorted(maj_in)[-1]]),
+                                        mode = 'lines'), i+1, 1)
+            fig.append_trace(go.Scatter(x=np.array([sorted(min_in)[0], sorted(min_in)[-1]]),
+                                        showlegend=False,
+                                        marker = dict(color = 'rgb(0,0,255)'),
+                                        y=np.array([sorted(min_in)[0], sorted(min_in)[-1]]),
+                                        mode = 'lines'), i+1, 2)
+        except ValueError:
+            pass
+        fig.append_trace(go.Scatter(x=maj_in, y=maj_out, mode = 'markers', showlegend=False,
+                                   text=source_labels, name = '{:s} flux_ratio'.format(header),
+                                   marker=dict(color = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
+                                   showscale=True, colorscale='Jet',
+                                              reversescale=True,
+                                              colorbar = dict(title='Output flux (mJy)',
+                                                              titleside ='right',
+                                                              len=PLOT_NUM_FLUX['format'][PLOTS][2],
+                                                              y=PLOT_NUM_FLUX['format'][PLOTS][1]-j,
+                                                              x=0.39)
+                                             ),
+                                error_y=dict(type='data', array=np.array(maj_out_err),
+                                             color = 'rgb(158, 63, 221)', visible=True)), i+1, 1)
+        fig.append_trace(go.Scatter(x=min_in, y=min_out,
+                                    mode='markers', showlegend=False,
+                                    text=source_labels, name = '{:s} flux_ratio'.format(header),
+                                    marker=dict(color = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
+                                    showscale=True, colorscale='Jet', reversescale=True,
+                                                  colorbar = dict(title='Output flux (mJy)',
+                                                              titleside ='right',
+                                                              len=PLOT_NUM_FLUX['format'][PLOTS][2],
+                                                              y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)
+                                             ),
+                                error_y=dict(type='data', array=np.array(min_out_err),
+                                             color = 'rgb(158, 63, 221)', visible=True)), i+1, 2)
+        pi,sin,cos = np.pi,np.sin,np.cos
+        fig['layout'].update(title='', height=PLOT_NUM_POS['format'][PLOTS][3],
+                             width=PLOT_NUM_POS['format'][PLOTS][4],
+                             paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
+                             legend=dict(xanchor='auto')
+                            )
+        fig['layout'].update(
+            {'yaxis{}'.format(counter+i):YAxis(title=u'Output maj axis[arcsec]',gridcolor='rgb(255,255,255)',
+                                           color='rgb(0,0,0)',
+            range=[-1,13],
+            tickfont=dict(size=10, color='rgb(0,0,0)'),
+            titlefont=dict(size=15),
+            showgrid=True,
+            showline=True,
+            showticklabels=True,
+            tickcolor='rgb(51,153,225)',
+            ticks='outside',
+            zeroline=True)})
+        fig['layout'].update(
+            {'yaxis{}'.format(counter+i+1):YAxis(title='Ouput min axis[arcsec]',gridcolor='rgb(255,255,255)',
+                                             color='rgb(0,0,0)',
+	    range=[-1,13],
+            tickfont=dict(size=10, color='rgb(0,0,0)'),
+            titlefont=dict(size=15),
+            showgrid=True,
+            showline=True,
+            showticklabels=True,
+            tickcolor='rgb(51,153,225)',
+            ticks='outside',
+            zeroline=True)})
+        fig['layout'].update({'xaxis{}'.format(counter+i):XAxis(title='Input maj axis[arcsec]',
+                                                            titlefont=dict(size=17),
+                                                            zeroline=False, position=0.0, overlaying='x',)})
+        fig['layout'].update({'xaxis{}'.format(counter+i+1):XAxis(title='Input min axis[arcsec]',
+                                                              titlefont=dict(size=17),
+                                                              zeroline=False)})# domain=[0.505, 0.8])}
+        #fig['layout']['annotations'].update({'font':{'size': 12}})
+        j += PLOT_NUM_POS['format'][PLOTS][0]
+
+    outfile = 'InputOutputScale.html'
+    if inline:
+        py.init_notebook_mode(connected=True)
+        py.iplot(fig, filename=outfile)
+    else:
+        py.plot(fig, filename=outfile, auto_open=False)
+        LOGGER.info('Saving morphology comparisons in {}'.format(outfile))
+
+
+def _source_spectrum_plotter(results, all_models, inline=False):
+    """Plot spectrum results and save output as html file.
+
+    Parameters
+    ----------
+    results: dict
+        Structured output results.
+    models: list
+        Tigger/text formatted model files e.g [model1, model2].
+    inline : bool
+        Allow inline plotting inside a notebook.
+
+    """
+    num_bins = 5
+    y_ran_pos = [-5, 5]
+    y_min_max = [-5, 5]
+    y_ran_pos = [y_min_max[-1], y_min_max[-1]]
+    y_ran_neg = [y_min_max[0], y_min_max[0]]
+    im_titles = []
+    models_compare = dict()
+    for models in all_models:
+        output_model = models[-1]['path']
+        input_model = models[0]['path']
+        if 'html' in output_model:
+            header = output_model.split('/')[-1][:-9]
+        else:
+            header = output_model.split('/')[-1][:-4]
+        models_compare[input_model] = output_model
+        im_titles.append('<b>{:s} Spectrum</b>'.format(header.upper()))
+
+    PLOTS = len(models_compare.keys())
+    fig = tools.make_subplots(rows=PLOTS, cols=1,
+                              shared_yaxes=False,
+                              print_grid=False,
+                              vertical_spacing=PLOT_NUM_FLUX['plots'][PLOTS][0],
+                              horizontal_spacing=PLOT_NUM_FLUX['plots'][PLOTS][1],
+                              subplot_titles=im_titles)
+    j = 0
+    i = -1
+    counter = 0
+    annotate = []
+    for input_model, output_model in sorted(models_compare.items()):
+        i += 1
+        counter+=1
+        I_in = []
+        name_labels = []
+        spi_in_data = []
+        spi_out_data = []
+        spi_err_data = []
+        phase_center_dist = []
+        heading = all_models[i][0]['label']
+	num_data_points = len(results[heading]['spectrum'])
+        for n in range(num_data_points):
+            spi_out_data.append(results[heading]['spectrum'][n][0])
+            spi_err_data.append(results[heading]['spectrum'][n][1])
+            spi_in_data.append(results[heading]['spectrum'][n][2])
+            phase_center_dist.append(results[heading]['spectrum'][n][3])
+            I_in.append(results[heading]['spectrum'][n][4])
+            name_labels.append(results[heading]['spectrum'][n][5])
+        zipped_props = zip(I_in, spi_out_data, spi_err_data, spi_in_data, phase_center_dist, name_labels)
+        (I_in, spi_out_data, spi_err_data, spi_in_data, dist_from_phase, name_labels) = zip(
+            *sorted(zipped_props, key=lambda x: x[0]))
+        spi_R_score = r2_score(spi_in_data, spi_out_data)
+        spi_MSE = mean_squared_error(spi_in_data, spi_out_data)
+        spi_out_in = [float(spi_out)/spi_in for spi_out,spi_in in zip(spi_out_data,spi_in_data)]
+#===========================================================================================================
+        ranger = num_data_points/num_bins
+        start, end = [-ranger, 0]
+        for b in range(num_bins):
+            end += ranger
+            start += ranger
+            fig.append_trace(go.Scatter(
+                             x=[sorted(np.array(I_in)[start:num_data_points
+                                                      if (b + 1) == num_bins
+                                                      else end]*FLUX_UNIT_SCALER['milli'][0])[0],
+                                sorted(np.array(I_in)[start:num_data_points
+                                                      if (b + 1) == num_bins
+                                                      else end]*FLUX_UNIT_SCALER['milli'][0])[-1]],
+                             y=y_ran_pos,
+                             showlegend=False,
+                             mode= 'none',
+                             fillcolor = BIN_COLORS[b+1],
+                             fill='tozeroy'), i+1, 1)
+            fig.append_trace(go.Scatter(
+                             x=[sorted(np.array(I_in)[start:num_data_points
+                                                      if (b + 1) == num_bins
+                                                      else end]*FLUX_UNIT_SCALER['milli'][0])[0],
+                                sorted(np.array(I_in)[start:num_data_points
+                                                      if (b + 1) == num_bins
+                                                      else end]*FLUX_UNIT_SCALER['milli'][0])[-1]],
+                             y=y_ran_neg,
+                             showlegend=False,
+                             mode= 'none',
+                             fillcolor = BIN_COLORS[b+1],
+                             fill='tozeroy'), i+1, 1)
+#===========================================================================================================
+        fig.append_trace(go.Scatter(x=np.array([sorted(I_in)[0], sorted(I_in)[-1]])*1000, showlegend=False,
+                                    marker = dict(color = 'rgb(0,0,255)'),
+                                    y=np.array([-.7,-.7]), mode = 'lines'), i+1, 1)
+        fig.append_trace(go.Scatter(x=np.array(I_in)*1000, y=np.array(spi_out_data),
+                                    mode = 'markers', showlegend=False,
+                                    text = name_labels, name = '%s flux_ratio' % heading,
+                                    marker = dict(color = phase_center_dist, showscale=True, colorscale='Jet',
+                                                  reversescale=False,
+                                                  colorbar = dict(title='Phase centre dist (arcsec)',
+                                                                   titleside ='right',
+                                                              len=PLOT_NUM_FLUX['format'][PLOTS][2],
+                                                              y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)
+                                                 ),
+                                    error_y=dict(type='data', array=spi_err_data,
+                                                 color = 'rgb(158, 63, 221)', visible=True)), i+1, 1)
+        fig['layout'].update(title='', height=PLOT_NUM_FLUX['format'][PLOTS][3],
+                             width=PLOT_NUM_POS['format'][PLOTS][4],
+                             paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
+                             legend=dict(x=0.8,y=1.0),)
+        fig['layout'].update(
+            {'yaxis{}'.format(counter):YAxis(title=u'$SPI_{out}$',gridcolor='rgb(255,255,255)',
+            range=y_min_max,
+            tickfont=dict(size=15),
+            titlefont=dict(size=17),
+            showgrid=True,
+            showline=True,
+            showticklabels=True,
+            tickcolor='rgb(51,153,225)',
+            ticks='outside',
+            zeroline=True)})
+        fig['layout'].update({'xaxis{}'.format(counter):XAxis(title='$I_{in} (mJy)$', position=0.0,
+                                                                titlefont=dict(size=17),
+                                                                overlaying='x')})
+        #fig['layout']['annotations'].update({ 'font':{'size': 10}})
+        #j+=PLOT_NUM['colorbar'][PLOTS][0]
+        #py.iplot(fig, filename='make-subplots-multiple-with-titles')
+        #fig['layout']['annotations'].update({'font':{'size': 12}})
+        j += PLOT_NUM_FLUX['format'][PLOTS][0]
+
+    outfile = 'InputOutputSpi.html'
+    if inline:
+        py.init_notebook_mode(connected=True)
+        py.iplot(fig, filename=outfile)
+    else:
+        py.plot(fig, filename=outfile, auto_open=False)
+        LOGGER.info('Saving spectrum comparisons in {}'.format(outfile))
 
 
 def _residual_plotter(res_noise_images, points=None, results=None, inline=False):
