@@ -1650,7 +1650,7 @@ def _source_spectrum_plotter(results, all_models, inline=False):
         spi_err_data = []
         phase_center_dist = []
         heading = all_models[i][0]['label']
-	num_data_points = len(results[heading]['spectrum'])
+        num_data_points = len(results[heading]['spectrum'])
         for n in range(num_data_points):
             spi_out_data.append(results[heading]['spectrum'][n][0])
             spi_err_data.append(results[heading]['spectrum'][n][1])
