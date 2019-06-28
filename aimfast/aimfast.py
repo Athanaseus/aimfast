@@ -877,6 +877,9 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             if source.spectrum:
                 spi_out = source.spectrum.spi
                 spi_out_err = source.getTags()[0][-1]
+            else:
+                spi_out = None
+                spi_out_err = None
             targets_spectrum[name] = [spi_out, spi_out_err, spi_in,
                                      delta_phase_centre_arc_sec, I_in,
                                      source_name]
