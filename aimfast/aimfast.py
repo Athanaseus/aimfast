@@ -1558,8 +1558,9 @@ def _source_morphology_plotter(results, all_models, inline=False):
                              legend=dict(xanchor='auto')
                             )
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i):YAxis(title=u'Output maj axis[arcsec]',gridcolor='rgb(255,255,255)',
-                                           color='rgb(0,0,0)',
+            {'yaxis{}'.format(counter+i):YAxis(title=u'Output maj axis[arcsec]',
+                                               gridcolor='rgb(255,255,255)',
+                                               color='rgb(0,0,0)',
             range=[-1,13],
             tickfont=dict(size=10, color='rgb(0,0,0)'),
             titlefont=dict(size=15),
@@ -1570,9 +1571,10 @@ def _source_morphology_plotter(results, all_models, inline=False):
             ticks='outside',
             zeroline=True)})
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i+1):YAxis(title='Ouput min axis[arcsec]',gridcolor='rgb(255,255,255)',
-                                             color='rgb(0,0,0)',
-	    range=[-1,13],
+            {'yaxis{}'.format(counter+i+1):YAxis(title='Ouput min axis[arcsec]',
+                                                 gridcolor='rgb(255,255,255)',
+                                                 color='rgb(0,0,0)',
+            range=[-1,13],
             tickfont=dict(size=10, color='rgb(0,0,0)'),
             titlefont=dict(size=15),
             showgrid=True,
