@@ -446,6 +446,33 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     return props
 
 
+def print_residual_stats(residual_images, units='mJy', dir='.'):
+    from tabletext import to_text
+    Res = dict()
+    for res in residual_images:
+        Res[res] = residual_image_stats('{:s}/{:s}'.format(dir, res),
+                                        test_normality='normaltest')
+    names, mean, std = [], [], []
+    rms, skew, kurt, normtest = [], [], [], []
+    table_data = [["Imager", "Mean (mJy/beam)", "STD (mJy/beam)",
+                   "RMS (mJy/beam)", "Skewness", "Kurtosis", "Normality"]]
+    for name, stats in sorted(Res.items()):
+        names.append(name[23:-19].upper())
+        mean.append(stats['MEAN'])
+        std.append(stats['STDDev'])
+        rms.append(stats['RMS'])
+        skew.append(stats['SKEW'])
+        kurt.append(stats['KURT'])
+        normtest.append(stats['NORM'][0])
+        table_data.append([name.split('.')[0].split('_')[-1], "{:.3E}".format(stats['MEAN']),
+                       "{:.3E}".format(stats['STDDev']), "{:.3E}".format(stats['RMS']),
+                       "{:.3E}".format(stats['SKEW']), "{:.3f}".format(stats['KURT']),
+                       "{:.3f}".format(stats['NORM'][0])])
+    zipped_props = zip(names, mean, std, skew, kurt, normtest)
+    names, mean, std, skew, kurt, normtest = zip(*sorted(zipped_props, key=lambda x: x[0]))
+    print(to_text(table_data))
+
+
 def normality_testing(fitsname, test_normality='normaltest', data_range=None):
     """Performs a normality test on the image.
 
@@ -1168,9 +1195,9 @@ def _source_flux_plotter(results, all_models, inline=False):
 
         annotate.append(
             go.Annotation(
-                x=(sorted(flux_in_data)[-1]/2.0 - sorted(flux_in_data)[0]/2.0
-                   + sorted(flux_in_data)[0]) * FLUX_UNIT_SCALER['milli'][0],
-                y=flux_in_data[-1]*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
+                x=(max(flux_in_data)/2.0 - min(flux_in_data)/2.0
+                   + min(flux_in_data)) * FLUX_UNIT_SCALER['milli'][0],
+                y=max(flux_in_data)*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
                 xref='x{:d}'.format(counter),
                 yref='y{:d}'.format(counter),
                 text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
@@ -1184,10 +1211,11 @@ def _source_flux_plotter(results, all_models, inline=False):
                 font=dict(color="black", size=12)))
         fig.append_trace(
             go.Scatter(
-                x=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
+                x=np.array([min(flux_in_data),
+                            max(flux_in_data)])*FLUX_UNIT_SCALER['milli'][0],
                 showlegend=False,
                 marker=dict(color='rgb(0,0,255)'),
-                y=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
+                y=np.array([min(flux_in_data), max(flux_in_data)])*FLUX_UNIT_SCALER['milli'][0],
                 mode='lines'), i+1, 1)
         fig.append_trace(
             go.Scatter(
@@ -1356,7 +1384,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         annotate.append(
             go.Annotation(
                 x=RA_mean,
-                y=max(DEC_offset) + 0.05,
+                y=max(DEC_offset) + max(DEC_err) + 0.02,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
                 text=("Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f})".format(
@@ -1364,11 +1392,11 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 ax=0,
                 ay=-40,
                 showarrow=False,
-                font=dict(color="black", size=10)))
+                font=dict(color="black", size=12)))
         annotate.append(
             go.Annotation(
                 x=RA_mean,
-                y=max(DEC_offset) + 0.05 + 0.02,
+                y=max(DEC_offset) + max(DEC_err)+ 0.02 + max(DEC_offset)*0.14,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
                 text=("Sigma sources: {:d} | (RA, DEC) sigma: ({:.4f}, {:.4f})".format(
@@ -1376,7 +1404,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 ax=0,
                 ay=-40,
                 showarrow=False,
-                font=dict(color="black", size=10)))
+                font=dict(color="black", size=12)))
         fig.append_trace(go.Scatter(x=x1, y=y1,
                                     mode='lines', showlegend=False,
                                     name=r'1 sigma',
