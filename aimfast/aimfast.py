@@ -180,8 +180,8 @@ def json_dump(data_dict, root='.'):
     repeated image assessments will be replaced.
 
     """
-    LOGGER.info('Dumping dictionary into the json file')
     filename = ('{:s}/fidelity_results.json'.format(root))
+    LOGGER.info("Dumping dictionary into the '{}' file".format(filename))
     try:
         # Extract data from the json data file
         with open(filename) as data_file:
@@ -419,10 +419,21 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     # Get the header data unit for the residual rms
     residual_data = residual_hdu[0].data
     # Get residual data
+    data = residual_data[0]
     if threshold:
-        pass
+        nchans = []
+        for i in range(data.shape[0]):
+            d = data[i][data[i]>float(threshold)]
+            if d.shape[0] > 0:
+                nchans.append(i)
+        residual_data = data[nchans]
     if chans:
-        pass
+        nchans = []
+        chan_ranges = chans.split(';')
+        for cr in chan_ranges:
+            c = cr.split('~') 
+            nchans.extend(range(int(c[0]), int(c[1])))
+            residual_data = data[nchans]
     if mask:
         pass
     # Get the mean value
@@ -1010,6 +1021,7 @@ def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
     _source_flux_plotter(results, _models, inline=True)
+    return results
 
 
 def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
@@ -1040,6 +1052,7 @@ def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
     _source_astrometry_plotter(results, _models, inline=True)
+    return results
 
 
 def plot_morphology(models, label=None, tolerance=0.00001, phase_centre=None,
@@ -1070,6 +1083,7 @@ def plot_morphology(models, label=None, tolerance=0.00001, phase_centre=None,
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
     _source_morphology_plotter(results, _models, inline=True)
+    return results
 
 
 def plot_spectrum(models, label=None, tolerance=0.00001, phase_centre=None,
@@ -1100,6 +1114,7 @@ def plot_spectrum(models, label=None, tolerance=0.00001, phase_centre=None,
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
     _source_spectrum_plotter(results, _models, inline=True)
+    return results
 
 
 def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
@@ -1131,6 +1146,44 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
                                  path='{}/{}'.format(dir, res2))])
         i += 1
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
+
+
+def aimfast_plotly(X, Y, x_title, y_title, plot_title='No Ttile',
+                   point_labels=None, inline=True, plot_mode='markers',
+                   xfactor=1, yfactor=1):
+    """Make a simple x-y plot by providing array of Xs and Ys"""
+    fig = tools.make_subplots(rows=1, cols=1, shared_yaxes=False, print_grid=False,
+                              horizontal_spacing = 0.005, vertical_spacing = 0.15)
+    fig.append_trace(go.Scatter(x=X, showlegend=False, text=point_labels,
+                                y=Y/yfactor, mode=plot_mode, marker=dict(size=30)), 1, 1)
+    fig['layout'].update(title=plot_title, height=900, width=900,
+                         paper_bgcolor='rgb(255,255,255)', #plot_bgcolor='rgb(229,229,229)',
+                         legend=dict(x=0.8,y=1.0))
+    fig['layout'].update(
+        {'yaxis{}'.format(1):YAxis(title=y_title,
+                                   gridcolor='rgb(255,255,255)',
+                                   tickfont=dict(size=25),
+                                   titlefont=dict(size=30),
+                                   showgrid=True,
+                                   showline=True,
+                                   showticklabels=True,
+                                   tickcolor='rgb(51,153,225)',
+                                   ticks='outside',
+                                   zeroline=False)})
+    fig['layout'].update(
+        {'xaxis{}'.format(1):XAxis(title=x_title,
+                                   position=0.0,
+                                   tickfont=dict(size=20),
+                                   titlefont=dict(size=30),
+                                   showline=True,
+                                   overlaying='x')})
+    outfile = '{}.html'.format(plot_title)
+    if inline:
+        py.init_notebook_mode(connected=True)
+        py.iplot(fig, filename=outfile)
+    else:
+        py.plot(fig, filename=outfile, auto_open=False)
+        LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
 
 
 def _source_flux_plotter(results, all_models, inline=False):
@@ -1197,7 +1250,7 @@ def _source_flux_plotter(results, all_models, inline=False):
             go.Annotation(
                 x=(max(flux_in_data)/2.0 - min(flux_in_data)/2.0
                    + min(flux_in_data)) * FLUX_UNIT_SCALER['milli'][0],
-                y=max(flux_in_data)*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
+                y=max(flux_out_data)*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
                 xref='x{:d}'.format(counter),
                 yref='y{:d}'.format(counter),
                 text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
@@ -1617,7 +1670,6 @@ def _source_morphology_plotter(results, all_models, inline=False):
         fig['layout'].update({'xaxis{}'.format(counter+i+1):XAxis(title='Input min axis[arcsec]',
                                                               titlefont=dict(size=17),
                                                               zeroline=False)})# domain=[0.505, 0.8])}
-        #fig['layout']['annotations'].update({'font':{'size': 12}})
         j += PLOT_NUM_POS['format'][PLOTS][0]
 
     outfile = 'InputOutputScale.html'
@@ -2191,6 +2243,10 @@ def get_argparser():
              help='Data points to sample the residual/noise image')
     argument('-ptc', '--phase-centre', dest='phase',
              help='Phase tracking centre of the catalogs e.g. "J2000.0,0.0deg,-30.0"')
+    argument('-thresh', '--threshold', dest='thresh',
+             help='Get stats of channels with pixel flux above thresh in Jy/Beam')
+    argument('-chans', '--channels', dest='channels',
+             help='Get stats of specified channels e.g. "10~20;100~1000"')
     argument("--label",
              help='Use this label instead of the FITS image path when saving'
                   'data as JSON file.')
@@ -2242,12 +2298,19 @@ def main():
             if args.data_range:
                 stats = residual_image_stats(args.residual,
                                              args.test_normality,
-                                             int(args.data_range))
+                                             int(args.data_range),
+                                             threshold=args.thresh,
+                                             chans=args.chans)
             else:
-                stats = residual_image_stats(args.residual, args.test_normality)
+                stats = residual_image_stats(args.residual,
+                                             args.test_normality,
+                                             threshold=args.thresh,
+                                             chans=args.chans)
         else:
             if not args.test_normality:
-                stats = residual_image_stats(args.residual)
+                stats = residual_image_stats(args.residual,
+                                             threshold=args.thresh,
+                                             chans=args.chans)
             else:
                 print("{:s}Please provide correct normality"
                       "model{:s}".format(R, W))
@@ -2263,12 +2326,19 @@ def main():
                 if args.data_range:
                     stats = residual_image_stats(args.residual,
                                                  args.test_normality,
-                                                 int(args.data_range))
+                                                 int(args.data_range),
+                                                 threshold=args.thresh,
+                                                 chans=args.chans)
                 else:
-                    stats = residual_image_stats(args.residual, args.test_normality)
+                    stats = residual_image_stats(args.residual,
+                                                 args.test_normality,
+                                                 threshold=args.thresh,
+                                                 chans=args.chans)
             else:
                 if not args.test_normality:
-                    stats = residual_image_stats(args.residual)
+                    stats = residual_image_stats(
+                        args.residual, threshold=args.thresh,
+                        chans=args.chans)
                 else:
                     print("{:s}Please provide correct normality"
                           "model{:s}".format(R, W))
