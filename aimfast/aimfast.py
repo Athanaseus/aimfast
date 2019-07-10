@@ -403,7 +403,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     -------
     props : dict
         Dictionary of stats properties.
-        e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3}.
+        e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'RMS': 0.1, 'SKEW': 0.2, 'KURT': 0.3}.
 
     Notes
     -----
@@ -435,7 +435,10 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
             nchans.extend(range(int(c[0]), int(c[1])))
             residual_data = data[nchans]
     if mask:
-        pass
+        import numpy.ma as ma
+        mask_hdu = fitsio.open(mask)
+        mask_data = mask_hdu[0].data
+        residual_data = ma.masked_array(residual_data, mask=mask_data)
     # Get the mean value
     res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
     # Get the rms value
