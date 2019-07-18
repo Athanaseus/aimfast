@@ -2,6 +2,7 @@ import os
 import json
 import Tigger
 import random
+import string
 import logging
 import argparse
 import tempfile
@@ -19,9 +20,14 @@ from plotly import offline as py
 from plotly import graph_objs as go
 from plotly.graph_objs import XAxis, YAxis
 
+from astropy.io import ascii
 from astLib.astWCS import WCS
+from astropy import units as u
 from astropy.table import Table
+import astropy.coordinates as coord
+from astroquery.vizier import Vizier
 from astropy.io import fits as fitsio
+from astropy.coordinates import SkyCoord
 
 from sklearn.metrics import mean_squared_error, r2_score
 from Tigger.Models import SkyModel, ModelClasses
@@ -241,6 +247,85 @@ def fitsInfo(fitsname=None):
                 'numPix': numPix, 'centre': centre,
                 'skyArea': skyArea}
     return fitsinfo
+
+
+def ra2deg(ra_hms):
+    '''
+    Converts right ascension in hms coordinates to degrees and radians
+    INPUT
+
+    rahms: ra in HH:MM:SS format (str)
+
+    OUTPUT
+
+    conv_units.radeg: ra in degrees
+    conv_units.rarad: ra in radians
+    '''
+
+    ra = string.split(ra_hms, ':')
+
+    hh = float(ra[0])*15
+    mm = (float(ra[1])/60)*15
+    ss = (float(ra[2])/3600)*15
+
+    return hh+mm+ss
+
+
+def dec2deg(dec_dms):
+
+    '''
+    Converts right ascension in hms coordinates to degrees and radians
+
+    INPUT
+
+    rahms: ra in HH:MM:SS format (str)
+
+    OUTPUT
+
+    conv_units.radeg: ra in degrees
+    conv_units.rarad: ra in radians
+    '''
+
+    dec = string.split(dec_dms, ':')
+
+    hh = abs(float(dec[0]))
+    mm = float(dec[1])/60
+    ss = float(dec[2])/3600
+
+    if float(dec[0])>= 0:
+        return hh+mm+ss
+    else:
+        return -(hh+mm+ss)
+
+    return hh+mm+ss  
+
+
+def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
+                       centre_coord=['0.0', -30.0]):
+    """Query an online catalog to compare with local catalog"""
+    C = Vizier.query_region(
+            coord.SkyCoord(centre_coord[0], centre_coord[1],
+                           unit=(u.hourangle, u.deg), frame='icrs'),
+                            width=width, catalog=catalog)
+    table = C[0]
+    ra_deg = []
+    dec_deg = []
+
+    if catalog == 'NVSS':
+        for i in xrange (0, len(table['RAJ2000'])):
+           table['RAJ2000'][i] = string.join(string.split(table['RAJ2000'][i],' '),':')
+           ra_deg.append(ra2deg(table['RAJ2000'][i]))
+           table['DEJ2000'][i] = string.join(string.split(table['DEJ2000'][i],' '),':')
+           dec_deg.append(dec2deg(table['DEJ2000'][i]))
+
+        above_thresh = table['S1.4']<thresh
+        catalog_table = 'nvss_catalog_table.txt'
+
+    for i in xrange(1,len(table.colnames)):
+        table[table.colnames[i]][above_thresh] = np.nan
+
+    table =  Table(table, masked=True)
+    ascii.write(table, catalog_table, overwrite=True)
 
 
 def measure_psf(psffile, arcsec_size=20):

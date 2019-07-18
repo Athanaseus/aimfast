@@ -1,5 +1,6 @@
 astLib
 astropy
+astroquery
 astro-tigger
 jsonschema
 mock
