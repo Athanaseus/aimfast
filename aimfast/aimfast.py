@@ -50,7 +50,7 @@ PLOT_NUM_FLUX = {'format':
                      2: [0.15, 0.16],
                      3: [0.1, 0.16],
                      4: [0.06, 0.16],
-                     5: [0.04, 0.16],
+                     5: [0.06, 0.16],
                      6: [0.06, 0.16],
                      7: [0.04, 0.16]},
                  }
@@ -58,7 +58,7 @@ PLOT_NUM_FLUX = {'format':
 PLOT_NUM_POS = {'format':
                 {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
                    #                plot height, plot width]
-                    1: [0.90, 0.45, 0.80, 470, 940],
+                    1: [0.90, 0.45, 0.80, 500, 1000],
                     2: [0.59, 0.78, 0.40, 1000, 1000],
                     3: [0.37, 0.87, 0.30, 1700, 1200],
                     4: [0.27, 0.90, 0.20, 1800, 1000],
@@ -89,7 +89,7 @@ PLOT_NUM_RES = {'format':
                 'plots':
                 {  # num of plots: [vertical spacing, horizontal spacing]
                     1: [0.1, 0.16],
-                    2: [0.14, 0.21],
+                    2: [0.2, 0.21],
                     3: [0.10, 0.22],
                     4: [0.06, 0.23],
                     5: [0.02, 0.16],
@@ -124,10 +124,10 @@ BIN_COLORS = {
 
 
 # Backgound color for plots
-BG_COLOR = 'rgb(229,229,229)'
+BG_COLOR = 'rgb (255,255,255)'#rgb(229,229,229)'
 
 
-def creat_logger():
+def create_logger():
     """Create a console logger"""
     log = logging.getLogger(__name__)
     cfmt = logging.Formatter(('%(name)s - %(asctime)s %(levelname)s - %(message)s'))
@@ -139,7 +139,7 @@ def creat_logger():
     return log
 
 
-LOGGER = creat_logger()
+LOGGER = create_logger()
 LOGGER.info("Welcome to aimfast")
 
 
@@ -250,59 +250,76 @@ def fitsInfo(fitsname=None):
 
 
 def ra2deg(ra_hms):
-    '''
-    Converts right ascension in hms coordinates to degrees and radians
-    INPUT
+    """
+    Converts right ascension in hms coordinates to degrees
+    
+    Parameters
+    ----------
+    ra_hms : str
+        ra in HH:MM:SS format
 
-    rahms: ra in HH:MM:SS format (str)
+    Returns
+    -------
 
-    OUTPUT
-
-    conv_units.radeg: ra in degrees
-    conv_units.rarad: ra in radians
-    '''
+    hms : float
+        conv_units.radeg: ra in degrees
+    """
 
     ra = string.split(ra_hms, ':')
-
     hh = float(ra[0])*15
     mm = (float(ra[1])/60)*15
     ss = (float(ra[2])/3600)*15
-
-    return hh+mm+ss
+    h_m_s = hh+mm+ss
+    return h_m_s
 
 
 def dec2deg(dec_dms):
+    """
+    Converts declination in dms coordinates to degrees
+    
+    Parameters
+    ----------
+    dec_hms : str
+        dec in DD:MM:SS format
 
-    '''
-    Converts right ascension in hms coordinates to degrees and radians
+    Returns
+    -------
 
-    INPUT
+    hms : float
+        conv_units.radeg: dec in degrees
 
-    rahms: ra in HH:MM:SS format (str)
-
-    OUTPUT
-
-    conv_units.radeg: ra in degrees
-    conv_units.rarad: ra in radians
-    '''
-
+    """
     dec = string.split(dec_dms, ':')
-
-    hh = abs(float(dec[0]))
+    dd = abs(float(dec[0]))
     mm = float(dec[1])/60
     ss = float(dec[2])/3600
-
     if float(dec[0])>= 0:
-        return hh+mm+ss
+        return dd+mm+ss
     else:
-        return -(hh+mm+ss)
-
-    return hh+mm+ss  
+        return -(dd+mm+ss)
+    d_m_s =dd+mm+ss
+    return d_m_s  
 
 
 def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
-                       centre_coord=['0.0', -30.0]):
-    """Query an online catalog to compare with local catalog"""
+                       centre_coord=['0.0', -30.0],
+                       catalog_table='nvss_catalog_table.txt'):
+    """Query an online catalog to compare with local catalog
+
+    Parameters
+    ----------
+    catalog : str
+        Name of online catalog to query
+    width : str
+        The width of the field iin degrees
+    thresh : float
+        Flux density threshold to select sources (mJy)
+    centre_coord : list
+        List of central coordinates of the region of interest [RA, DEC]
+    catalog_table : str
+        Name of output catalog table with results
+
+   """
     C = Vizier.query_region(
             coord.SkyCoord(centre_coord[0], centre_coord[1],
                            unit=(u.hourangle, u.deg), frame='icrs'),
@@ -319,7 +336,6 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
            dec_deg.append(dec2deg(table['DEJ2000'][i]))
 
         above_thresh = table['S1.4']<thresh
-        catalog_table = 'nvss_catalog_table.txt'
 
     for i in xrange(1,len(table.colnames)):
         table[table.colnames[i]][above_thresh] = np.nan
@@ -519,23 +535,25 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
             c = cr.split('~') 
             nchans.extend(range(int(c[0]), int(c[1])))
             residual_data = data[nchans]
+    # TODO: This needs some testing
     if mask:
         import numpy.ma as ma
         mask_hdu = fitsio.open(mask)
         mask_data = mask_hdu[0].data
         residual_data = ma.masked_array(residual_data, mask=mask_data)
+    # TODO: compute MAD
     # Get the mean value
-    res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
+    res_props['MEAN'] = float("{0:.9f}".format(residual_data.mean()))
     # Get the rms value
-    res_props['RMS'] = float("{0:.6f}".format(np.sqrt(np.mean(np.square(residual_data)))))
+    res_props['RMS'] = float("{0:.9f}".format(np.sqrt(np.mean(np.square(residual_data)))))
     # Get the sigma value
-    res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
+    res_props['STDDev'] = float("{0:.9f}".format(residual_data.std()))
     # Flatten image
     res_data = residual_data.flatten()
     # Compute the skewness of the residual
-    res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
+    res_props['SKEW'] = float("{0:.9f}".format(stats.skew(res_data)))
     # Compute the kurtosis of the residual
-    res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
+    res_props['KURT'] = float("{0:.9f}".format(stats.kurtosis(res_data, fisher=False)))
     # Perform normality testing
     if test_normality:
         norm_props = normality_testing(fitsname, test_normality, data_range)
@@ -545,12 +563,14 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     return props
 
 
-def print_residual_stats(residual_images, units='mJy', dir='.'):
+def print_residual_stats(residual_images, prefix='-', suffix='.fits',
+                         replace='', normality='normaltest', units='mJy', dir='.'):
+    # TODO: clean up and add new fields
     from tabletext import to_text
     Res = dict()
     for res in residual_images:
         Res[res] = residual_image_stats('{:s}/{:s}'.format(dir, res),
-                                        test_normality='normaltest')
+                                        test_normality=normality)
     names, mean, std = [], [], []
     rms, skew, kurt, normtest = [], [], [], []
     table_data = [["Imager", "Mean (mJy/beam)", "STD (mJy/beam)",
@@ -563,10 +583,12 @@ def print_residual_stats(residual_images, units='mJy', dir='.'):
         skew.append(stats['SKEW'])
         kurt.append(stats['KURT'])
         normtest.append(stats['NORM'][0])
-        table_data.append([name.split('.')[0].split('_')[-1], "{:.3E}".format(stats['MEAN']),
-                       "{:.3E}".format(stats['STDDev']), "{:.3E}".format(stats['RMS']),
-                       "{:.3E}".format(stats['SKEW']), "{:.3f}".format(stats['KURT']),
-                       "{:.3f}".format(stats['NORM'][0])])
+        table_data.append([name.split('.')[0].split(prefix)[-1].split(suffix)[0].replace(
+                              replace, ''),
+                          "{:.3E}".format(stats['MEAN']),
+                          "{:.4E}".format(stats['STDDev']), "{:.3E}".format(stats['RMS']),
+                          "{:.3E}".format(stats['SKEW']), "{:.3f}".format(stats['KURT']),
+                          "{:.3f}".format(stats['NORM'][0])])
     zipped_props = zip(names, mean, std, skew, kurt, normtest)
     names, mean, std, skew, kurt, normtest = zip(*sorted(zipped_props, key=lambda x: x[0]))
     print(to_text(table_data))
@@ -803,7 +825,7 @@ def get_src_scale(source_shape):
 
 
 def get_model(catalog):
-    """Get model"""
+    """Get model model object from file catalog"""
 
     def tigger_src_ascii(src, idx):
         """Get ascii catalog source as a tigger source """
@@ -949,6 +971,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             source = sources[0]
             try:
                 shape_in = model_source.shape.getShape()
+                shape_in = tuple(map(rad2arcsec, shape_in))
             except AttributeError:
                 shape_in = (0, 0, 0)
             if source.shape:
@@ -1098,13 +1121,20 @@ def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
 
+    Returns
+    -------
+    results: dict
+        A dict of all the output results
+
     """
     _models = []
     i = 0
-    for model1, model2 in models.items():
-        _models.append([dict(label="{}-model_a_{}".format(label, i),
+    for model1, model2 in sorted(models.items()):
+        _models.append([dict(label="{}-model_1".format(
+                             label[i] if isinstance(label, list) else label),
                              path='{}/{}'.format(dir, model1)),
-                        dict(label="{}-model_b_{}".format(label, i),
+                        dict(label="{}-model_2".format(
+                             label[i] if isinstance(label, list) else label),
                              path="{}/{}".format(dir, model2))])
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
@@ -1129,13 +1159,20 @@ def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
 
+    Returns
+    -------
+    results: dict
+        A dict of all the output results
+
     """
     _models = []
     i = 0
-    for model1, model2 in models.items():
-        _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i),
+    for model1, model2 in sorted(models.items()):
+        _models.append([dict(label="{}-model_1".format(
+                             label[i] if isinstance(label, list) else label),
                              path='{}/{}'.format(dir, model1)),
-                        dict(label="{0:s}-model_b_{1:d}".format(label, i),
+                        dict(label="{}-model_2".format(
+                             label[i] if isinstance(label, list) else label),
                              path="{}/{}".format(dir, model2))])
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
@@ -1160,13 +1197,20 @@ def plot_morphology(models, label=None, tolerance=0.00001, phase_centre=None,
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
 
+    Returns
+    -------
+    results: dict
+        A dict of all the output results
+
     """
     _models = []
     i = 0
-    for model1, model2 in models.items():
-        _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i),
+    for model1, model2 in sorted(models.items()):
+        _models.append([dict(label="{}-model_1".format(
+                             label[i] if isinstance(label, list) else label),
                              path='{}/{}'.format(dir, model1)),
-                        dict(label="{0:s}-model_b_{1:d}".format(label, i),
+                        dict(label="{}-model_2".format(
+                             label[i] if isinstance(label, list) else label),
                              path="{}/{}".format(dir, model2))])
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
@@ -1191,13 +1235,20 @@ def plot_spectrum(models, label=None, tolerance=0.00001, phase_centre=None,
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
 
+    Returns
+    -------
+    results: dict
+        A dict of all the output results
+
     """
     _models = []
     i = 0
-    for model1, model2 in models.items():
-        _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i),
+    for model1, model2 in sorted(models.items()):
+        _models.append([dict(label="{}-model_1".format(
+                             label[i] if isinstance(label, list) else label),
                              path='{}/{}'.format(dir, model1)),
-                        dict(label="{0:s}-model_b_{1:d}".format(label, i),
+                        dict(label="{}-model_2".format(
+                             label[i] if isinstance(label, list) else label),
                              path="{}/{}".format(dir, model2))])
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
@@ -1227,25 +1278,33 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
         skymodel = '{}/{}'.format(dir, skymodel)
     _residual_images = []
     i = 0
-    for res1, res2 in res_noise_images.items():
-        _residual_images.append([dict(label="{0:s}-res_a_{1:d}".format(label, i),
-                                 path='{}/{}'.format(dir, res1)),
-                                 dict(label="{0:s}-res_b_{1:d}".format(label, i),
-                                 path='{}/{}'.format(dir, res2))])
+    for res1, res2 in sorted(res_noise_images.items()):
+        _residual_images.append([dict(label="{}-res_1".format(
+                             label[i] if isinstance(label, list) else label),
+                             path='{}/{}'.format(dir, res1)),
+                        dict(label="{}-res_2".format(
+                             label[i] if isinstance(label, list) else label),
+                             path="{}/{}".format(dir, res2))])
         i += 1
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
 
 
-def aimfast_plotly(X, Y, x_title, y_title, plot_title='No Ttile',
-                   point_labels=None, inline=True, plot_mode='markers',
+def aimfast_plotly(X1, Y1, X2=None, Y2=None, X3=None, Y3=None, X4=None, Y4=None,
+                   x_title='x-axis', y_title='y-axis', plot_title='No Ttile',
+                   point_labels=None, inline=True, plot_mode1='markers',
+                   plot_mode2='lines', plot_mode3='lines', plot_mode4='lines',
                    xfactor=1, yfactor=1):
     """Make a simple x-y plot by providing array of Xs and Ys"""
     fig = tools.make_subplots(rows=1, cols=1, shared_yaxes=False, print_grid=False,
                               horizontal_spacing = 0.005, vertical_spacing = 0.15)
-    fig.append_trace(go.Scatter(x=X, showlegend=False, text=point_labels,
-                                y=Y/yfactor, mode=plot_mode, marker=dict(size=30)), 1, 1)
+    fig.append_trace(go.Scatter(x=X1, showlegend=False, text=point_labels,
+                                y=Y1/yfactor, mode=plot_mode1, marker=dict(size=30)), 1, 1)
+    if Y2 is not None:
+        fig.append_trace(go.Scatter(x=X2, showlegend=False, text=point_labels,
+                                    y=Y2/yfactor, mode=plot_mode2, marker=dict(size=40)), 1, 1)
     fig['layout'].update(title=plot_title, height=900, width=900,
                          paper_bgcolor='rgb(255,255,255)', #plot_bgcolor='rgb(229,229,229)',
+                         titlefont=dict(size=20),
                          legend=dict(x=0.8,y=1.0))
     fig['layout'].update(
         {'yaxis{}'.format(1):YAxis(title=y_title,
@@ -1271,7 +1330,7 @@ def aimfast_plotly(X, Y, x_title, y_title, plot_title='No Ttile',
         py.iplot(fig, filename=outfile)
     else:
         py.plot(fig, filename=outfile, auto_open=False)
-        LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
+        LOGGER.info('Saving aimfast plot in {}'.format(outfile))
 
 
 def _source_flux_plotter(results, all_models, inline=False):
@@ -1290,19 +1349,19 @@ def _source_flux_plotter(results, all_models, inline=False):
     im_titles = []
     models_compare = dict()
     for models in all_models:
-        output_model = models[-1]['path']
-        input_model = models[0]['path']
-        if 'html' in output_model:
-            header = output_model.split('/')[-1][:-9]
-        else:
-            header = output_model.split('/')[-1][:-4]
+        output_model = models[-1]['label']
+        input_model = models[0]['label']
         models_compare[input_model] = output_model
-        im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
+        header = models[-1]['label'].split('-model_2')[0]
+        #im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
+        im_titles.append('<b>{:s}</b>'.format(header.upper()))
 
-    PLOTS = len(models_compare.keys())
-    fig = tools.make_subplots(rows=PLOTS, cols=1, shared_yaxes=False,
+    PLOTS = len(all_models)
+    fig = tools.make_subplots(rows=PLOTS, cols=1,
+                              shared_yaxes=False,
                               print_grid=False,
                               vertical_spacing=PLOT_NUM_FLUX['plots'][PLOTS][0],
+                              horizontal_spacing=PLOT_NUM_FLUX['plots'][PLOTS][1],
                               subplot_titles=sorted(im_titles))
     j = 0
     i = -1
@@ -1338,7 +1397,7 @@ def _source_flux_plotter(results, all_models, inline=False):
             go.Annotation(
                 x=(max(flux_in_data)/2.0 - min(flux_in_data)/2.0
                    + min(flux_in_data)) * FLUX_UNIT_SCALER['milli'][0],
-                y=max(flux_out_data)*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
+                y=max(flux_out_data)*FLUX_UNIT_SCALER['milli'][0] + 0.0002*FLUX_UNIT_SCALER['milli'][0],
                 xref='x{:d}'.format(counter),
                 yref='y{:d}'.format(counter),
                 text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
@@ -1349,7 +1408,20 @@ def _source_flux_plotter(results, all_models, inline=False):
                 showarrow=False,
                 bordercolor='#c7c7c7',
                 borderwidth=2,
-                font=dict(color="black", size=12)))
+                font=dict(color="black", size=14)))
+
+        annotate.append(
+            go.Annotation(
+                text=fig['layout']['annotations'][i].text,
+                x=fig['layout']['annotations'][i].x,
+                xref=fig['layout']['annotations'][i].xref,
+                xanchor=fig['layout']['annotations'][i].xanchor,
+                y=fig['layout']['annotations'][i].y,
+                yref=fig['layout']['annotations'][i].yref,
+                yanchor=fig['layout']['annotations'][i].yanchor,
+                showarrow=fig['layout']['annotations'][i].showarrow,
+                font=fig['layout']['annotations'][i].font))
+
         fig.append_trace(
             go.Scatter(
                 x=np.array([min(flux_in_data),
@@ -1366,7 +1438,7 @@ def _source_flux_plotter(results, all_models, inline=False):
                 text=name_labels, name='{:s} flux_ratio'.format(heading),
                 marker=dict(color=phase_center_dist, showscale=True, colorscale='Jet',
                             reversescale=False, colorbar=dict(
-                                title='Distance from phase center (arcsec)',
+                                title='Distance from phase centre (")',
                                 titleside='right',
                                 titlefont=dict(size=16),
                                 len=PLOT_NUM_FLUX['format'][PLOTS][2],
@@ -1383,23 +1455,31 @@ def _source_flux_plotter(results, all_models, inline=False):
                              legend=dict(x=0.8, y=1.0),)
         fig['layout'].update(
             {'yaxis{}'.format(counter): YAxis(
-                title='Output flux({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                title='Output flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
                 gridcolor='rgb(255,255,255)',
                 tickfont=dict(size=15),
-                titlefont=dict(size=17),
+                titlefont=dict(color="black", size=18),
                 showgrid=True,
                 showline=False,
+                #range=[-0.01,1.2],
                 showticklabels=True,
                 tickcolor='rgb(51,153,225)',
                 ticks='outside',
-                zeroline=False)})
+                zeroline=True)})
         fig['layout'].update(
-            {'xaxis{}'.format(counter+i): XAxis(
+            {'xaxis{}'.format(counter): XAxis(
                 title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
-                position=0.0, titlefont=dict(size=17), overlaying='x')})
-        if counter == PLOTS:
-            fig['layout']['annotations'] = annotate
+                position=0.0,
+                tickfont=dict(size=15),
+                titlefont=dict(color="black", size=18),
+                range=[-0.01,1.2],
+                overlaying='x',
+                tickcolor='rgb(51,153,225)',
+                ticks='outside',
+                zeroline=True)})
         j += PLOT_NUM_FLUX['format'][PLOTS][0]
+
+    fig['layout']['annotations'] = annotate
     outfile = 'InputOutputFluxDensity.html'
     if inline:
         py.init_notebook_mode(connected=True)
@@ -1425,13 +1505,10 @@ def _source_astrometry_plotter(results, all_models, inline=False):
     im_titles = []
     models_compare = dict()
     for models in all_models:
-        output_model = models[-1]['path']
-        input_model = models[0]['path']
-        if 'html' in output_model:
-            header = output_model.split('/')[-1][:-9]
-        else:
-            header = output_model.split('/')[-1][:-4]
+        output_model = models[-1]['label']
+        input_model = models[0]['label']
         models_compare[input_model] = output_model
+        header = models[-1]['label'].split('-model_2')[0]
         im_titles.append('<b>{:s} Position Offset</b>'.format(header.upper()))
         im_titles.append('<b>{:s} Delta Position</b>'.format(header.upper()))
 
@@ -1482,7 +1559,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 text=source_labels, name='{:s} flux_ratio'.format(header),
                 marker=dict(color=DELTA_PHASE0, showscale=True,
                             colorscale='Jet', reversescale=True,
-                            colorbar=dict(title='Distance from phase center (arcsec)',
+                            colorbar=dict(title='Distance from phase centre (")',
                                           titleside='right',
                                           len=PLOT_NUM_POS['format'][PLOTS][2],
                                           y=PLOT_NUM_POS['format'][PLOTS][1]-j))
@@ -1525,27 +1602,27 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         annotate.append(
             go.Annotation(
                 x=RA_mean,
-                y=max(DEC_offset) + max(DEC_err) + 0.02,
+                y=max(DEC_offset) + max(DEC_err),# + 0.02,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
-                text=("Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f})".format(
+                text=("Total sources: {:d} | (RA, DEC) mean: ({:.3f}, {:.3f})".format(
                       recovered_sources, RA_mean, DEC_mean)),
                 ax=0,
                 ay=-40,
                 showarrow=False,
-                font=dict(color="black", size=12)))
+                font=dict(color="black", size=14)))
         annotate.append(
             go.Annotation(
                 x=RA_mean,
-                y=max(DEC_offset) + max(DEC_err)+ 0.02 + max(DEC_offset)*0.14,
+                y=max(DEC_offset) + max(DEC_err)+ max(DEC_offset)*0.15,# + 0.02,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
-                text=("Sigma sources: {:d} | (RA, DEC) sigma: ({:.4f}, {:.4f})".format(
+                text=("Sigma sources: {:d} | (RA, DEC) sigma: ({:.3f}, {:.3f})".format(
                       one_sigma_sources, r1, r2)),
                 ax=0,
                 ay=-40,
                 showarrow=False,
-                font=dict(color="black", size=12)))
+                font=dict(color="black", size=14)))
         fig.append_trace(go.Scatter(x=x1, y=y1,
                                     mode='lines', showlegend=False,
                                     name=r'1 sigma',
@@ -1556,50 +1633,71 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
                              legend=dict(xanchor='auto', x=1.2, y=1))
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i): YAxis(
-                title=u'Dec offset (")',
-                gridcolor='rgb(255,255,255)',
-                color='rgb(0,0,0)',
-                tickfont=dict(size=14, color='rgb(0,0,0)'),
-                titlefont=dict(size=15),
+            {'yaxis{}'.format(counter+i+1): YAxis(
+                title=u'Delta position (")',
+                titlefont=dict(size=18),
+                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
                 showgrid=True,
                 showline=True,
                 showticklabels=True,
-                tickcolor='rgb(51,153,225)',
                 ticks='outside',
-                zeroline=True)})
+                zeroline=False)})
         fig['layout'].update(
             {'yaxis{}'.format(counter+i+1): YAxis(
-                title='Delta position (")',
-                gridcolor='rgb(255,255,255)',
-                color='rgb(0,0,0)',
-                tickfont=dict(size=10, color='rgb(0,0,0)'),
-                titlefont=dict(size=17),
+                title=u'Delta position (")',
+                titlefont=dict(size=18),
+                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
+                showgrid=True,
+                range=[-0.01, 0.8],
+                showline=False,
+                showticklabels=True,
+                ticks='outside',
+                zeroline=False)})
+        fig['layout'].update(
+            {'yaxis{}'.format(counter+i): YAxis(
+                title=u'Dec offset (")',
                 showgrid=True,
                 showline=True,
+                titlefont=dict(size=18),
+                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
                 showticklabels=True,
-                tickcolor='rgb(51,153,225)',
                 ticks='outside',
                 zeroline=True)})
         fig['layout'].update(
             {'xaxis{}'.format(counter+i): XAxis(
                 title=u'RA offset (")',
-                titlefont=dict(size=17),
+                titlefont=dict(size=18),
+                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
                 zeroline=False,
+                showgrid=True,
                 position=1.0,
-                overlaying='x',)})
+                overlaying='x')})
         fig['layout'].update(
             {'xaxis{}'.format(counter+i+1): XAxis(
-                title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                title=u'Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
                 position=0.0,
+                showgrid=True,
+                showline=True,
+                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
                 overlaying='x',
-                titlefont=dict(size=17),
+                titlefont=dict(size=18),
                 zeroline=True)})
-
-        if counter == PLOTS:
-            fig['layout']['annotations'] = annotate
         j += PLOT_NUM_POS['format'][PLOTS][0]
 
+    for title_info in fig['layout']['annotations']:
+        annotate.append(
+            go.Annotation(
+                text=title_info.text,
+                x=title_info.x,
+                xref=title_info.xref,
+                xanchor=title_info.xanchor,
+                y=title_info.y,
+                yref=title_info.yref,
+                yanchor=title_info.yanchor,
+                showarrow=title_info.showarrow,
+                font=title_info.font))
+
+    fig['layout']['annotations'] = annotate
     outfile = 'InputOutputPosition.html'
     if inline:
         py.init_notebook_mode(connected=True)
@@ -1625,15 +1723,14 @@ def _source_morphology_plotter(results, all_models, inline=False):
     im_titles = []
     models_compare = dict()
     for models in all_models:
+        header = models[-1]['label'].split('-model_2')[0]
         output_model = models[-1]['path']
         input_model = models[0]['path']
-        if 'html' in output_model:
-            header = output_model.split('/')[-1][:-9]
-        else:
-            header = output_model.split('/')[-1][:-4]
         models_compare[input_model] = output_model
-        im_titles.append('<b>{:s} Position Offset</b>'.format(header.upper()))
-        im_titles.append('<b>{:s} Delta Position</b>'.format(header.upper()))
+        #im_titles.append('<b>{:s} MAJ Axis</b>'.format(header.upper()))
+        #im_titles.append('<b>{:s} MIN Axis</b>'.format(header.upper()))
+        im_titles.append('<b>{:s}</b>'.format(header.upper()))
+        im_titles.append('<b>{:s}</b>'.format(header.upper()))
 
     PLOTS = len(models_compare.keys())
     fig = tools.make_subplots(rows=PLOTS, cols=2,
@@ -1674,15 +1771,24 @@ def _source_morphology_plotter(results, all_models, inline=False):
                 *sorted(zipped_props, key=lambda x: x[0]))
             maj_in = [maj_min_angle_in[0] for maj_min_angle_in in MAJ_MIN_angle_in]
             maj_out = [maj_min_angle_out[0] for maj_min_angle_out in MAJ_MIN_angle_out]
-            maj_out_err = [maj_min_angle_out[0] for maj_min_angle_out in MAJ_MIN_angle_out] 
+            maj_out_err = [maj_min_angle_out_err[0] for maj_min_angle_out_err in MAJ_MIN_angle_err]
             min_in = [maj_min_angle_in[1] for maj_min_angle_in in MAJ_MIN_angle_in]
             min_out = [maj_min_angle_out[1] for maj_min_angle_out in MAJ_MIN_angle_out]
             min_out_err = [maj_min_angle_err[1] for maj_min_angle_err in MAJ_MIN_angle_err]
             angle_offset = [(maj_min_angle_out[2] - maj_min_angle_in[2]) for maj_min_angle_out, maj_min_angle_in in zip(
                 MAJ_MIN_angle_out, MAJ_MIN_angle_in)]
-            flux_MSE = mean_squared_error(maj_in, maj_out)
+            MSE = mean_squared_error(maj_in, maj_out)
             reg = linregress(maj_in, maj_out)
-            flux_R_score = reg.rvalue
+            R_score = reg.rvalue
+            gradient = reg.slope
+            interc = reg.intercept
+            print(heading, gradient, R_score, interc, MSE)
+            MSE = mean_squared_error(min_in, min_out)
+            reg = linregress(min_in, min_out)
+            R_score = reg.rvalue
+            gradient = reg.slope
+            interc = reg.intercept
+            print(heading, gradient, R_score, interc, MSE)
             fig.append_trace(go.Scatter(x=np.array([sorted(maj_in)[0], sorted(maj_in)[-1]]),
                                         showlegend=False,
                                         marker = dict(color = 'rgb(0,0,255)'),
@@ -1727,39 +1833,54 @@ def _source_morphology_plotter(results, all_models, inline=False):
                              legend=dict(xanchor='auto')
                             )
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i):YAxis(title=u'Output maj axis[arcsec]',
+            {'yaxis{}'.format(counter+i):YAxis(title=u'Output maj axis (")',
                                                gridcolor='rgb(255,255,255)',
-                                               color='rgb(0,0,0)',
-            range=[-1,13],
-            tickfont=dict(size=10, color='rgb(0,0,0)'),
-            titlefont=dict(size=15),
+            range=[-0.01, 18],
+            tickfont=dict(size=18, color='rgb(0,0,0)'),
+            titlefont=dict(size=18),
             showgrid=True,
             showline=True,
             showticklabels=True,
-            tickcolor='rgb(51,153,225)',
+            #tickcolor='rgb(51,153,225)',
             ticks='outside',
             zeroline=True)})
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i+1):YAxis(title='Ouput min axis[arcsec]',
+            {'yaxis{}'.format(counter+i+1):YAxis(title='Output min axis (")',
                                                  gridcolor='rgb(255,255,255)',
-                                                 color='rgb(0,0,0)',
-            range=[-1,13],
-            tickfont=dict(size=10, color='rgb(0,0,0)'),
-            titlefont=dict(size=15),
+            tickfont=dict(size=18, color='rgb(0,0,0)'),
+            titlefont=dict(size=18),
+            range=[-0.01, 18],
             showgrid=True,
             showline=True,
             showticklabels=True,
-            tickcolor='rgb(51,153,225)',
+            #tickcolor='rgb(51,153,225)',
             ticks='outside',
             zeroline=True)})
-        fig['layout'].update({'xaxis{}'.format(counter+i):XAxis(title='Input maj axis[arcsec]',
-                                                            titlefont=dict(size=17),
+        fig['layout'].update({'xaxis{}'.format(counter+i):XAxis(title='Input maj axis (")',
+                                                            titlefont=dict(size=18),
+                                                            tickfont=dict(size=18, color='rgb(0,0,0)'),
                                                             zeroline=False, position=0.0, overlaying='x',)})
-        fig['layout'].update({'xaxis{}'.format(counter+i+1):XAxis(title='Input min axis[arcsec]',
-                                                              titlefont=dict(size=17),
+        fig['layout'].update({'xaxis{}'.format(counter+i+1):XAxis(title='Input min axis (")',
+                                                              titlefont=dict(size=18),
+                                                              tickfont=dict(size=18, color='rgb(0,0,0)'),
                                                               zeroline=False)})# domain=[0.505, 0.8])}
         j += PLOT_NUM_POS['format'][PLOTS][0]
 
+    for title_info in fig['layout']['annotations']:
+        annotate.append(
+            go.Annotation(
+                text=title_info.text,
+                x=title_info.x,
+                xref=title_info.xref,
+                xanchor=title_info.xanchor,
+                y=title_info.y,
+                yref=title_info.yref,
+                yanchor=title_info.yanchor,
+                showarrow=title_info.showarrow,
+                font=title_info.font))
+
+
+    fig['layout']['annotations'] = annotate
     outfile = 'InputOutputScale.html'
     if inline:
         py.init_notebook_mode(connected=True)
@@ -1769,7 +1890,7 @@ def _source_morphology_plotter(results, all_models, inline=False):
         LOGGER.info('Saving morphology comparisons in {}'.format(outfile))
 
 
-def _source_spectrum_plotter(results, all_models, inline=False):
+def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
     """Plot spectrum results and save output as html file.
 
     Parameters
@@ -1782,22 +1903,15 @@ def _source_spectrum_plotter(results, all_models, inline=False):
         Allow inline plotting inside a notebook.
 
     """
-    num_bins = 5
-    y_ran_pos = [-5, 5]
-    y_min_max = [-5, 5]
-    y_ran_pos = [y_min_max[-1], y_min_max[-1]]
-    y_ran_neg = [y_min_max[0], y_min_max[0]]
     im_titles = []
     models_compare = dict()
     for models in all_models:
+        header = models[-1]['label'].split('-model_2')[0]
         output_model = models[-1]['path']
         input_model = models[0]['path']
-        if 'html' in output_model:
-            header = output_model.split('/')[-1][:-9]
-        else:
-            header = output_model.split('/')[-1][:-4]
         models_compare[input_model] = output_model
-        im_titles.append('<b>{:s} Spectrum</b>'.format(header.upper()))
+#        im_titles.append('<b>{:s} Source Spectrum</b>'.format(header.upper()))
+        im_titles.append('<b>{:s}</b>'.format(header.upper()))
 
     PLOTS = len(models_compare.keys())
     fig = tools.make_subplots(rows=PLOTS, cols=1,
@@ -1805,7 +1919,7 @@ def _source_spectrum_plotter(results, all_models, inline=False):
                               print_grid=False,
                               vertical_spacing=PLOT_NUM_FLUX['plots'][PLOTS][0],
                               horizontal_spacing=PLOT_NUM_FLUX['plots'][PLOTS][1],
-                              subplot_titles=im_titles)
+                              subplot_titles=sorted(im_titles))
     j = 0
     i = -1
     counter = 0
@@ -1828,12 +1942,30 @@ def _source_spectrum_plotter(results, all_models, inline=False):
             phase_center_dist.append(results[heading]['spectrum'][n][3])
             I_in.append(results[heading]['spectrum'][n][4])
             name_labels.append(results[heading]['spectrum'][n][5])
+
+        y_ran_pos = [- max(spi_out_data) - max(spi_err_data), max(spi_out_data) + max(spi_err_data)]
+        y_min_max = [- max(spi_out_data) - max(spi_err_data), max(spi_out_data) + max(spi_err_data)]
+#        y_ran_pos = [y_min_max[-1], y_min_max[-1]]
+#        y_ran_neg = [y_min_max[0], y_min_max[0]]
+        
+        y_ran_pos = [25, 25]
+        y_ran_neg = [-25, -25]
+
         zipped_props = zip(I_in, spi_out_data, spi_err_data, spi_in_data, phase_center_dist, name_labels)
         (I_in, spi_out_data, spi_err_data, spi_in_data, dist_from_phase, name_labels) = zip(
             *sorted(zipped_props, key=lambda x: x[0]))
-        spi_R_score = r2_score(spi_in_data, spi_out_data)
-        spi_MSE = mean_squared_error(spi_in_data, spi_out_data)
-        spi_out_in = [float(spi_out)/spi_in for spi_out,spi_in in zip(spi_out_data,spi_in_data)]
+#===========================================================================================================
+        spi_in_data_stats = []
+        spi_out_data_stats = []
+        for spi_in, spi_out in zip(spi_in_data, spi_out_data):
+            if spi_out:
+                spi_in_data_stats.append(spi_in)
+                spi_out_data_stats.append(spi_out)
+        spi_R_score = r2_score(spi_in_data_stats, spi_out_data_stats)
+        spi_MSE = mean_squared_error(spi_in_data_stats, spi_out_data_stats)
+        spi_out_in = [float(spi_out)/spi_in
+                      for spi_out,spi_in in
+                      zip(spi_out_data_stats,spi_in_data_stats)]
 #===========================================================================================================
         ranger = num_data_points/num_bins
         start, end = [-ranger, 0]
@@ -1864,7 +1996,25 @@ def _source_spectrum_plotter(results, all_models, inline=False):
                              mode= 'none',
                              fillcolor = BIN_COLORS[b+1],
                              fill='tozeroy'), i+1, 1)
+# TODO: Add annotations on plots
 #===========================================================================================================
+
+#        annotate.append(
+#            go.Annotation(
+#                x=(max(spi_in_data)/2.0 - min(spi_in_data)/2.0
+#                   + min(spi_in_data)),
+#                y=max(spi_err_data) + max(spi_out_data),
+#                xref='x{:d}'.format(counter),
+#                yref='y{:d}'.format(counter),
+#                text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
+#                    0.0, 0.0, np.sqrt(spi_MSE), spi_R_score),
+#                ax=0,
+#                ay=-10,
+#                showarrow=False,
+#                bordercolor='#c7c7c7',
+#                borderwidth=2,
+#                font=dict(color="black", size=12)))
+
         fig.append_trace(go.Scatter(x=np.array([sorted(I_in)[0], sorted(I_in)[-1]])*1000, showlegend=False,
                                     marker = dict(color = 'rgb(0,0,255)'),
                                     y=np.array([-.7,-.7]), mode = 'lines'), i+1, 1)
@@ -1873,7 +2023,7 @@ def _source_spectrum_plotter(results, all_models, inline=False):
                                     text = name_labels, name = '%s flux_ratio' % heading,
                                     marker = dict(color = phase_center_dist, showscale=True, colorscale='Jet',
                                                   reversescale=False,
-                                                  colorbar = dict(title='Phase centre dist (arcsec)',
+                                                  colorbar = dict(title='Phase centre distance (")',
                                                                    titleside ='right',
                                                               len=PLOT_NUM_FLUX['format'][PLOTS][2],
                                                               y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)
@@ -1885,18 +2035,21 @@ def _source_spectrum_plotter(results, all_models, inline=False):
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
                              legend=dict(x=0.8,y=1.0),)
         fig['layout'].update(
-            {'yaxis{}'.format(counter):YAxis(title=u'$SPI_{out}$',gridcolor='rgb(255,255,255)',
-            range=y_min_max,
-            tickfont=dict(size=15),
-            titlefont=dict(size=17),
+            {'yaxis{}'.format(counter):YAxis(title=u'$SPI_{out}$',
+            #range=y_min_max,
+            range=[-25, 25],
+            tickfont=dict(size=18),
+            titlefont=dict(size=18),
             showgrid=True,
             showline=True,
             showticklabels=True,
             tickcolor='rgb(51,153,225)',
             ticks='outside',
-            zeroline=True)})
+            zeroline=False)})
         fig['layout'].update({'xaxis{}'.format(counter):XAxis(title='$I_{in} (mJy)$', position=0.0,
-                                                                titlefont=dict(size=17),
+                                                                showgrid=True,
+                                                                tickfont=dict(size=18),
+                                                                titlefont=dict(size=18),
                                                                 overlaying='x')})
         #fig['layout']['annotations'].update({ 'font':{'size': 10}})
         #j+=PLOT_NUM['colorbar'][PLOTS][0]
@@ -1904,6 +2057,20 @@ def _source_spectrum_plotter(results, all_models, inline=False):
         #fig['layout']['annotations'].update({'font':{'size': 12}})
         j += PLOT_NUM_FLUX['format'][PLOTS][0]
 
+    for title_info in fig['layout']['annotations']:
+        annotate.append(
+            go.Annotation(
+                text=title_info.text,
+                x=title_info.x,
+                xref=title_info.xref,
+                xanchor=title_info.xanchor,
+                y=title_info.y,
+                yref=title_info.yref,
+                yanchor=title_info.yanchor,
+                showarrow=title_info.showarrow,
+                font=title_info.font))
+
+    fig['layout']['annotations'] = annotate
     outfile = 'InputOutputSpi.html'
     if inline:
         py.init_notebook_mode(connected=True)
@@ -1933,20 +2100,21 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
     im_titles = []
     residuals_compare = dict()
     for res_ims in res_noise_images:
-        # Get residual image names
-        output_model = res_ims[-1]['path']
-        input_model = res_ims[0]['path']
-        header = output_model.split('/')[-1][:-5]
-        residuals_compare[input_model] = output_model
+        header = res_ims[-1]['label'].split('-res_2')[0]
+        output_res = res_ims[-1]['path']
+        input_res = res_ims[0]['path']
+        residuals_compare[input_res] = output_res
         # Assign plot titles
-        im_titles.append('<b>{:s} RMS</b>'.format(header.upper()))
-        im_titles.append('<b>{:s} residual-noise</b>'.format(header.upper()))
+        im_titles.append('<b>{:s} Flux</b>'.format(header.upper()))
+        im_titles.append('<b>{:s} Residual-Noise</b>'.format(header.upper()))
+        #im_titles.append('<b>TCLEAN Flux</b>')
+        #im_titles.append('<b>TCLEAN Residual-noise</b>')
 
     PLOTS = len(residuals_compare.keys())
     fig = tools.make_subplots(rows=PLOTS, cols=2, shared_yaxes=False,
                               print_grid=False,
-                              horizontal_spacing=0.2,
-                              vertical_spacing=0.08,
+                              horizontal_spacing=PLOT_NUM_RES['plots'][PLOTS][1],
+                              vertical_spacing=PLOT_NUM_RES['plots'][PLOTS][0],
                               subplot_titles=im_titles)
 
     i = 0
@@ -1972,7 +2140,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                 y=np.array(rmss) * FLUX_UNIT_SCALER['micro'][0],
                 mode='lines',
                 showlegend=True if i == 0 else False,
-                name='residual 1',
+                name='noise',
                 text=name_labels,
                 marker=dict(color='rgb(255,0,0)'),
                 error_y=dict(type='data', color='rgb(158, 63, 221)',
@@ -1983,7 +2151,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                 x=np.array(range(len(rmss))),
                 y=np.array(residuals) * FLUX_UNIT_SCALER['micro'][0],
                 mode='lines', showlegend=True if i == 0 else False,
-                name='residual 2',
+                name='residual',
                 text=name_labels,
                 marker=dict(color='rgb(0,0,255)'),
                 error_y=dict(type='data', color='rgb(158, 63, 221)',
@@ -1998,7 +2166,8 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                             showscale=True,
                             colorscale='Jet',
                             colorbar=dict(
-                                title='Phase center dist (arcsec)',
+                                title='Phase centre distance (")',
+                                titlefont=dict(size=18),
                                 titleside='right',
                                 len=PLOT_NUM_FLUX['format'][PLOTS][2],
                                 y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
@@ -2022,7 +2191,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                             max(rmss) * FLUX_UNIT_SCALER['micro'][0]),
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
-                text="res1: {:.2f} | res2: {:.2f} | res1-res2: {:.2f}".format(
+                text="noise: {:.2f} | res: {:.2f} | noise-res: {:.2f}".format(
                      np.mean(residuals) * FLUX_UNIT_SCALER['micro'][0],
                      np.mean(rmss) * FLUX_UNIT_SCALER['micro'][0],
                      np.mean(residuals) / np.mean(rmss)),
@@ -2041,11 +2210,11 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                                          y=PLOT_NUM_RES['legend'][PLOTS][1]))
         fig['layout'].update(
             {'yaxis{}'.format(counter+i): YAxis(
-                title=u'rms [\u03BCJy/beam]',
-                gridcolor='rgb(255,255,255)',
-                color='rgb(0,0,0)',
-                tickfont=dict(size=14, color='rgb(0,0,0)'),
-                titlefont=dict(size=17),
+                title=u'Flux [\u03BCJy/beam]',
+                #gridcolor='rgb(255,255,255)',
+                #color='rgb(0,0,0)',
+                tickfont=dict(size=16, color='rgb(0,0,0)'),
+                titlefont=dict(size=18),
                 showgrid=True,
                 showline=True,
                 showticklabels=True,
@@ -2054,11 +2223,11 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                 zeroline=False)})
         fig['layout'].update(
             {'yaxis{}'.format(counter+i+1): YAxis(
-                title='Res1-to-Res2',
-                gridcolor='rgb(255,255,255)',
-                color='rgb(0,0,0)',
-                tickfont=dict(size=10, color='rgb(0,0,0)'),
-                titlefont=dict(size=15),
+                title='Residual-Noise',
+                #gridcolor='rgb(255,255,255)',
+                #color='rgb(0,0,0)',
+                tickfont=dict(size=16, color='rgb(0,0,0)'),
+                titlefont=dict(size=18),
                 showgrid=True,
                 showline=True,
                 showticklabels=True,
@@ -2068,7 +2237,8 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         fig['layout'].update(
             {'xaxis{}'.format(counter+i): XAxis(
                 title='Sources',
-                titlefont=dict(size=17),
+                titlefont=dict(size=18),
+                tickfont=dict(size=16, color='rgb(0,0,0)'),
                 showline=True,
                 zeroline=False,
                 position=0.0,
@@ -2076,13 +2246,39 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         fig['layout'].update(
             {'xaxis{}'.format(counter+i+1): XAxis(
                 title='Sources',
-                titlefont=dict(size=17),
+                titlefont=dict(size=18),
+                tickfont=dict(size=16, color='rgb(0,0,0)'),
                 showline=True,
+                zeroline=False)})
+        fig['layout'].update(
+            {'yaxis{}'.format(counter+i+1): YAxis(
+                title='Residual-Noise',
+                #gridcolor='rgb(255,255,255)',
+                #color='rgb(0,0,0)',
+                tickfont=dict(size=16, color='rgb(0,0,0)'),
+                titlefont=dict(size=18),
+                showgrid=True,
+                showline=True,
+                showticklabels=True,
+                tickcolor='rgb(51,153,225)',
+                ticks='outside',
                 zeroline=False)})
         i += 1
         j += PLOT_NUM_RES['format'][PLOTS][0]
-        if counter == PLOTS:
-            fig['layout']['annotations'] = annotate
+
+    for title_info in fig['layout']['annotations']:
+        annotate.append(
+            go.Annotation(
+                text=title_info.text,
+                x=title_info.x,
+                xref=title_info.xref,
+                xanchor=title_info.xanchor,
+                y=title_info.y,
+                yref=title_info.yref,
+                yanchor=title_info.yanchor,
+                showarrow=title_info.showarrow,
+                font=title_info.font))
+    fig['layout']['annotations'] = annotate
     if points:
         outfile = 'RandomResidualNoiseRatio.html'
     else:
@@ -2218,10 +2414,10 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
         # Get data from noise image
         noise_data = noise_hdu[0].data
         # Get label
-        if 'None' in images[0]['label']:
-            label = res_image
-        else:
-            label = images[0]['label']
+        #if 'None' in images[0]['label']:
+        label = res_image
+        #else:
+        #    label = images[0]['label']
         # Load skymodel to get source positions
         model_lsm = Tigger.load(skymodel)
         # Get all sources in the model
