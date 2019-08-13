@@ -550,6 +550,8 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
     # Flatten image
     res_data = residual_data.flatten()
+    # Get the maximum absolute deviation
+    res_props['MAD'] = float("{0:.6f}".format(stats.median_absolute_deviation(res_data)))
     # Compute the skewness of the residual
     res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
     # Compute the kurtosis of the residual
@@ -571,23 +573,28 @@ def print_residual_stats(residual_images, prefix='-', suffix='.fits',
     for res in residual_images:
         Res[res] = residual_image_stats('{:s}/{:s}'.format(dir, res),
                                         test_normality=normality)
-    names, mean, std = [], [], []
+    names, mean, std, mad = [], [], [], []
     rms, skew, kurt, normtest = [], [], [], []
-    table_data = [["Imager", "Mean (mJy/beam)", "STD (mJy/beam)",
-                   "RMS (mJy/beam)", "Skewness", "Kurtosis", "Normality"]]
+    table_data = [["Imager", "Mean ({}/beam)".format(units),
+                   "STD ({}/beam)".format(units), "RMS ({}/beam)".format(units),
+                   "MAD ({}/beam)".fotmat(units), "Skewness", "Kurtosis", "Normality"]]
     for name, stats in sorted(Res.items()):
         names.append(name[23:-19].upper())
         mean.append(stats['MEAN'])
         std.append(stats['STDDev'])
         rms.append(stats['RMS'])
+        mad.append(stats['MAD'])
         skew.append(stats['SKEW'])
         kurt.append(stats['KURT'])
         normtest.append(stats['NORM'][0])
         table_data.append([name.split('.')[0].split(prefix)[-1].split(suffix)[0].replace(
                               replace, ''),
                           "{:.3E}".format(stats['MEAN']),
-                          "{:.4E}".format(stats['STDDev']), "{:.3E}".format(stats['RMS']),
-                          "{:.3E}".format(stats['SKEW']), "{:.3f}".format(stats['KURT']),
+                          "{:.3E}".format(stats['STDDev']),
+                          "{:.3E}".format(stats['RMS']),
+                          "{:.3E}".format(stats['MAD']),
+                          "{:.3E}".format(stats['SKEW']),
+                          "{:.3f}".format(stats['KURT']),
                           "{:.3f}".format(stats['NORM'][0])])
     zipped_props = zip(names, mean, std, skew, kurt, normtest)
     names, mean, std, skew, kurt, normtest = zip(*sorted(zipped_props, key=lambda x: x[0]))
