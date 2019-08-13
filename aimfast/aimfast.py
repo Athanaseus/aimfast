@@ -543,17 +543,17 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         residual_data = ma.masked_array(residual_data, mask=mask_data)
     # TODO: compute MAD
     # Get the mean value
-    res_props['MEAN'] = float("{0:.9f}".format(residual_data.mean()))
+    res_props['MEAN'] = float("{0:.6f}".format(residual_data.mean()))
     # Get the rms value
-    res_props['RMS'] = float("{0:.9f}".format(np.sqrt(np.mean(np.square(residual_data)))))
+    res_props['RMS'] = float("{0:.6f}".format(np.sqrt(np.mean(np.square(residual_data)))))
     # Get the sigma value
-    res_props['STDDev'] = float("{0:.9f}".format(residual_data.std()))
+    res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
     # Flatten image
     res_data = residual_data.flatten()
     # Compute the skewness of the residual
-    res_props['SKEW'] = float("{0:.9f}".format(stats.skew(res_data)))
+    res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
     # Compute the kurtosis of the residual
-    res_props['KURT'] = float("{0:.9f}".format(stats.kurtosis(res_data, fisher=False)))
+    res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
     # Perform normality testing
     if test_normality:
         norm_props = normality_testing(fitsname, test_normality, data_range)
