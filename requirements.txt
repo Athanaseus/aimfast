@@ -9,4 +9,4 @@ numpydoc
 plotly
 scikit-learn
 scipy
-tabletext
+git+https://github.com/Thibauth/tabletext.git
