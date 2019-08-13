@@ -1360,8 +1360,7 @@ def _source_flux_plotter(results, all_models, inline=False):
         input_model = models[0]['label']
         models_compare[input_model] = output_model
         header = models[-1]['label'].split('-model_2')[0]
-        #im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
-        im_titles.append('<b>{:s}</b>'.format(header.upper()))
+        im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
 
     PLOTS = len(all_models)
     fig = tools.make_subplots(rows=PLOTS, cols=1,
@@ -1479,7 +1478,7 @@ def _source_flux_plotter(results, all_models, inline=False):
                 position=0.0,
                 tickfont=dict(size=15),
                 titlefont=dict(color="black", size=18),
-                range=[-0.01,1.2],
+                #range=[-0.01,1.2],
                 overlaying='x',
                 tickcolor='rgb(51,153,225)',
                 ticks='outside',
@@ -1734,10 +1733,8 @@ def _source_morphology_plotter(results, all_models, inline=False):
         output_model = models[-1]['path']
         input_model = models[0]['path']
         models_compare[input_model] = output_model
-        #im_titles.append('<b>{:s} MAJ Axis</b>'.format(header.upper()))
-        #im_titles.append('<b>{:s} MIN Axis</b>'.format(header.upper()))
-        im_titles.append('<b>{:s}</b>'.format(header.upper()))
-        im_titles.append('<b>{:s}</b>'.format(header.upper()))
+        im_titles.append('<b>{:s} MAJ Axis</b>'.format(header.upper()))
+        im_titles.append('<b>{:s} MIN Axis</b>'.format(header.upper()))
 
     PLOTS = len(models_compare.keys())
     fig = tools.make_subplots(rows=PLOTS, cols=2,
@@ -1856,7 +1853,7 @@ def _source_morphology_plotter(results, all_models, inline=False):
                                                  gridcolor='rgb(255,255,255)',
             tickfont=dict(size=18, color='rgb(0,0,0)'),
             titlefont=dict(size=18),
-            range=[-0.01, 18],
+            #range=[-0.01, 18],
             showgrid=True,
             showline=True,
             showticklabels=True,
@@ -1917,8 +1914,7 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
         output_model = models[-1]['path']
         input_model = models[0]['path']
         models_compare[input_model] = output_model
-#        im_titles.append('<b>{:s} Source Spectrum</b>'.format(header.upper()))
-        im_titles.append('<b>{:s}</b>'.format(header.upper()))
+        im_titles.append('<b>{:s} Source Spectrum</b>'.format(header.upper()))
 
     PLOTS = len(models_compare.keys())
     fig = tools.make_subplots(rows=PLOTS, cols=1,
@@ -1952,11 +1948,11 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
 
         y_ran_pos = [- max(spi_out_data) - max(spi_err_data), max(spi_out_data) + max(spi_err_data)]
         y_min_max = [- max(spi_out_data) - max(spi_err_data), max(spi_out_data) + max(spi_err_data)]
-#        y_ran_pos = [y_min_max[-1], y_min_max[-1]]
-#        y_ran_neg = [y_min_max[0], y_min_max[0]]
+        y_ran_pos = [y_min_max[-1], y_min_max[-1]]
+        y_ran_neg = [y_min_max[0], y_min_max[0]]
         
-        y_ran_pos = [25, 25]
-        y_ran_neg = [-25, -25]
+#        y_ran_pos = [25, 25]
+#        y_ran_neg = [-25, -25]
 
         zipped_props = zip(I_in, spi_out_data, spi_err_data, spi_in_data, phase_center_dist, name_labels)
         (I_in, spi_out_data, spi_err_data, spi_in_data, dist_from_phase, name_labels) = zip(
@@ -2058,10 +2054,7 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
                                                                 tickfont=dict(size=18),
                                                                 titlefont=dict(size=18),
                                                                 overlaying='x')})
-        #fig['layout']['annotations'].update({ 'font':{'size': 10}})
-        #j+=PLOT_NUM['colorbar'][PLOTS][0]
-        #py.iplot(fig, filename='make-subplots-multiple-with-titles')
-        #fig['layout']['annotations'].update({'font':{'size': 12}})
+
         j += PLOT_NUM_FLUX['format'][PLOTS][0]
 
     for title_info in fig['layout']['annotations']:
@@ -2114,8 +2107,6 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         # Assign plot titles
         im_titles.append('<b>{:s} Flux</b>'.format(header.upper()))
         im_titles.append('<b>{:s} Residual-Noise</b>'.format(header.upper()))
-        #im_titles.append('<b>TCLEAN Flux</b>')
-        #im_titles.append('<b>TCLEAN Residual-noise</b>')
 
     PLOTS = len(residuals_compare.keys())
     fig = tools.make_subplots(rows=PLOTS, cols=2, shared_yaxes=False,
