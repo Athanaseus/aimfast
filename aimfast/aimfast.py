@@ -140,7 +140,6 @@ def create_logger():
 
 
 LOGGER = create_logger()
-LOGGER.info("Welcome to aimfast")
 
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
@@ -551,7 +550,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     # Flatten image
     res_data = residual_data.flatten()
     # Get the maximum absolute deviation
-    res_props['MAD'] = float("{0:.6f}".format(stats.median_absolute_deviation(res_data)))
+    #res_props['MAD'] = float("{0:.6f}".format(stats.median_absolute_deviation(res_data)))
     # Compute the skewness of the residual
     res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
     # Compute the kurtosis of the residual
@@ -577,13 +576,14 @@ def print_residual_stats(residual_images, prefix='-', suffix='.fits',
     rms, skew, kurt, normtest = [], [], [], []
     table_data = [["Imager", "Mean ({}/beam)".format(units),
                    "STD ({}/beam)".format(units), "RMS ({}/beam)".format(units),
-                   "MAD ({}/beam)".fotmat(units), "Skewness", "Kurtosis", "Normality"]]
+                   #"MAD ({}/beam)".fotmat(units),
+                   "Skewness", "Kurtosis", "Normality"]]
     for name, stats in sorted(Res.items()):
         names.append(name[23:-19].upper())
         mean.append(stats['MEAN'])
         std.append(stats['STDDev'])
         rms.append(stats['RMS'])
-        mad.append(stats['MAD'])
+        #mad.append(stats['MAD'])
         skew.append(stats['SKEW'])
         kurt.append(stats['KURT'])
         normtest.append(stats['NORM'][0])
@@ -592,7 +592,7 @@ def print_residual_stats(residual_images, prefix='-', suffix='.fits',
                           "{:.3E}".format(stats['MEAN']),
                           "{:.3E}".format(stats['STDDev']),
                           "{:.3E}".format(stats['RMS']),
-                          "{:.3E}".format(stats['MAD']),
+                          #"{:.3E}".format(stats['MAD']),
                           "{:.3E}".format(stats['SKEW']),
                           "{:.3f}".format(stats['KURT']),
                           "{:.3f}".format(stats['NORM'][0])])
@@ -1309,17 +1309,29 @@ def aimfast_plotly(X1, Y1, X2=None, Y2=None, X3=None, Y3=None, X4=None, Y4=None,
     if Y2 is not None:
         fig.append_trace(go.Scatter(x=X2, showlegend=False, text=point_labels,
                                     y=Y2/yfactor, mode=plot_mode2, marker=dict(size=40)), 1, 1)
+
     fig['layout'].update(title=plot_title, height=900, width=900,
                          paper_bgcolor='rgb(255,255,255)', #plot_bgcolor='rgb(229,229,229)',
                          titlefont=dict(size=20),
-                         legend=dict(x=0.8,y=1.0))
+                         legend=dict(x=0.8,y=1.0),
+                         annotations=[
+                             go.layout.Annotation(
+                                 font=dict(size=30),
+                                 x=-0.12,
+                                 y=0.5,
+                                 showarrow=False,
+                                 text=y_title,
+                                 textangle=-90,
+                                 xref="paper",
+                                 yref="paper")])
     fig['layout'].update(
-        {'yaxis{}'.format(1):YAxis(title=y_title,
+        {'yaxis{}'.format(1):YAxis(title='', #y_title,
                                    gridcolor='rgb(255,255,255)',
                                    tickfont=dict(size=25),
                                    titlefont=dict(size=30),
                                    showgrid=True,
                                    showline=True,
+                                   position=0.9,
                                    showticklabels=True,
                                    tickcolor='rgb(51,153,225)',
                                    ticks='outside',
@@ -2537,6 +2549,7 @@ def get_argparser():
 
 def main():
     """Main function."""
+    LOGGER.info("Welcome to aimfast")
     parser = get_argparser()
     args = parser.parse_args()
     output_dict = dict()

@@ -68,7 +68,6 @@ class TestClass(object):
                           'SKEW': 0.186153,
                           'KURT': 2.870047,
                           'RMS': 3.1e-05,
-                          'MAD': 1.8e-2,
                           'STDDev': 3.1e-05,
                           'MEAN': 1.21497e-06}
         expected_normaltest_value = expected_value.pop('NORM')
