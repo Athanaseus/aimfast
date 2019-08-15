@@ -1311,7 +1311,7 @@ def aimfast_plotly(X1, Y1, X2=None, Y2=None, X3=None, Y3=None, X4=None, Y4=None,
                                     y=Y2/yfactor, mode=plot_mode2, marker=dict(size=40)), 1, 1)
 
     fig['layout'].update(title=plot_title, height=900, width=900,
-                         paper_bgcolor='rgb(255,255,255)', #plot_bgcolor='rgb(229,229,229)',
+                         paper_bgcolor='rgb(255,255,255)', plot_bgcolor='rgb(229,229,229)',
                          titlefont=dict(size=20),
                          legend=dict(x=0.8,y=1.0),
                          annotations=[
@@ -1325,7 +1325,7 @@ def aimfast_plotly(X1, Y1, X2=None, Y2=None, X3=None, Y3=None, X4=None, Y4=None,
                                  xref="paper",
                                  yref="paper")])
     fig['layout'].update(
-        {'yaxis{}'.format(1):YAxis(title='', #y_title,
+        {'yaxis{}'.format(1):YAxis(title='',
                                    gridcolor='rgb(255,255,255)',
                                    tickfont=dict(size=25),
                                    titlefont=dict(size=30),
@@ -2051,8 +2051,8 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
                              legend=dict(x=0.8,y=1.0),)
         fig['layout'].update(
             {'yaxis{}'.format(counter):YAxis(title=u'$SPI_{out}$',
-            #range=y_min_max,
-            range=[-25, 25],
+            range=y_min_max,
+            #range=[-25, 25],
             tickfont=dict(size=18),
             titlefont=dict(size=18),
             showgrid=True,
