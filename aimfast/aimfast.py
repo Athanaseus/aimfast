@@ -542,7 +542,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         residual_data = ma.masked_array(residual_data, mask=mask_data)
     # TODO: compute MAD
     # Get the mean value
-    res_props['MEAN'] = float("{0:.6f}".format(residual_data.mean()))
+    res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
     # Get the rms value
     res_props['RMS'] = float("{0:.6f}".format(np.sqrt(np.mean(np.square(residual_data)))))
     # Get the sigma value
