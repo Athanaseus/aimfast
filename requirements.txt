@@ -9,4 +9,3 @@ numpydoc
 plotly
 scikit-learn
 scipy
--e git+https://github.com/Thibauth/tabletext.git#egg=tabletext
