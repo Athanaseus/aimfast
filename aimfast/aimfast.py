@@ -122,9 +122,8 @@ BIN_COLORS = {
                   5: '#7fffd4'
              }
 
-
 # Backgound color for plots
-BG_COLOR = 'rgb (255,255,255)'#rgb(229,229,229)'
+BG_COLOR = 'rgb (255,255,255)' # rgb(229,229,229)'
 
 
 def create_logger():
@@ -577,7 +576,7 @@ def print_residual_stats(residual_images, prefix='-', suffix='.fits',
     rms, skew, kurt, normtest = [], [], [], []
     table_data = [["Imager", "Mean ({}/beam)".format(units),
                    "STD ({}/beam)".format(units), "RMS ({}/beam)".format(units),
-                   #"MAD ({}/beam)".fotmat(units),
+                   "MAD ({}/beam)".fotmat(units),
                    "Skewness", "Kurtosis", "Normality"]]
     for name, stats in sorted(Res.items()):
         names.append(name[23:-19].upper())
@@ -1098,7 +1097,7 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
         _source_flux_plotter(results, models)
         _source_astrometry_plotter(results, models)
         _source_morphology_plotter(results, models)
-        #_source_spectrum_plotter(results, models) #TODO: Clean up spi plotting
+        # _source_spectrum_plotter(results, models) # TODO: Clean up spi plotting
     return results
 
 
@@ -1480,7 +1479,6 @@ def _source_flux_plotter(results, all_models, inline=False):
                 titlefont=dict(color="black", size=18),
                 showgrid=True,
                 showline=False,
-                #range=[-0.01,1.2],
                 showticklabels=True,
                 tickcolor='rgb(51,153,225)',
                 ticks='outside',
@@ -1491,7 +1489,6 @@ def _source_flux_plotter(results, all_models, inline=False):
                 position=0.0,
                 tickfont=dict(size=15),
                 titlefont=dict(color="black", size=18),
-                #range=[-0.01,1.2],
                 overlaying='x',
                 tickcolor='rgb(51,153,225)',
                 ticks='outside',
@@ -1655,7 +1652,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             {'yaxis{}'.format(counter+i+1): YAxis(
                 title=u'Delta position (")',
                 titlefont=dict(size=18),
-                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
+                tickfont=dict(size=16),# color='rgb(0,0,0)'),
                 showgrid=True,
                 showline=True,
                 showticklabels=True,
@@ -1665,7 +1662,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             {'yaxis{}'.format(counter+i+1): YAxis(
                 title=u'Delta position (")',
                 titlefont=dict(size=18),
-                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
+                tickfont=dict(size=16),# color='rgb(0,0,0)'),
                 showgrid=True,
                 range=[-0.01, 0.8],
                 showline=False,
@@ -1678,7 +1675,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 showgrid=True,
                 showline=True,
                 titlefont=dict(size=18),
-                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
+                tickfont=dict(size=16),# color='rgb(0,0,0)'),
                 showticklabels=True,
                 ticks='outside',
                 zeroline=True)})
@@ -1686,7 +1683,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             {'xaxis{}'.format(counter+i): XAxis(
                 title=u'RA offset (")',
                 titlefont=dict(size=18),
-                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
+                tickfont=dict(size=16),# color='rgb(0,0,0)'),
                 zeroline=False,
                 showgrid=True,
                 position=1.0,
@@ -1697,7 +1694,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 position=0.0,
                 showgrid=True,
                 showline=True,
-                tickfont=dict(size=16),#, color='rgb(0,0,0)'),
+                tickfont=dict(size=16),# color='rgb(0,0,0)'),
                 overlaying='x',
                 titlefont=dict(size=18),
                 zeroline=True)})
@@ -1957,7 +1954,7 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
         y_min_max = [- max(spi_out_data) - max(spi_err_data), max(spi_out_data) + max(spi_err_data)]
         y_ran_pos = [y_min_max[-1], y_min_max[-1]]
         y_ran_neg = [y_min_max[0], y_min_max[0]]
- 
+
 #        y_ran_pos = [25, 25]
 #        y_ran_neg = [-25, -25]
 
