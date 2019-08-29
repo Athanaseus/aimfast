@@ -251,7 +251,7 @@ def fitsInfo(fitsname=None):
 def ra2deg(ra_hms):
     """
     Converts right ascension in hms coordinates to degrees
-    
+
     Parameters
     ----------
     ra_hms : str
@@ -275,7 +275,7 @@ def ra2deg(ra_hms):
 def dec2deg(dec_dms):
     """
     Converts declination in dms coordinates to degrees
-    
+
     Parameters
     ----------
     dec_hms : str
@@ -297,7 +297,7 @@ def dec2deg(dec_dms):
     else:
         return -(dd+mm+ss)
     d_m_s =dd+mm+ss
-    return d_m_s  
+    return d_m_s
 
 
 def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
@@ -337,7 +337,7 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
 
         above_thresh = table['S1.4']<thresh
 
-    for i in xrange(1,len(table.colnames)):
+    for i in xrange(1, len(table.colnames)):
         table[table.colnames[i]][above_thresh] = np.nan
 
     table =  Table(table, masked=True)
@@ -534,7 +534,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         nchans = []
         chan_ranges = chans.split(';')
         for cr in chan_ranges:
-            c = cr.split('~') 
+            c = cr.split('~')
             nchans.extend(range(int(c[0]), int(c[1])))
             residual_data = data[nchans]
     # TODO: This needs some testing
@@ -1304,7 +1304,7 @@ def aimfast_plotly(X1, Y1, X2=None, Y2=None, X3=None, Y3=None, X4=None, Y4=None,
                    xfactor=1, yfactor=1):
     """Make a simple x-y plot by providing array of Xs and Ys"""
     fig = tools.make_subplots(rows=1, cols=1, shared_yaxes=False, print_grid=False,
-                              horizontal_spacing = 0.005, vertical_spacing = 0.15)
+                              horizontal_spacing=0.005, vertical_spacing=0.15)
     fig.append_trace(go.Scatter(x=X1, showlegend=False, text=point_labels,
                                 y=Y1/yfactor, mode=plot_mode1, marker=dict(size=30)), 1, 1)
     if Y2 is not None:
@@ -1314,7 +1314,7 @@ def aimfast_plotly(X1, Y1, X2=None, Y2=None, X3=None, Y3=None, X4=None, Y4=None,
     fig['layout'].update(title=plot_title, height=900, width=900,
                          paper_bgcolor='rgb(255,255,255)', plot_bgcolor='rgb(229,229,229)',
                          titlefont=dict(size=20),
-                         legend=dict(x=0.8,y=1.0),
+                         legend=dict(x=0.8, y=1.0),
                          annotations=[
                              go.layout.Annotation(
                                  font=dict(size=30),
@@ -1326,24 +1326,24 @@ def aimfast_plotly(X1, Y1, X2=None, Y2=None, X3=None, Y3=None, X4=None, Y4=None,
                                  xref="paper",
                                  yref="paper")])
     fig['layout'].update(
-        {'yaxis{}'.format(1):YAxis(title='',
-                                   gridcolor='rgb(255,255,255)',
-                                   tickfont=dict(size=25),
-                                   titlefont=dict(size=30),
-                                   showgrid=True,
-                                   showline=True,
-                                   position=0.9,
-                                   showticklabels=True,
-                                   tickcolor='rgb(51,153,225)',
-                                   ticks='outside',
-                                   zeroline=False)})
+        {'yaxis{}'.format(1): YAxis(title='',
+                                    gridcolor='rgb(255,255,255)',
+                                    tickfont=dict(size=25),
+                                    titlefont=dict(size=30),
+                                    showgrid=True,
+                                    showline=True,
+                                    position=0.9,
+                                    showticklabels=True,
+                                    tickcolor='rgb(51,153,225)',
+                                    ticks='outside',
+                                    zeroline=False)})
     fig['layout'].update(
-        {'xaxis{}'.format(1):XAxis(title=x_title,
-                                   position=0.0,
-                                   tickfont=dict(size=20),
-                                   titlefont=dict(size=30),
-                                   showline=True,
-                                   overlaying='x')})
+        {'xaxis{}'.format(1): XAxis(title=x_title,
+                                    position=0.0,
+                                    tickfont=dict(size=20),
+                                    titlefont=dict(size=30),
+                                    showline=True,
+                                    overlaying='x')})
     outfile = '{}.html'.format(plot_title)
     if inline:
         py.init_notebook_mode(connected=True)
@@ -1808,79 +1808,74 @@ def _source_morphology_plotter(results, all_models, inline=False):
             print(heading, gradient, R_score, interc, MSE)
             fig.append_trace(go.Scatter(x=np.array([sorted(maj_in)[0], sorted(maj_in)[-1]]),
                                         showlegend=False,
-                                        marker = dict(color = 'rgb(0,0,255)'),
+                                        marker=dict(color='rgb(0,0,255)'),
                                         y=np.array([sorted(maj_in)[0], sorted(maj_in)[-1]]),
-                                        mode = 'lines'), i+1, 1)
+                                        mode='lines'), i+1, 1)
             fig.append_trace(go.Scatter(x=np.array([sorted(min_in)[0], sorted(min_in)[-1]]),
                                         showlegend=False,
-                                        marker = dict(color = 'rgb(0,0,255)'),
+                                        marker=dict(color='rgb(0,0,255)'),
                                         y=np.array([sorted(min_in)[0], sorted(min_in)[-1]]),
-                                        mode = 'lines'), i+1, 2)
+                                        mode='lines'), i+1, 2)
         except ValueError:
             pass
-        fig.append_trace(go.Scatter(x=maj_in, y=maj_out, mode = 'markers', showlegend=False,
-                                   text=source_labels, name = '{:s} flux_ratio'.format(header),
-                                   marker=dict(color = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
-                                   showscale=True, colorscale='Jet',
-                                              reversescale=True,
-                                              colorbar = dict(title='Output flux (mJy)',
-                                                              titleside ='right',
+        fig.append_trace(go.Scatter(x=maj_in, y=maj_out, mode='markers', showlegend=False,
+                                    text=source_labels, name='{:s} flux_ratio'.format(header),
+                                    marker=dict(color = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
+                                                showscale=True, colorscale='Jet', reversescale=True,
+                                                colorbar=dict(title='Output flux (mJy)',
+                                                              titleside='right',
                                                               len=PLOT_NUM_FLUX['format'][PLOTS][2],
                                                               y=PLOT_NUM_FLUX['format'][PLOTS][1]-j,
-                                                              x=0.39)
-                                             ),
-                                error_y=dict(type='data', array=np.array(maj_out_err),
-                                             color = 'rgb(158, 63, 221)', visible=True)), i+1, 1)
+                                                              x=0.39)),
+                                    error_y=dict(type='data', array=np.array(maj_out_err),
+                                                 color='rgb(158, 63, 221)', visible=True)), i+1, 1)
         fig.append_trace(go.Scatter(x=min_in, y=min_out,
                                     mode='markers', showlegend=False,
-                                    text=source_labels, name = '{:s} flux_ratio'.format(header),
-                                    marker=dict(color = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
-                                    showscale=True, colorscale='Jet', reversescale=True,
-                                                  colorbar = dict(title='Output flux (mJy)',
+                                    text=source_labels, name='{:s} flux_ratio'.format(header),
+                                    marker=dict(color=np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
+                                                showscale=True, colorscale='Jet', reversescale=True,
+                                                colorbar=dict(title='Output flux (mJy)',
                                                               titleside ='right',
                                                               len=PLOT_NUM_FLUX['format'][PLOTS][2],
-                                                              y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)
-                                             ),
-                                error_y=dict(type='data', array=np.array(min_out_err),
-                                             color = 'rgb(158, 63, 221)', visible=True)), i+1, 2)
+                                                              y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
+                                    error_y=dict(type='data', array=np.array(min_out_err),
+                                                 color='rgb(158, 63, 221)', visible=True)), i+1, 2)
         pi,sin,cos = np.pi,np.sin,np.cos
         fig['layout'].update(title='', height=PLOT_NUM_POS['format'][PLOTS][3],
                              width=PLOT_NUM_POS['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
-                             legend=dict(xanchor='auto')
-                            )
+                             legend=dict(xanchor='auto'))
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i):YAxis(title=u'Output maj axis (")',
-                                               gridcolor='rgb(255,255,255)',
+            {'yaxis{}'.format(counter+i): YAxis(title=u'Output maj axis (")',
+                                                gridcolor='rgb(255,255,255)',
             range=[-0.01, 18],
             tickfont=dict(size=18, color='rgb(0,0,0)'),
             titlefont=dict(size=18),
             showgrid=True,
             showline=True,
             showticklabels=True,
-            #tickcolor='rgb(51,153,225)',
             ticks='outside',
             zeroline=True)})
         fig['layout'].update(
-            {'yaxis{}'.format(counter+i+1):YAxis(title='Output min axis (")',
-                                                 gridcolor='rgb(255,255,255)',
-            tickfont=dict(size=18, color='rgb(0,0,0)'),
-            titlefont=dict(size=18),
-            #range=[-0.01, 18],
-            showgrid=True,
-            showline=True,
-            showticklabels=True,
-            #tickcolor='rgb(51,153,225)',
-            ticks='outside',
-            zeroline=True)})
-        fig['layout'].update({'xaxis{}'.format(counter+i):XAxis(title='Input maj axis (")',
-                                                            titlefont=dict(size=18),
-                                                            tickfont=dict(size=18, color='rgb(0,0,0)'),
-                                                            zeroline=False, position=0.0, overlaying='x',)})
+            {'yaxis{}'.format(counter+i+1): YAxis(title='Output min axis (")',
+                                                  gridcolor='rgb(255,255,255)',
+                                                  tickfont=dict(size=18, color='rgb(0,0,0)'),
+                                                  titlefont=dict(size=18),
+                                                  showgrid=True,
+                                                  showline=True,
+                                                  showticklabels=True,
+                                                  ticks='outside',
+                                                  zeroline=True)})
+        fig['layout'].update(
+            {'xaxis{}'.format(counter+i): XAxis(title='Input maj axis (")',
+                                                titlefont=dict(size=18),
+                                                tickfont=dict(size=18, color='rgb(0,0,0)'),
+                                                zeroline=False, position=0.0,
+                                                overlaying='x')})
         fig['layout'].update({'xaxis{}'.format(counter+i+1):XAxis(title='Input min axis (")',
                                                               titlefont=dict(size=18),
                                                               tickfont=dict(size=18, color='rgb(0,0,0)'),
-                                                              zeroline=False)})# domain=[0.505, 0.8])}
+                                                              zeroline=False)})
         j += PLOT_NUM_POS['format'][PLOTS][0]
 
     for title_info in fig['layout']['annotations']:
@@ -1895,7 +1890,6 @@ def _source_morphology_plotter(results, all_models, inline=False):
                 yanchor=title_info.yanchor,
                 showarrow=title_info.showarrow,
                 font=title_info.font))
-
 
     fig['layout']['annotations'] = annotate
     outfile = 'InputOutputScale.html'
@@ -1963,14 +1957,14 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
         y_min_max = [- max(spi_out_data) - max(spi_err_data), max(spi_out_data) + max(spi_err_data)]
         y_ran_pos = [y_min_max[-1], y_min_max[-1]]
         y_ran_neg = [y_min_max[0], y_min_max[0]]
-        
+ 
 #        y_ran_pos = [25, 25]
 #        y_ran_neg = [-25, -25]
 
         zipped_props = zip(I_in, spi_out_data, spi_err_data, spi_in_data, phase_center_dist, name_labels)
         (I_in, spi_out_data, spi_err_data, spi_in_data, dist_from_phase, name_labels) = zip(
             *sorted(zipped_props, key=lambda x: x[0]))
-#===========================================================================================================
+# ===========================================================================================================
         spi_in_data_stats = []
         spi_out_data_stats = []
         for spi_in, spi_out in zip(spi_in_data, spi_out_data):
@@ -1982,7 +1976,7 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
         spi_out_in = [float(spi_out)/spi_in
                       for spi_out,spi_in in
                       zip(spi_out_data_stats,spi_in_data_stats)]
-#===========================================================================================================
+# ===========================================================================================================
         ranger = num_data_points/num_bins
         start, end = [-ranger, 0]
         for b in range(num_bins):
@@ -2009,11 +2003,12 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
                                                       else end]*FLUX_UNIT_SCALER['milli'][0])[-1]],
                              y=y_ran_neg,
                              showlegend=False,
-                             mode= 'none',
-                             fillcolor = BIN_COLORS[b+1],
+                             mode='none',
+                             fillcolor=BIN_COLORS[b+1],
                              fill='tozeroy'), i+1, 1)
+
 # TODO: Add annotations on plots
-#===========================================================================================================
+# ===========================================================================================================
 
 #        annotate.append(
 #            go.Annotation(
@@ -2032,18 +2027,17 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
 #                font=dict(color="black", size=12)))
 
         fig.append_trace(go.Scatter(x=np.array([sorted(I_in)[0], sorted(I_in)[-1]])*1000, showlegend=False,
-                                    marker = dict(color = 'rgb(0,0,255)'),
-                                    y=np.array([-.7,-.7]), mode = 'lines'), i+1, 1)
+                                    marker=dict(color='rgb(0,0,255)'),
+                                    y=np.array([-.7,-.7]), mode='lines'), i+1, 1)
         fig.append_trace(go.Scatter(x=np.array(I_in)*1000, y=np.array(spi_out_data),
-                                    mode = 'markers', showlegend=False,
-                                    text = name_labels, name = '%s flux_ratio' % heading,
-                                    marker = dict(color = phase_center_dist, showscale=True, colorscale='Jet',
-                                                  reversescale=False,
-                                                  colorbar = dict(title='Phase centre distance (")',
-                                                                   titleside ='right',
+                                    mode='markers', showlegend=False,
+                                    text=name_labels, name='%s flux_ratio' % heading,
+                                    marker=dict(color=phase_center_dist, showscale=True, colorscale='Jet',
+                                                reversescale=False,
+                                                colorbar=dict(title='Phase centre distance (")',
+                                                              titleside ='right',
                                                               len=PLOT_NUM_FLUX['format'][PLOTS][2],
-                                                              y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)
-                                                 ),
+                                                              y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
                                     error_y=dict(type='data', array=spi_err_data,
                                                  color = 'rgb(158, 63, 221)', visible=True)), i+1, 1)
         fig['layout'].update(title='', height=PLOT_NUM_FLUX['format'][PLOTS][3],
@@ -2053,7 +2047,6 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
         fig['layout'].update(
             {'yaxis{}'.format(counter):YAxis(title=u'$SPI_{out}$',
             range=y_min_max,
-            #range=[-25, 25],
             tickfont=dict(size=18),
             titlefont=dict(size=18),
             showgrid=True,
@@ -2222,8 +2215,8 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         fig['layout'].update(
             {'yaxis{}'.format(counter+i): YAxis(
                 title=u'Flux [\u03BCJy/beam]',
-                #gridcolor='rgb(255,255,255)',
-                #color='rgb(0,0,0)',
+                # gridcolor='rgb(255,255,255)',
+                # color='rgb(0,0,0)',
                 tickfont=dict(size=16, color='rgb(0,0,0)'),
                 titlefont=dict(size=18),
                 showgrid=True,
@@ -2235,8 +2228,8 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         fig['layout'].update(
             {'yaxis{}'.format(counter+i+1): YAxis(
                 title='Residual-Noise',
-                #gridcolor='rgb(255,255,255)',
-                #color='rgb(0,0,0)',
+                # gridcolor='rgb(255,255,255)',
+                # color='rgb(0,0,0)',
                 tickfont=dict(size=16, color='rgb(0,0,0)'),
                 titlefont=dict(size=18),
                 showgrid=True,
@@ -2264,8 +2257,8 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         fig['layout'].update(
             {'yaxis{}'.format(counter+i+1): YAxis(
                 title='Residual-Noise',
-                #gridcolor='rgb(255,255,255)',
-                #color='rgb(0,0,0)',
+                # gridcolor='rgb(255,255,255)',
+                # color='rgb(0,0,0)',
                 tickfont=dict(size=16, color='rgb(0,0,0)'),
                 titlefont=dict(size=18),
                 showgrid=True,
@@ -2425,9 +2418,9 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
         # Get data from noise image
         noise_data = noise_hdu[0].data
         # Get label
-        #if 'None' in images[0]['label']:
+        # if 'None' in images[0]['label']:
         label = res_image
-        #else:
+        # else:
         #    label = images[0]['label']
         # Load skymodel to get source positions
         model_lsm = Tigger.load(skymodel)
