@@ -503,12 +503,14 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     -------
     props : dict
         Dictionary of stats properties.
-        e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'RMS': 0.1, 'SKEW': 0.2, 'KURT': 0.3}.
+        e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'RMS': 0.1,
+              'SKEW': 0.2, 'KURT': 0.3, 'MAD': 0.1}.
 
     Notes
     -----
     If normality_test=True, dictionary of stats props becomes \
-    e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, 'NORM': (123.3,0.012)} \
+    e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, \
+          'MAD': 0.1, 'RMS': 0.1, 'NORM': (123.3,0.012)} \
     whereby the first element is the statistics (or average if data_range specified) \
     of the datasets and second element is the p-value.
 
@@ -540,7 +542,6 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         mask_hdu = fitsio.open(mask)
         mask_data = mask_hdu[0].data
         residual_data = ma.masked_array(residual_data, mask=mask_data)
-    # TODO: compute MAD
     # Get the mean value
     res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
     # Get the rms value
@@ -550,7 +551,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     # Flatten image
     res_data = residual_data.flatten()
     # Get the maximum absolute deviation
-    #res_props['MAD'] = float("{0:.6f}".format(stats.median_absolute_deviation(res_data)))
+    res_props['MAD'] = float("{0:.6f}".format(stats.median_absolute_deviation(res_data)))
     # Compute the skewness of the residual
     res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
     # Compute the kurtosis of the residual
@@ -566,7 +567,6 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
 
 def print_residual_stats(residual_images, prefix='-', suffix='.fits',
                          replace='', normality='normaltest', units='mJy', dir='.'):
-    # TODO: clean up and add new fields
     from tabletext import to_text
     Res = dict()
     for res in residual_images:
@@ -583,7 +583,7 @@ def print_residual_stats(residual_images, prefix='-', suffix='.fits',
         mean.append(stats['MEAN'])
         std.append(stats['STDDev'])
         rms.append(stats['RMS'])
-        #mad.append(stats['MAD'])
+        mad.append(stats['MAD'])
         skew.append(stats['SKEW'])
         kurt.append(stats['KURT'])
         normtest.append(stats['NORM'][0])
@@ -592,7 +592,7 @@ def print_residual_stats(residual_images, prefix='-', suffix='.fits',
                           "{:.3E}".format(stats['MEAN']),
                           "{:.3E}".format(stats['STDDev']),
                           "{:.3E}".format(stats['RMS']),
-                          #"{:.3E}".format(stats['MAD']),
+                          "{:.3E}".format(stats['MAD']),
                           "{:.3E}".format(stats['SKEW']),
                           "{:.3f}".format(stats['KURT']),
                           "{:.3f}".format(stats['NORM'][0])])
@@ -1097,7 +1097,7 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
         _source_flux_plotter(results, models)
         _source_astrometry_plotter(results, models)
         _source_morphology_plotter(results, models)
-        _source_spectrum_plotter(results, models)
+        #_source_spectrum_plotter(results, models) #TODO: Clean up spi plotting
     return results
 
 
