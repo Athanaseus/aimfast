@@ -319,20 +319,21 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
         Name of output catalog table with results
 
    """
-    C = Vizier.query_region(
-            coord.SkyCoord(centre_coord[0], centre_coord[1],
-                           unit=(u.hourangle, u.deg), frame='icrs'),
+    C = Vizier.query_region(coord.SkyCoord(centre_coord[0], centre_coord[1],
+                            unit=(u.hourangle, u.deg), frame='icrs'),
                             width=width, catalog=catalog)
     table = C[0]
     ra_deg = []
     dec_deg = []
 
     if catalog == 'NVSS':
-        for i in xrange (0, len(table['RAJ2000'])):
-           table['RAJ2000'][i] = string.join(string.split(table['RAJ2000'][i],' '),':')
-           ra_deg.append(ra2deg(table['RAJ2000'][i]))
-           table['DEJ2000'][i] = string.join(string.split(table['DEJ2000'][i],' '),':')
-           dec_deg.append(dec2deg(table['DEJ2000'][i]))
+        for i in xrange(0, len(table['RAJ2000'])):
+            table['RAJ2000'][i] = string.join(
+                                      string.split(table['RAJ2000'][i], ' '), ':')
+            ra_deg.append(ra2deg(table['RAJ2000'][i]))
+            table['DEJ2000'][i] = string.join(
+                                      string.split(table['DEJ2000'][i], ' '), ':')
+            dec_deg.append(dec2deg(table['DEJ2000'][i]))
 
         above_thresh = table['S1.4']<thresh
 
