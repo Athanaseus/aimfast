@@ -10,4 +10,5 @@ RUN docker-apt-install \
 ADD . /code
 WORKDIR /code
 RUN pip3 install . -U
+RUN pip3 install --upgrade keyrings.alt
 RUN python3 -m pytest -s -vvv /code/
