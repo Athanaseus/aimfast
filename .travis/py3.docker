@@ -9,5 +9,5 @@ RUN docker-apt-install \
     python3-pip
 ADD . /code
 WORKDIR /code
-RUN pip3 install .[python-numpy,testing]
+RUN pip3 install .[python3-numpy,testing] -U
 RUN python3 -m pytest -s -vvv /code/
