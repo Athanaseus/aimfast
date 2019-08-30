@@ -329,10 +329,10 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
     if catalog == 'NVSS':
         for i in xrange(0, len(table['RAJ2000'])):
             table['RAJ2000'][i] = string.join(
-                                      string.split(table['RAJ2000'][i], ' '), ':')
+                string.split(table['RAJ2000'][i], ' '), ':')
             ra_deg.append(ra2deg(table['RAJ2000'][i]))
             table['DEJ2000'][i] = string.join(
-                                      string.split(table['DEJ2000'][i], ' '), ':')
+                string.split(table['DEJ2000'][i], ' '), ':')
             dec_deg.append(dec2deg(table['DEJ2000'][i]))
 
         above_thresh = table['S1.4'] < thresh
@@ -1287,12 +1287,13 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
     _residual_images = []
     i = 0
     for res1, res2 in sorted(res_noise_images.items()):
-        _residual_images.append([dict(label="{}-res_1".format(
-                                label[i] if isinstance(label, list) else label),
-                                path='{}/{}'.format(dir, res1)),
-                        dict(label="{}-res_2".format(
-                            label[i] if isinstance(label, list) else label),
-                            path="{}/{}".format(dir, res2))])
+        _residual_images.append(
+            [dict(label="{}-res_1".format(label[i] if isinstance(label, list)
+                                          else label),
+                  path='{}/{}'.format(dir, res1)),
+             dict(label="{}-res_2".format(label[i] if isinstance(label, list)
+                                          else label),
+                  path="{}/{}".format(dir, res2))])
         i += 1
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
 
