@@ -107,7 +107,8 @@ PLOT_NUM_RES = {'format':
                 }
 
 # Unit multipleirs for plotting
-FLUX_UNIT_SCALER = {'jansky': [1e0, 'Jy'],
+FLUX_UNIT_SCALER = {
+                    'jansky': [1e0, 'Jy'],
                     'milli': [1e3, 'mJy'],
                     'micro': [1e6, u'\u03bcJy'],
                     'nano': [1e9, 'nJy'],
@@ -123,7 +124,7 @@ BIN_COLORS = {
              }
 
 # Backgound color for plots
-BG_COLOR = 'rgb (255,255,255)' # rgb(229,229,229)'
+BG_COLOR = 'rgb (255,255,255)'  # rgb(229,229,229)'
 
 
 def create_logger():
@@ -1618,7 +1619,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         annotate.append(
             go.Annotation(
                 x=RA_mean,
-                y=max(DEC_offset) + max(DEC_err),# + 0.02,
+                y=max(DEC_offset) + max(DEC_err),
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
                 text=("Total sources: {:d} | (RA, DEC) mean: ({:.3f}, {:.3f})".format(
@@ -1630,7 +1631,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         annotate.append(
             go.Annotation(
                 x=RA_mean,
-                y=max(DEC_offset) + max(DEC_err)+ max(DEC_offset)*0.15,# + 0.02,
+                y=max(DEC_offset) + max(DEC_err)+ max(DEC_offset)*0.15,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
                 text=("Sigma sources: {:d} | (RA, DEC) sigma: ({:.3f}, {:.3f})".format(
@@ -1652,7 +1653,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             {'yaxis{}'.format(counter+i+1): YAxis(
                 title=u'Delta position (")',
                 titlefont=dict(size=18),
-                tickfont=dict(size=16),# color='rgb(0,0,0)'),
+                tickfont=dict(size=16),
                 showgrid=True,
                 showline=True,
                 showticklabels=True,
@@ -1662,7 +1663,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             {'yaxis{}'.format(counter+i+1): YAxis(
                 title=u'Delta position (")',
                 titlefont=dict(size=18),
-                tickfont=dict(size=16),# color='rgb(0,0,0)'),
+                tickfont=dict(size=16),
                 showgrid=True,
                 range=[-0.01, 0.8],
                 showline=False,
@@ -1675,7 +1676,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 showgrid=True,
                 showline=True,
                 titlefont=dict(size=18),
-                tickfont=dict(size=16),# color='rgb(0,0,0)'),
+                tickfont=dict(size=16),
                 showticklabels=True,
                 ticks='outside',
                 zeroline=True)})
@@ -1683,7 +1684,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
             {'xaxis{}'.format(counter+i): XAxis(
                 title=u'RA offset (")',
                 titlefont=dict(size=18),
-                tickfont=dict(size=16),# color='rgb(0,0,0)'),
+                tickfont=dict(size=16),
                 zeroline=False,
                 showgrid=True,
                 position=1.0,
@@ -1694,7 +1695,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
                 position=0.0,
                 showgrid=True,
                 showline=True,
-                tickfont=dict(size=16),# color='rgb(0,0,0)'),
+                tickfont=dict(size=16),
                 overlaying='x',
                 titlefont=dict(size=18),
                 zeroline=True)})
@@ -1817,7 +1818,7 @@ def _source_morphology_plotter(results, all_models, inline=False):
             pass
         fig.append_trace(go.Scatter(x=maj_in, y=maj_out, mode='markers', showlegend=False,
                                     text=source_labels, name='{:s} flux_ratio'.format(header),
-                                    marker=dict(color = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
+                                    marker=dict(color=np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
                                                 showscale=True, colorscale='Jet', reversescale=True,
                                                 colorbar=dict(title='Output flux (mJy)',
                                                               titleside='right',
