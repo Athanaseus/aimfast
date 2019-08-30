@@ -62,6 +62,8 @@ class TestClass(object):
     def test_residual_stats(self):
         """Test the residuals stats method"""
         input_value = 'aimfast/tests/files/cube1.fits'
+        input_mask = 'aimfast/tests/files/mask.fits'
+        # Test residual stats
         output_value = aimfast.residual_image_stats(
             input_value, test_normality='normaltest')
         expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
@@ -71,11 +73,49 @@ class TestClass(object):
                           'MAD': 3.2e-05,
                           'STDDev': 3.1e-05,
                           'MEAN': 1.21497e-06}
-        expected_normaltest_value = expected_value.pop('NORM')
-        output_normaltest_value = output_value.pop('NORM')
-        assert expected_value == output_value
-        assert expected_normaltest_value == pytest.approx(
-            output_normaltest_value, 1.0e-4)
+        test(expected_value, output_value)
+        # Test using mask
+        output_value = aimfast.residual_image_stats(
+            input_value, test_normality='normaltest',
+            mask=input_mask)
+        expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
+                          'SKEW': 0.186153,
+                          'KURT': 2.870047,
+                          'RMS': 3.1e-05,
+                          'MAD': 3.2e-05,
+                          'STDDev': 3.1e-05,
+                          'MEAN': 1.21497e-06}
+        test(expected_value, output_value)
+        # Test using channels
+        output_value = aimfast.residual_image_stats(
+            input_value, test_normality='normaltest',
+            channels='2~3')
+        expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
+                          'SKEW': 0.186153,
+                          'KURT': 2.870047,
+                          'RMS': 3.1e-05,
+                          'MAD': 3.2e-05,
+                          'STDDev': 3.1e-05,
+                          'MEAN': 1.21497e-06}
+        test(expected_value, output_value)
+        # Test using threshold
+        output_value = aimfast.residual_image_stats(
+            input_value, test_normality='normaltest',
+            threshold=0.00005)
+        expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
+                          'SKEW': 0.186153,
+                          'KURT': 2.870047,
+                          'RMS': 3.1e-05,
+                          'MAD': 3.2e-05,
+                          'STDDev': 3.1e-05,
+                          'MEAN': 1.21497e-06}
+        test(expected_value, output_value)
+        def test(expected, ouput_value):
+            expected_normaltest_value = expected_value.pop('NORM')
+            output_normaltest_value = output_value.pop('NORM')
+            assert expected_value == output_value
+            assert expected_normaltest_value == pytest.approx(
+                output_normaltest_value, 1.0e-4)
 
     def test_get_detected_sources_properties(self):
         """Test get detected sources properties"""
