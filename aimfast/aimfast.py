@@ -340,7 +340,7 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
     for i in xrange(1, len(table.colnames)):
         table[table.colnames[i]][above_thresh] = np.nan
 
-    table =  Table(table, masked=True)
+    table = Table(table, masked=True)
     ascii.write(table, catalog_table, overwrite=True)
 
 
@@ -526,7 +526,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     if threshold:
         nchans = []
         for i in range(data.shape[0]):
-            d = data[i][data[i]>float(threshold)]
+            d = data[i][data[i] > float(threshold)]
             if d.shape[0] > 0:
                 nchans.append(i)
         residual_data = data[nchans]
@@ -588,15 +588,15 @@ def print_residual_stats(residual_images, prefix='-', suffix='.fits',
         skew.append(stats['SKEW'])
         kurt.append(stats['KURT'])
         normtest.append(stats['NORM'][0])
-        table_data.append([name.split('.')[0].split(prefix)[-1].split(suffix)[0].replace(
-                              replace, ''),
-                          "{:.3E}".format(stats['MEAN']),
-                          "{:.3E}".format(stats['STDDev']),
-                          "{:.3E}".format(stats['RMS']),
-                          "{:.3E}".format(stats['MAD']),
-                          "{:.3E}".format(stats['SKEW']),
-                          "{:.3f}".format(stats['KURT']),
-                          "{:.3f}".format(stats['NORM'][0])])
+        table_data.append(
+            [name.split('.')[0].split(prefix)[-1].split(suffix)[0].replace(replace, ''),
+             "{:.3E}".format(stats['MEAN']),
+             "{:.3E}".format(stats['STDDev']),
+             "{:.3E}".format(stats['RMS']),
+             "{:.3E}".format(stats['MAD']),
+             "{:.3E}".format(stats['SKEW']),
+             "{:.3f}".format(stats['KURT']),
+             "{:.3f}".format(stats['NORM'][0])])
     zipped_props = zip(names, mean, std, skew, kurt, normtest)
     names, mean, std, skew, kurt, normtest = zip(*sorted(zipped_props, key=lambda x: x[0]))
     print(to_text(table_data))
@@ -1038,8 +1038,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                 spi_out = None
                 spi_out_err = None
             targets_spectrum[name] = [spi_out, spi_out_err, spi_in,
-                                     delta_phase_centre_arc_sec, I_in,
-                                     source_name]
+                                      delta_phase_centre_arc_sec,
+                                      I_in, source_name]
     LOGGER.info("Number of sources recovered: {:d}".format(len(targets_scale)))
     return targets_flux, targets_scale, targets_position, targets_spectrum
 
@@ -1631,7 +1631,7 @@ def _source_astrometry_plotter(results, all_models, inline=False):
         annotate.append(
             go.Annotation(
                 x=RA_mean,
-                y=max(DEC_offset) + max(DEC_err)+ max(DEC_offset)*0.15,
+                y=max(DEC_offset) + max(DEC_err) + max(DEC_offset) * 0.15,
                 xref='x{:d}'.format(counter+i),
                 yref='y{:d}'.format(counter+i),
                 text=("Sigma sources: {:d} | (RA, DEC) sigma: ({:.3f}, {:.3f})".format(
@@ -1732,7 +1732,7 @@ def _source_morphology_plotter(results, all_models, inline=False):
     results: dict
         Structured output results.
     models: list
-        Tigger/text formatted model files e.g [model1, model2].
+        Tigger / text formatted model files e.g [model1, model2].
     inline : bool
         Allow inline plotting inside a notebook.
 
@@ -1833,7 +1833,7 @@ def _source_morphology_plotter(results, all_models, inline=False):
                                     marker=dict(color=np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
                                                 showscale=True, colorscale='Jet', reversescale=True,
                                                 colorbar=dict(title='Output flux (mJy)',
-                                                              titleside ='right',
+                                                              titleside='right',
                                                               len=PLOT_NUM_FLUX['format'][PLOTS][2],
                                                               y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
                                     error_y=dict(type='data', array=np.array(min_out_err),
@@ -1846,14 +1846,14 @@ def _source_morphology_plotter(results, all_models, inline=False):
         fig['layout'].update(
             {'yaxis{}'.format(counter+i): YAxis(title=u'Output maj axis (")',
                                                 gridcolor='rgb(255,255,255)',
-            range=[-0.01, 18],
-            tickfont=dict(size=18, color='rgb(0,0,0)'),
-            titlefont=dict(size=18),
-            showgrid=True,
-            showline=True,
-            showticklabels=True,
-            ticks='outside',
-            zeroline=True)})
+                                                range=[-0.01, 18],
+                                                tickfont=dict(size=18, color='rgb(0,0,0)'),
+                                                titlefont=dict(size=18),
+                                                showgrid=True,
+                                                showline=True,
+                                                showticklabels=True,
+                                                ticks='outside',
+                                                zeroline=True)})
         fig['layout'].update(
             {'yaxis{}'.format(counter+i+1): YAxis(title='Output min axis (")',
                                                   gridcolor='rgb(255,255,255)',
@@ -1871,9 +1871,10 @@ def _source_morphology_plotter(results, all_models, inline=False):
                                                 zeroline=False, position=0.0,
                                                 overlaying='x')})
         fig['layout'].update({'xaxis{}'.format(counter+i+1): XAxis(title='Input min axis (")',
-                                                              titlefont=dict(size=18),
-                                                              tickfont=dict(size=18, color='rgb(0,0,0)'),
-                                                              zeroline=False)})
+                                                                   titlefont=dict(size=18),
+                                                                   tickfont=dict(
+                                                                       size=18, color='rgb(0,0,0)'),
+                                                                   zeroline=False)})
         j += PLOT_NUM_POS['format'][PLOTS][0]
 
     for title_info in fig['layout']['annotations']:
@@ -1934,7 +1935,7 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
     annotate = []
     for input_model, output_model in sorted(models_compare.items()):
         i += 1
-        counter+=1
+        counter += 1
         I_in = []
         name_labels = []
         spi_in_data = []
@@ -2042,17 +2043,16 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
                              width=PLOT_NUM_POS['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
                              legend=dict(x=0.8, y=1.0))
-        fig['layout'].update(
-            {'yaxis{}'.format(counter): YAxis(title=u'$SPI_{out}$',
-            range=y_min_max,
-            tickfont=dict(size=18),
-            titlefont=dict(size=18),
-            showgrid=True,
-            showline=True,
-            showticklabels=True,
-            tickcolor='rgb(51,153,225)',
-            ticks='outside',
-            zeroline=False)})
+        fig['layout'].update({'yaxis{}'.format(counter): YAxis(title=u'$SPI_{out}$',
+                                                               range=y_min_max,
+                                                               tickfont=dict(size=18),
+                                                               titlefont=dict(size=18),
+                                                               showgrid=True,
+                                                               showline=True,
+                                                               showticklabels=True,
+                                                               tickcolor='rgb(51,153,225)',
+                                                               ticks='outside',
+                                                               zeroline=False)})
         fig['layout'].update({'xaxis{}'.format(counter): XAxis(title='$I_{in} (mJy)$', position=0.0,
                                                                 showgrid=True,
                                                                 tickfont=dict(size=18),

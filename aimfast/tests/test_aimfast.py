@@ -95,7 +95,7 @@ class TestClass(object):
         # Test using channels
         output_value = aimfast.residual_image_stats(
             input_value, test_normality='normaltest',
-            channels='2~3')
+            chans='2~3')
         expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
                           'SKEW': 0.186153,
                           'KURT': 2.870047,
