@@ -33,6 +33,8 @@ from sklearn.metrics import mean_squared_error, r2_score
 from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
 
+R = '\033[31m'  # red
+W = '\033[0m'   # white (normal)
 
 PLOT_NUM_FLUX = {'format':
                  {  # num of plots: [colorbar spacing, colorbar y, colorbar len,
@@ -521,13 +523,6 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     residual_data = residual_hdu[0].data
     # Get residual data
     data = residual_data[0]
-    if threshold:
-        nchans = []
-        for i in range(data.shape[0]):
-            d = data[i][data[i] > float(threshold)]
-            if d.shape[0] > 0:
-                nchans.append(i)
-        residual_data = data[nchans]
     if chans:
         nchans = []
         chan_ranges = chans.split(';')
@@ -535,7 +530,13 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
             c = cr.split('~')
             nchans.extend(range(int(c[0]), int(c[1])))
             residual_data = data[nchans]
-    # TODO: This needs some testing
+    if threshold:
+        nchans = []
+        for i in range(data.shape[0]):
+            d = data[i][data[i] > float(threshold)]
+            if d.shape[0] > 0:
+                nchans.append(i)
+        residual_data = data[nchans]
     if mask:
         import numpy.ma as ma
         mask_hdu = fitsio.open(mask)
@@ -557,7 +558,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
     # Perform normality testing
     if test_normality:
-        norm_props = normality_testing(fitsname, test_normality, data_range)
+        norm_props = normality_testing(res_data, test_normality, data_range)
         res_props.update(norm_props)
     props = res_props
     # Return dictionary of results
@@ -600,13 +601,13 @@ def print_residual_stats(residual_images, prefix='-', suffix='.fits',
     print(to_text(table_data))
 
 
-def normality_testing(fitsname, test_normality='normaltest', data_range=None):
+def normality_testing(data, test_normality='normaltest', data_range=None):
     """Performs a normality test on the image.
 
     Parameters
     ----------
-    fitsname : file
-        Residual image (cube).
+    data : numpy.array
+        Residual residual array.
     test_normality : str
         Perform normality testing using either `shapiro` or `normaltest`.
     data_range : int
@@ -622,18 +623,17 @@ def normality_testing(fitsname, test_normality='normaltest', data_range=None):
         datasets and second element is the p-value.
 
     """
-    normality = dict()
-    # Open the residual image
-    residual_hdu = fitsio.open(fitsname)
-    # Get the header data unit for the residual rms
-    residual_data = residual_hdu[0].data
-    # Flatten image
-    res_data = residual_data.flatten()
+    res_data = data
     # Shuffle the data
     random.shuffle(res_data)
     # Normality test
     norm_res = []
+    normality = dict()
     counter = 0
+    if len(res_data) == 0:
+        raise ValueError("{:s}No data to compute stats."
+                         "\nEither threshold too high "
+                         "or all data is masked.{:s}".format(R, W))
     if type(data_range) is int:
         for dataset in range(len(res_data) / data_range):
             i = counter
@@ -2544,8 +2544,6 @@ def main():
     parser = get_argparser()
     args = parser.parse_args()
     output_dict = dict()
-    R = '\033[31m'  # red
-    W = '\033[0m'   # white (normal)
     if not args.residual and not args.restored and not args.model \
             and not args.models and not args.noise:
         print("{:s}Please provide lsm.html/fits file name(s)."
@@ -2582,21 +2580,20 @@ def main():
                   "is used{:s}".format(R, W))
         if args.test_normality in ['shapiro', 'normaltest']:
             if args.data_range:
-                stats = residual_image_stats(args.residual,
-                                             args.test_normality,
-                                             int(args.data_range),
-                                             threshold=args.thresh,
-                                             chans=args.chans)
+                stats = residual_image_stats(
+                    args.residual, args.test_normality, int(args.data_range),
+                    threshold=getattr(args, 'thresh', None),
+                    chans=getattr(args, 'chans', None))
             else:
-                stats = residual_image_stats(args.residual,
-                                             args.test_normality,
-                                             threshold=args.thresh,
-                                             chans=args.chans)
+                stats = residual_image_stats(
+                    args.residual, args.test_normality,
+                    threshold=getattr(args, 'thresh', None),
+                    chans=getattr(args, 'chans', None))
         else:
             if not args.test_normality:
-                stats = residual_image_stats(args.residual,
-                                             threshold=args.thresh,
-                                             chans=args.chans)
+                stats = residual_image_stats(
+                    args.residual, threshold=getattr(args, 'thresh', None),
+                    chans=getattr(args, 'chans', None))
             else:
                 print("{:s}Please provide correct normality"
                       "model{:s}".format(R, W))
@@ -2610,21 +2607,21 @@ def main():
         if args.residual not in output_dict.keys():
             if args.test_normality in ['shapiro', 'normaltest']:
                 if args.data_range:
-                    stats = residual_image_stats(args.residual,
-                                                 args.test_normality,
-                                                 int(args.data_range),
-                                                 threshold=args.thresh,
-                                                 chans=args.chans)
+                    stats = residual_image_stats(
+                        args.residual, args.test_normality, int(args.data_range),
+                        threshold=getattr(args, 'thresh', None),
+                        chans=getattr(args, 'chans', None))
                 else:
-                    stats = residual_image_stats(args.residual,
-                                                 args.test_normality,
-                                                 threshold=args.thresh,
-                                                 chans=args.chans)
+                    stats = residual_image_stats(
+                        args.residual, args.test_normality,
+                        threshold=getattr(args, 'thresh', None),
+                        chans=getattr(args, 'chans', None))
             else:
                 if not args.test_normality:
                     stats = residual_image_stats(
-                        args.residual, threshold=args.thresh,
-                        chans=args.chans)
+                        args.residual,
+                        threshold=getattr(args, 'thresh', None),
+                        chans=getattr(args, 'chans', None))
                 else:
                     print("{:s}Please provide correct normality"
                           "model{:s}".format(R, W))
