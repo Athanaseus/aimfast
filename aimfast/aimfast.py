@@ -108,11 +108,11 @@ PLOT_NUM_RES = {'format':
 
 # Unit multipleirs for plotting
 FLUX_UNIT_SCALER = {
-                       'jansky': [1e0, 'Jy'],
-                       'milli': [1e3, 'mJy'],
-                       'micro': [1e6, u'\u03bcJy'],
-                       'nano': [1e9, 'nJy'],
-                    }
+                    'jansky': [1e0, 'Jy'],
+                    'milli': [1e3, 'mJy'],
+                    'micro': [1e6, u'\u03bcJy'],
+                    'nano': [1e9, 'nJy'],
+                   }
 
 # Binning colors
 BIN_COLORS = {
@@ -1288,11 +1288,11 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
     i = 0
     for res1, res2 in sorted(res_noise_images.items()):
         _residual_images.append([dict(label="{}-res_1".format(
-                             label[i] if isinstance(label, list) else label),
-                             path='{}/{}'.format(dir, res1)),
+                                label[i] if isinstance(label, list) else label),
+                                path='{}/{}'.format(dir, res1)),
                         dict(label="{}-res_2".format(
-                             label[i] if isinstance(label, list) else label),
-                             path="{}/{}".format(dir, res2))])
+                            label[i] if isinstance(label, list) else label),
+                            path="{}/{}".format(dir, res2))])
         i += 1
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
 
