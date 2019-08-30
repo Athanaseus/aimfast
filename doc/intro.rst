@@ -1,5 +1,6 @@
 .. _source: https://github.com/Athanaseus/aimfast
 .. _plot.ly: https://plot.ly/
+.. _NBViewer: https://nbviewer.jupyter.org/gist/Athanaseus/81c51888fbe2137259e71b7d6c8903d4
 
 =======
 aimfast
@@ -216,3 +217,7 @@ For random or on source residual noise comparisons, the plot on the left shows t
 
     Figure 5. The random/source residual-to-residual/noise ratio measurements
 
+Jupyter notebook usage
+----------------------
+
+See aimfast in action: NBViewer_
