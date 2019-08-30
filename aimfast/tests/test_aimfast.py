@@ -87,10 +87,10 @@ class TestClass(object):
         expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
                           'SKEW': 0.186153,
                           'KURT': 2.870047,
-                          'RMS': 3.1e-05,
                           'MAD': 3.2e-05,
                           'STDDev': 3.1e-05,
-                          'MEAN': 1.21497e-06}
+                          'MEAN': -5.57698e-06,
+                          'RMS': 2.6e-05}
         test(expected_value, output_value)
         # Test using channels
         output_value = aimfast.residual_image_stats(

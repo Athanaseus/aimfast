@@ -1838,7 +1838,7 @@ def _source_morphology_plotter(results, all_models, inline=False):
                                                               y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
                                     error_y=dict(type='data', array=np.array(min_out_err),
                                                  color='rgb(158, 63, 221)', visible=True)), i+1, 2)
-        pi,sin,cos = np.pi,np.sin,np.cos
+        pi, sin, cos = np.pi, np.sin, np.cos
         fig['layout'].update(title='', height=PLOT_NUM_POS['format'][PLOTS][3],
                              width=PLOT_NUM_POS['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
@@ -1870,7 +1870,7 @@ def _source_morphology_plotter(results, all_models, inline=False):
                                                 tickfont=dict(size=18, color='rgb(0,0,0)'),
                                                 zeroline=False, position=0.0,
                                                 overlaying='x')})
-        fig['layout'].update({'xaxis{}'.format(counter+i+1):XAxis(title='Input min axis (")',
+        fig['layout'].update({'xaxis{}'.format(counter+i+1): XAxis(title='Input min axis (")',
                                                               titlefont=dict(size=18),
                                                               tickfont=dict(size=18, color='rgb(0,0,0)'),
                                                               zeroline=False)})
@@ -1972,8 +1972,8 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
         spi_R_score = r2_score(spi_in_data_stats, spi_out_data_stats)
         spi_MSE = mean_squared_error(spi_in_data_stats, spi_out_data_stats)
         spi_out_in = [float(spi_out)/spi_in
-                      for spi_out,spi_in in
-                      zip(spi_out_data_stats,spi_in_data_stats)]
+                      for spi_out, spi_in in
+                      zip(spi_out_data_stats, spi_in_data_stats)]
 # ===========================================================================================================
         ranger = num_data_points/num_bins
         start, end = [-ranger, 0]
@@ -2026,7 +2026,7 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
 
         fig.append_trace(go.Scatter(x=np.array([sorted(I_in)[0], sorted(I_in)[-1]])*1000, showlegend=False,
                                     marker=dict(color='rgb(0,0,255)'),
-                                    y=np.array([-.7,-.7]), mode='lines'), i+1, 1)
+                                    y=np.array([-.7, -.7]), mode='lines'), i+1, 1)
         fig.append_trace(go.Scatter(x=np.array(I_in)*1000, y=np.array(spi_out_data),
                                     mode='markers', showlegend=False,
                                     text=name_labels, name='%s flux_ratio' % heading,
@@ -2041,9 +2041,9 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
         fig['layout'].update(title='', height=PLOT_NUM_FLUX['format'][PLOTS][3],
                              width=PLOT_NUM_POS['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,
-                             legend=dict(x=0.8,y=1.0),)
+                             legend=dict(x=0.8, y=1.0))
         fig['layout'].update(
-            {'yaxis{}'.format(counter):YAxis(title=u'$SPI_{out}$',
+            {'yaxis{}'.format(counter): YAxis(title=u'$SPI_{out}$',
             range=y_min_max,
             tickfont=dict(size=18),
             titlefont=dict(size=18),
@@ -2053,7 +2053,7 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
             tickcolor='rgb(51,153,225)',
             ticks='outside',
             zeroline=False)})
-        fig['layout'].update({'xaxis{}'.format(counter):XAxis(title='$I_{in} (mJy)$', position=0.0,
+        fig['layout'].update({'xaxis{}'.format(counter): XAxis(title='$I_{in} (mJy)$', position=0.0,
                                                                 showgrid=True,
                                                                 tickfont=dict(size=18),
                                                                 titlefont=dict(size=18),
