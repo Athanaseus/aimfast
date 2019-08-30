@@ -107,20 +107,18 @@ PLOT_NUM_RES = {'format':
                 }
 
 # Unit multipleirs for plotting
-FLUX_UNIT_SCALER = {
-                       'jansky': [1e0, 'Jy'],
-                       'milli': [1e3, 'mJy'],
-                       'micro': [1e6, u'\u03bcJy'],
-                       'nano': [1e9, 'nJy'],
+FLUX_UNIT_SCALER = {'jansky': [1e0, 'Jy'],
+                    'milli' : [1e3, 'mJy'],
+                    'micro' : [1e6, u'\u03bcJy'],
+                    'nano'  : [1e9, 'nJy'],
                     }
 
 # Binning colors
-BIN_COLORS = {
-                 1: '#f0f8ff',
-                 2: '#dcdcdc',
-                 3: '#ffe4c4',
-                 4: '#ff7f50',
-                 5: '#7fffd4'
+BIN_COLORS = {1: '#f0f8ff',
+              2: '#dcdcdc',
+              3: '#ffe4c4',
+              4: '#ff7f50',
+              5: '#7fffd4'
               }
 
 # Backgound color for plots

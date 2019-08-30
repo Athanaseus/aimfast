@@ -63,12 +63,14 @@ class TestClass(object):
         """Test the residuals stats method"""
         input_value = 'aimfast/tests/files/cube1.fits'
         input_mask = 'aimfast/tests/files/mask.fits'
+
         def test(expected, ouput_value):
             expected_normaltest_value = expected_value.pop('NORM')
             output_normaltest_value = output_value.pop('NORM')
             assert expected_value == output_value
             assert expected_normaltest_value == pytest.approx(
                 output_normaltest_value, 1.0e-4)
+
         # Test residual stats
         output_value = aimfast.residual_image_stats(
             input_value, test_normality='normaltest')
