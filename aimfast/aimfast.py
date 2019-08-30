@@ -292,11 +292,11 @@ def dec2deg(dec_dms):
     dd = abs(float(dec[0]))
     mm = float(dec[1])/60
     ss = float(dec[2])/3600
-    if float(dec[0])>= 0:
+    if float(dec[0]) >= 0:
         return dd+mm+ss
     else:
         return -(dd+mm+ss)
-    d_m_s =dd+mm+ss
+    d_m_s = dd+mm+ss
     return d_m_s
 
 
@@ -335,7 +335,7 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
                                       string.split(table['DEJ2000'][i], ' '), ':')
             dec_deg.append(dec2deg(table['DEJ2000'][i]))
 
-        above_thresh = table['S1.4']<thresh
+        above_thresh = table['S1.4'] < thresh
 
     for i in xrange(1, len(table.colnames)):
         table[table.colnames[i]][above_thresh] = np.nan
@@ -1989,9 +1989,9 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
                                                       else end]*FLUX_UNIT_SCALER['milli'][0])[-1]],
                              y=y_ran_pos,
                              showlegend=False,
-                             mode= 'none',
-                             fillcolor = BIN_COLORS[b+1],
-                             fill='tozeroy'), i+1, 1)
+                             mode='none',
+                             fillcolor=BIN_COLORS[b + 1],
+                             fill='tozeroy'), i + 1, 1)
             fig.append_trace(go.Scatter(
                              x=[sorted(np.array(I_in)[start:num_data_points
                                                       if (b + 1) == num_bins
@@ -2033,11 +2033,11 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
                                     marker=dict(color=phase_center_dist, showscale=True, colorscale='Jet',
                                                 reversescale=False,
                                                 colorbar=dict(title='Phase centre distance (")',
-                                                              titleside ='right',
+                                                              titleside='right',
                                                               len=PLOT_NUM_FLUX['format'][PLOTS][2],
                                                               y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)),
                                     error_y=dict(type='data', array=spi_err_data,
-                                                 color = 'rgb(158, 63, 221)', visible=True)), i+1, 1)
+                                                 color='rgb(158, 63, 221)', visible=True)), i + 1, 1)
         fig['layout'].update(title='', height=PLOT_NUM_FLUX['format'][PLOTS][3],
                              width=PLOT_NUM_POS['format'][PLOTS][4],
                              paper_bgcolor='rgb(255,255,255)', plot_bgcolor=BG_COLOR,

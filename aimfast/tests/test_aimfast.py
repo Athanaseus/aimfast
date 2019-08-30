@@ -88,7 +88,7 @@ class TestClass(object):
                           'SKEW': 0.186153,
                           'KURT': 2.870047,
                           'MAD': 3.2e-05,
-                          'STDDev': 3.1e-05,
+                          'STDDev': 2.5e-05,
                           'MEAN': -5.57698e-06,
                           'RMS': 2.6e-05}
         test(expected_value, output_value)
