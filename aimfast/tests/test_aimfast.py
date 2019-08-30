@@ -97,12 +97,12 @@ class TestClass(object):
             input_value, test_normality='normaltest',
             chans='2~3')
         expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
-                          'SKEW': 0.186153,
-                          'KURT': 2.870047,
-                          'RMS': 3.1e-05,
-                          'MAD': 3.2e-05,
-                          'STDDev': 3.1e-05,
-                          'MEAN': 1.21497e-06}
+                          'SKEW': 0.336192,
+                          'KURT': 3.208809,
+                          'RMS': 3.3e-05,
+                          'MAD': 3.1e-05,
+                          'STDDev': 3.3e-05,
+                          'MEAN': -4.20876e-06}
         test(expected_value, output_value)
         # Test using threshold
         output_value = aimfast.residual_image_stats(

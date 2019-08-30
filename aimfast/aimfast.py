@@ -108,10 +108,10 @@ PLOT_NUM_RES = {'format':
 
 # Unit multipleirs for plotting
 FLUX_UNIT_SCALER = {
-                    'jansky': [1e0, 'Jy'],
-                    'milli': [1e3, 'mJy'],
-                    'micro': [1e6, u'\u03bcJy'],
-                    'nano': [1e9, 'nJy'],
+                       'jansky': [1e0, 'Jy'],
+                       'milli': [1e3, 'mJy'],
+                       'micro': [1e6, u'\u03bcJy'],
+                       'nano': [1e9, 'nJy'],
                     }
 
 # Binning colors
@@ -1227,7 +1227,7 @@ def plot_morphology(models, label=None, tolerance=0.00001, phase_centre=None,
 
 
 def plot_spectrum(models, label=None, tolerance=0.00001, phase_centre=None,
-                    all_sources=False, dir='.'):
+                  all_sources=False, dir='.'):
     """Plot model-model spectrum from lsm.html/txt models
 
     Parameters
@@ -1760,7 +1760,7 @@ def _source_morphology_plotter(results, all_models, inline=False):
     annotate = []
     for input_model, output_model in sorted(models_compare.items()):
         i += 1
-        counter+=1
+        counter += 1
         SCALE = []
         SCALE_ERR = []
         flux_in_data = []
@@ -2054,10 +2054,10 @@ def _source_spectrum_plotter(results, all_models, num_bins=5, inline=False):
                                                                ticks='outside',
                                                                zeroline=False)})
         fig['layout'].update({'xaxis{}'.format(counter): XAxis(title='$I_{in} (mJy)$', position=0.0,
-                                                                showgrid=True,
-                                                                tickfont=dict(size=18),
-                                                                titlefont=dict(size=18),
-                                                                overlaying='x')})
+                                                               showgrid=True,
+                                                               tickfont=dict(size=18),
+                                                               titlefont=dict(size=18),
+                                                               overlaying='x')})
 
         j += PLOT_NUM_FLUX['format'][PLOTS][0]
 
