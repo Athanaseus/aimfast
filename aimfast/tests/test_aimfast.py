@@ -65,12 +65,12 @@ class TestClass(object):
         input_mask = 'aimfast/tests/files/mask.fits'
 
         def test(expected, ouput_value, normality=False):
-            assert expected_value == output_value
             if normality:
                 output_normaltest_value = output_value.pop('NORM')
                 expected_normaltest_value = expected_value.pop('NORM')
                 assert expected_normaltest_value == pytest.approx(
-                    output_normaltest_value, 1.0e-2)
+                    output_normaltest_value, 1.0e-4)
+            assert expected_value == output_value
 
         # Test residual stats
         output_value = aimfast.residual_image_stats(
