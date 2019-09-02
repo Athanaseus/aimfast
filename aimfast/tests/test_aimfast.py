@@ -70,7 +70,7 @@ class TestClass(object):
                 output_normaltest_value = output_value.pop('NORM')
                 expected_normaltest_value = expected_value.pop('NORM')
                 assert expected_normaltest_value == pytest.approx(
-                    output_normaltest_value, 1.0e-4)
+                    output_normaltest_value, 1.0e-2)
 
         # Test residual stats
         output_value = aimfast.residual_image_stats(
