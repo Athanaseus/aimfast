@@ -26,7 +26,7 @@ from astropy.io import fits as fitsio
 
 from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
-from sklearn.metrics import mean_squared_error, r2_scor
+from sklearn.metrics import mean_squared_error, r2_score
 
 
 PLOT_NUM_FLUX = {'format':
@@ -125,7 +125,7 @@ def create_logger():
     return log
 
 
-LOGGER = creat_logger()
+LOGGER = create_logger()
 
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
@@ -171,7 +171,7 @@ def json_dump(data_dict, root='.'):
     repeated image assessments will be replaced.
 
     """
-    LOGGER.info("Dumping dictionary into the '{}' file".format(filename)
+    LOGGER.info("Dumping dictionary into the '{}' file".format(filename))
     filename = ('{:s}/fidelity_results.json'.format(root))
     try:
         # Extract data from the json data file
