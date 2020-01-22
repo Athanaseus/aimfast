@@ -2,6 +2,7 @@ import os
 import json
 import Tigger
 import random
+import string
 import logging
 import argparse
 import tempfile
@@ -23,9 +24,9 @@ from astLib.astWCS import WCS
 from astropy.table import Table
 from astropy.io import fits as fitsio
 
-from sklearn.metrics import mean_squared_error
 from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
+from sklearn.metrics import mean_squared_error, r2_scor
 
 
 PLOT_NUM_FLUX = {'format':
@@ -112,7 +113,7 @@ FLUX_UNIT_SCALER = {'jansky': [1e0, 'Jy'],
 BG_COLOR = 'rgb(229,229,229)'
 
 
-def creat_logger():
+def create_logger():
     """Create a console logger"""
     log = logging.getLogger(__name__)
     cfmt = logging.Formatter(('%(name)s - %(asctime)s %(levelname)s - %(message)s'))
@@ -125,7 +126,6 @@ def creat_logger():
 
 
 LOGGER = creat_logger()
-LOGGER.info("Welcome to aimfast")
 
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
@@ -171,7 +171,7 @@ def json_dump(data_dict, root='.'):
     repeated image assessments will be replaced.
 
     """
-    LOGGER.info('Dumping dictionary into the json file')
+    LOGGER.info("Dumping dictionary into the '{}' file".format(filename)
     filename = ('{:s}/fidelity_results.json'.format(root))
     try:
         # Extract data from the json data file
@@ -371,7 +371,8 @@ def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
     return COORDs
 
 
-def residual_image_stats(fitsname, test_normality=None, data_range=None):
+def residual_image_stats(fitsname, test_normality=None, data_range=None,
+                         threshold=None, chans=None, mask=None):
     """Gets statistcal properties of a residual image.
 
     Parameters
@@ -382,17 +383,25 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None):
         Perform normality testing using either `shapiro` or `normaltest`.
     data_range : int, optional
         Range of data to perform normality testing.
+    threshold : float, optional
+        Cut-off threshold to select channels in a cube
+    chans : str, optional
+        Channels to compute stats (e.g. 0~50;100~200)
+    mask : file
+        Fits mask to get stats in image
 
     Returns
     -------
     props : dict
         Dictionary of stats properties.
-        e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3}.
+        e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'RMS': 0.1,
+              'SKEW': 0.2, 'KURT': 0.3, 'MAD': 0.1}.
 
     Notes
     -----
     If normality_test=True, dictionary of stats props becomes \
-    e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, 'NORM': (123.3,0.012)} \
+    e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, \
+          'MAD': 0.1, 'RMS': 0.1, 'NORM': (123.3,0.012)} \
     whereby the first element is the statistics (or average if data_range specified) \
     of the datasets and second element is the p-value.
 
@@ -402,32 +411,59 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None):
     residual_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
     residual_data = residual_hdu[0].data
+
+    # Get residual data
+    data = residual_data[0]
+    if chans:
+        nchans = []
+        chan_ranges = chans.split(';')
+        for cr in chan_ranges:
+            c = cr.split('~')
+            nchans.extend(range(int(c[0]), int(c[1])))
+            residual_data = data[nchans]
+    if threshold:
+        nchans = []
+        for i in range(data.shape[0]):
+            d = data[i][data[i] > float(threshold)]
+            if d.shape[0] > 0:
+                nchans.append(i)
+        residual_data = data[nchans]
+    if mask:
+        import numpy.ma as ma
+        mask_hdu = fitsio.open(mask)
+        mask_data = mask_hdu[0].data
+        residual_data = ma.masked_array(residual_data, mask=mask_data)
+
     # Get the mean value
     res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
+    # Get the rms value
+    res_props['RMS'] = float("{0:.6f}".format(np.sqrt(np.mean(np.square(residual_data)))))
     # Get the sigma value
     res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
     # Flatten image
     res_data = residual_data.flatten()
+    # Get the maximum absolute deviation
+    res_props['MAD'] = float("{0:.6f}".format(stats.median_absolute_deviation(res_data)))
     # Compute the skewness of the residual
     res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
     # Compute the kurtosis of the residual
     res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
     # Perform normality testing
     if test_normality:
-        norm_props = normality_testing(fitsname, test_normality, data_range)
+        norm_props = normality_testing(res_data, test_normality, data_range)
         res_props.update(norm_props)
     props = res_props
     # Return dictionary of results
     return props
 
 
-def normality_testing(fitsname, test_normality='normaltest', data_range=None):
-    """Performs a normality test on the image.
+def normality_testing(data, test_normality='normaltest', data_range=None):
+    """Performs a normality test on the image data.
 
     Parameters
     ----------
-    fitsname : file
-        Residual image (cube).
+    data : numpy.array
+        Residual residual array.
     test_normality : str
         Perform normality testing using either `shapiro` or `normaltest`.
     data_range : int
@@ -443,18 +479,19 @@ def normality_testing(fitsname, test_normality='normaltest', data_range=None):
         datasets and second element is the p-value.
 
     """
+    norm_res = []
     normality = dict()
-    # Open the residual image
-    residual_hdu = fitsio.open(fitsname)
-    # Get the header data unit for the residual rms
-    residual_data = residual_hdu[0].data
-    # Flatten image
-    res_data = residual_data.flatten()
+    # Get residual image data
+    res_data = data
     # Shuffle the data
     random.shuffle(res_data)
     # Normality test
-    norm_res = []
     counter = 0
+    # Check size of image data
+    if len(res_data) == 0:
+        raise ValueError("{:s}No data to compute stats."
+                         "\nEither threshold too high "
+                         "or all data is masked.{:s}".format(R, W))
     if type(data_range) is int:
         for dataset in range(len(res_data) / data_range):
             i = counter
@@ -564,7 +601,7 @@ def image_dynamic_range(fitsname, residual, area_factor=6):
 
     """
     fits_info = fitsInfo(fitsname)
-    # Get beam size otherwise use default (5``).
+    # Get beam size otherwise use default (~5``).
     beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
     beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
     # Open the restored and residual images
@@ -652,7 +689,7 @@ def get_src_scale(source_shape):
 
 
 def get_model(catalog):
-    """Get model"""
+    """Get model model object from file catalog"""
 
     def tigger_src_ascii(src, idx):
         """Get ascii catalog source as a tigger source """
@@ -1726,6 +1763,10 @@ def get_argparser():
              help='Data points to sample the residual/noise image')
     argument('-ptc', '--phase-centre', dest='phase',
              help='Phase tracking centre of the catalogs e.g. "J2000.0,0.0deg,-30.0"')
+    argument('-thresh', '--threshold', dest='thresh',
+             help='Get stats of channels with pixel flux above thresh in Jy/Beam')
+    argument('-chans', '--channels', dest='channels',
+             help='Get stats of specified channels e.g. "10~20;100~1000"')
     argument("--label",
              help='Use this label instead of the FITS image path when saving'
                   'data as JSON file.')
@@ -1734,6 +1775,7 @@ def get_argparser():
 
 def main():
     """Main function."""
+    LOGGER.info("Welcome to AIMfast")
     parser = get_argparser()
     args = parser.parse_args()
     output_dict = dict()
