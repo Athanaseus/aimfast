@@ -3,7 +3,6 @@ sudo: required
 matrix:
   include:
   - env: TARGET=pep8
-  - env: TARGET=py2
   - env: TARGET=py3
 script:
 - true

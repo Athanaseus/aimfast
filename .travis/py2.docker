@@ -1,8 +1,0 @@
-FROM kernsuite/base:4
-MAINTAINER <ramaila.jat@gmail.com>
-RUN docker-apt-install python-pip
-RUN pip install --upgrade pip setuptools
-ADD . /code
-WORKDIR /code
-RUN pip install .[python-numpy,pytest]
-RUN py.test -s -vvv /code/
