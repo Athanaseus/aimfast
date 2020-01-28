@@ -9,6 +9,9 @@ script:
 - true
 install:
 - docker build . -t ${TARGET} -f .travis/${TARGET}.docker
+- pip install codecov
+after_success:
+- codecov
 deploy:
   provider: pypi
   user: athanaseus
