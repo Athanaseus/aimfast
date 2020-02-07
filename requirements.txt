@@ -1,6 +1,8 @@
 astLib
 astropy
+astroquery
 astro-tigger
+bokeh
 jsonschema
 mock
 numpy

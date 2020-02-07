@@ -9,6 +9,7 @@ import tempfile
 import numpy as np
 
 from functools import partial
+from collections import OrderedDict
 
 from scipy import stats
 from scipy.stats import linregress
@@ -19,6 +20,10 @@ from plotly import tools
 from plotly import offline as py
 from plotly import graph_objs as go
 from plotly.graph_objs import XAxis, YAxis
+# TODO: Remove above
+from bokeh.models import HoverTool
+from bokeh.layouts import row, column, gridplot, widgetbox, grid
+from bokeh.plotting import figure, output_file, show, save, ColumnDataSource
 
 from astLib.astWCS import WCS
 from astropy.table import Table
@@ -125,6 +130,7 @@ def create_logger():
     return log
 
 
+
 LOGGER = create_logger()
 
 
@@ -165,14 +171,14 @@ def json_dump(data_dict, root='.'):
     root : str
         Directory to save output json file (default is current directory).
 
-    Note
+    Note1
     ----
     If the fidelity_results.json file exists, it will be append, and only
     repeated image assessments will be replaced.
 
     """
-    LOGGER.info("Dumping dictionary into the '{}' file".format(filename))
     filename = ('{:s}/fidelity_results.json'.format(root))
+    LOGGER.info("Dumping dictionary into the '{}' file".format(filename))
     try:
         # Extract data from the json data file
         with open(filename) as data_file:
@@ -926,7 +932,7 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
             results[heading]['position'].append(pos_prop[i][-1])
     if plot:
         _source_flux_plotter(results, models)
-        _source_astrometry_plotter(results, models)
+#        _source_astrometry_plotter(results, models)
     return results
 
 
@@ -1023,6 +1029,14 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
 
 
+#  23   2 if __name__ == '__main__':
+#  24   3     output_file('line.html', mode='inline')
+#  25   4     plot = figure(title='Sample Graph',x_axis_label = 'X Axis',y_axis_label = 'Y Axis')
+#  26   5     plot.line([1, 3, 5, 7, 9], [0, 2, 4, 6, 8], line_width=2)
+#  27   6     save(plot, title='line.html')
+
+
+
 def _source_flux_plotter(results, all_models, inline=False):
     """Plot flux results and save output as html file.
 
@@ -1036,6 +1050,7 @@ def _source_flux_plotter(results, all_models, inline=False):
         Allow inline plotting inside a notebook.
 
     """
+    outfile = 'InputOutputFluxDensity.html'
     im_titles = []
     models_compare = dict()
     for models in all_models:
@@ -1048,15 +1063,17 @@ def _source_flux_plotter(results, all_models, inline=False):
         models_compare[input_model] = output_model
         im_titles.append('<b>{:s} flux density</b>'.format(header.upper()))
 
-    PLOTS = len(models_compare.keys())
-    fig = tools.make_subplots(rows=PLOTS, cols=1, shared_yaxes=False,
-                              print_grid=False,
-                              vertical_spacing=PLOT_NUM_FLUX['plots'][PLOTS][0],
-                              subplot_titles=sorted(im_titles))
+#    PLOTS = len(models_compare.keys())
+#    fig = tools.make_subplots(rows=PLOTS, cols=1, shared_yaxes=False,
+#                              print_grid=False,
+#                              vertical_spacing=PLOT_NUM_FLUX['plots'][PLOTS][0],
+#                              subplot_titles=sorted(im_titles))
     j = 0
     i = -1
     counter = 0
     annotate = []
+    output_file(outfile)
+    flux_plot_list = []
     for input_model, output_model in sorted(models_compare.items()):
         i += 1
         counter += 1
@@ -1082,79 +1099,118 @@ def _source_flux_plotter(results, all_models, inline=False):
         flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
         reg = linregress(flux_in_data, flux_out_data)
         flux_R_score = reg.rvalue
+        err_xs = []
+        err_ys = []
+        x = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0]
+        y = np.array(flux_out_data)*FLUX_UNIT_SCALER['milli'][0]
+        source = ColumnDataSource(
+                    data=dict(x=x,
+                              y=y,
+                              label=["%s X %s" % (x_, y_) for x_, y_ in zip(x, y)]
+           )
+        )
+        TOOLS="crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
+        text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
+            reg.slope, reg.intercept * FLUX_UNIT_SCALER['milli'][0],
+            np.sqrt(flux_MSE) * FLUX_UNIT_SCALER['milli'][0], flux_R_score)
+        plot_flux = figure(title='{} Flux Density Comparison [ {} ]'.format(
+                               input_model.split('.')[0], text),
+                           x_axis_label='Input flux({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                           y_axis_label='Output flux({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+                           tools=TOOLS)
+        for x, y, yerr in zip(np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
+                              np.array(flux_out_data)*FLUX_UNIT_SCALER['milli'][0],
+                              np.array(flux_out_err_data)*FLUX_UNIT_SCALER['milli'][0]):
+            err_xs.append((x, x))
+            err_ys.append((y - yerr, y + yerr))
+        plot_flux.multi_line(err_xs, err_ys, color='red')
+        plot_flux.line(np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
+                       np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0])
+        plot_flux.circle('x',#np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
+                         'y',#np.array(flux_out_data)*FLUX_UNIT_SCALER['milli'][0],
+                         source=source)
+        hover = plot_flux.select(dict(type=HoverTool))
+        hover.tooltips = OrderedDict([
+            ("index", "$index"),
+            ("(xx,yy)", "(@x, @y)"),
+            ("label", "@label"),
+        ])
+        flux_plot_list.append(plot_flux)
+    flux_plots = column(flux_plot_list)
+    save(flux_plots, title=outfile)
 
-        annotate.append(
-            go.Annotation(
-                x=(sorted(flux_in_data)[-1]/2.0 - sorted(flux_in_data)[0]/2.0
-                   + sorted(flux_in_data)[0]) * FLUX_UNIT_SCALER['milli'][0],
-                y=flux_in_data[-1]*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
-                xref='x{:d}'.format(counter),
-                yref='y{:d}'.format(counter),
-                text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
-                    reg.slope, reg.intercept * FLUX_UNIT_SCALER['milli'][0],
-                    np.sqrt(flux_MSE) * FLUX_UNIT_SCALER['milli'][0], flux_R_score),
-                ax=0,
-                ay=-10,
-                showarrow=False,
-                bordercolor='#c7c7c7',
-                borderwidth=2,
-                font=dict(color="black", size=12)))
-        fig.append_trace(
-            go.Scatter(
-                x=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
-                showlegend=False,
-                marker=dict(color='rgb(0,0,255)'),
-                y=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
-                mode='lines'), i+1, 1)
-        fig.append_trace(
-            go.Scatter(
-                x=np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
-                y=np.array(flux_out_data)*FLUX_UNIT_SCALER['milli'][0],
-                mode='markers', showlegend=False,
-                text=name_labels, name='{:s} flux_ratio'.format(heading),
-                marker=dict(color=phase_center_dist, showscale=True, colorscale='Jet',
-                            reversescale=False, colorbar=dict(
-                                title='Distance from phase center (arcsec)',
-                                titleside='right',
-                                titlefont=dict(size=16),
-                                len=PLOT_NUM_FLUX['format'][PLOTS][2],
-                                y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)) if
-                phase_center_dist[-1] else dict(),
-                error_y=dict(type='data',
-                             array=np.array(flux_out_err_data)*FLUX_UNIT_SCALER['milli'][0],
-                             color='rgb(158, 63, 221)',
-                             visible=True)), i+1, 1)
-        fig['layout'].update(title='', height=PLOT_NUM_FLUX['format'][PLOTS][3],
-                             width=PLOT_NUM_FLUX['format'][PLOTS][4],
-                             paper_bgcolor='rgb(255,255,255)',
-                             plot_bgcolor=BG_COLOR,
-                             legend=dict(x=0.8, y=1.0),)
-        fig['layout'].update(
-            {'yaxis{}'.format(counter): YAxis(
-                title='Output flux({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
-                gridcolor='rgb(255,255,255)',
-                tickfont=dict(size=15),
-                titlefont=dict(size=17),
-                showgrid=True,
-                showline=False,
-                showticklabels=True,
-                tickcolor='rgb(51,153,225)',
-                ticks='outside',
-                zeroline=False)})
-        fig['layout'].update(
-            {'xaxis{}'.format(counter+i): XAxis(
-                title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
-                position=0.0, titlefont=dict(size=17), overlaying='x')})
-        if counter == PLOTS:
-            fig['layout']['annotations'] = annotate
-        j += PLOT_NUM_FLUX['format'][PLOTS][0]
-    outfile = 'InputOutputFluxDensity.html'
-    if inline:
-        py.init_notebook_mode(connected=True)
-        py.iplot(fig, filename=outfile)
-    else:
-        py.plot(fig, filename=outfile, auto_open=False)
-        LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
+#        annotate.append(
+#            go.Annotation(
+#                x=(sorted(flux_in_data)[-1]/2.0 - sorted(flux_in_data)[0]/2.0
+#                   + sorted(flux_in_data)[0]) * FLUX_UNIT_SCALER['milli'][0],
+#                y=flux_in_data[-1]*FLUX_UNIT_SCALER['milli'][0] + 0.0005*FLUX_UNIT_SCALER['milli'][0],
+#                xref='x{:d}'.format(counter),
+#                yref='y{:d}'.format(counter),
+#                text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
+#                    reg.slope, reg.intercept * FLUX_UNIT_SCALER['milli'][0],
+#                    np.sqrt(flux_MSE) * FLUX_UNIT_SCALER['milli'][0], flux_R_score),
+#                ax=0,
+#                ay=-10,
+#                showarrow=False,
+#                bordercolor='#c7c7c7',
+#                borderwidth=2,
+#                font=dict(color="black", size=12)))
+#        fig.append_trace(
+#            go.Scatter(
+#                x=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
+#                showlegend=False,
+#                marker=dict(color='rgb(0,0,255)'),
+#                y=np.array([flux_in_data[0], flux_in_data[-1]])*FLUX_UNIT_SCALER['milli'][0],
+#                mode='lines'), i+1, 1)
+#        fig.append_trace(
+#            go.Scatter(
+#                x=np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0],
+#                y=np.array(flux_out_data)*FLUX_UNIT_SCALER['milli'][0],
+#                mode='markers', showlegend=False,
+#                text=name_labels, name='{:s} flux_ratio'.format(heading),
+#                marker=dict(color=phase_center_dist, showscale=True, colorscale='Jet',
+#                            reversescale=False, colorbar=dict(
+#                                title='Distance from phase center (arcsec)',
+#                                titleside='right',
+#                                titlefont=dict(size=16),
+#                                len=PLOT_NUM_FLUX['format'][PLOTS][2],
+#                                y=PLOT_NUM_FLUX['format'][PLOTS][1]-j)) if
+#                phase_center_dist[-1] else dict(),
+#                error_y=dict(type='data',
+#                             array=np.array(flux_out_err_data)*FLUX_UNIT_SCALER['milli'][0],
+#                             color='rgb(158, 63, 221)',
+#                             visible=True)), i+1, 1)
+#        fig['layout'].update(title='', height=PLOT_NUM_FLUX['format'][PLOTS][3],
+#                             width=PLOT_NUM_FLUX['format'][PLOTS][4],
+#                             paper_bgcolor='rgb(255,255,255)',
+#                             plot_bgcolor=BG_COLOR,
+#                             legend=dict(x=0.8, y=1.0),)
+#        fig['layout'].update(
+#            {'yaxis{}'.format(counter): YAxis(
+#                title='Output flux({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+#                gridcolor='rgb(255,255,255)',
+#                tickfont=dict(size=15),
+#                titlefont=dict(size=17),
+#                showgrid=True,
+#                showline=False,
+#                showticklabels=True,
+#                tickcolor='rgb(51,153,225)',
+#                ticks='outside',
+#                zeroline=False)})
+#        fig['layout'].update(
+#            {'xaxis{}'.format(counter+i): XAxis(
+#                title='Input Flux ({:s})'.format(FLUX_UNIT_SCALER['milli'][1]),
+#                position=0.0, titlefont=dict(size=17), overlaying='x')})
+#        if counter == PLOTS:
+#            fig['layout']['annotations'] = annotate
+#        j += PLOT_NUM_FLUX['format'][PLOTS][0]
+#    outfile = 'InputOutputFluxDensity.html'
+#    if inline:
+#        py.init_notebook_mode(connected=True)
+#        py.iplot(fig, filename=outfile)
+#    else:
+#        py.plot(fig, filename=outfile, auto_open=False)
+#        LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
 
 
 def _source_astrometry_plotter(results, all_models, inline=False):
