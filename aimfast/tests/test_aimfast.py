@@ -81,6 +81,7 @@ class TestClass(object):
                           'RMS': 3.1e-05,
                           'MAD': 3.2e-05,
                           'STDDev': 3.1e-05,
+                          'SLIDING_STDDev': 3.271381e-06,
                           'MEAN': 1.21497e-06}
         test(expected_value, output_value, normality=True)
 

@@ -454,6 +454,8 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
     # Compute the kurtosis of the residual
     res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
+    # Compute sliding window sigma
+    res_props['SLIDING_STDDev'] = float("{0:.6f}".format(sliding_window_std(fitsname)))
     # Perform normality testing
     if test_normality:
         norm_props = normality_testing(res_data, test_normality, data_range)
@@ -461,6 +463,46 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     props = res_props
     # Return dictionary of results
     return props
+
+def sliding_window_std(fitsname, window_size=20, step_size=1):
+    """Gets the standard deviation of the sliding window boxes pixel values
+
+    Parameters
+    ----------
+    fitsname : fits file
+        Residual image (cube).
+    window_size : int
+        Window size to compute rms
+    step_size : int
+        Step size of sliding window
+
+    Returns
+    -------
+    w_std : float
+        Standard deviation of the windows.
+
+    """
+    windows_avg = []
+    # Open the residual image
+    residual_hdu = fitsio.open(fitsname)
+    residual_data = residual_hdu[0].data
+    # Get the number of frequency channels
+    nchan = (residual_data.shape[1]
+             if residual_data.shape[0] == 1
+             else residual_data.shape[0])
+    # Define a nxn window
+    (w_width, w_height) = (window_size, window_size)
+    for frq_ax in range(nchan):
+        # In case the first two axes are swapped
+        if residual_data.shape[0] == 1:
+            image = residual_data[0, frq_ax, :, :]
+        else:
+            image = residual_data[frq_ax, 0, :, :]
+        for x in range(0, image.shape[1] - w_width + 1, step_size):
+            for y in range(0, image.shape[0] - w_height + 1, step_size):
+                window = image[x:x + w_width, y:y + w_height]
+                windows_avg.append(np.array(window).mean())
+    return np.array(windows_avg).std()
 
 
 def normality_testing(data, test_normality='normaltest', data_range=None):
