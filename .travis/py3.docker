@@ -1,4 +1,4 @@
-FROM kernsuite/base:4
+FROM kernsuite/base:5
 MAINTAINER <ramaila.jat@gmail.com>
 RUN docker-apt-install \
     python3-setuptools \
@@ -12,6 +12,7 @@ WORKDIR /code
 RUN pip3 install . -U
 RUN pip3 install --upgrade keyrings.alt
 RUN python3 -m pytest -s -vvv /code/
+RUN aimfast --help
 RUN aimfast --residual-image /code/aimfast/tests/files/cube1.fits \
             --tigger-model /code/aimfast/tests/files/DR_catalog.txt \
             --normality-test normaltest

@@ -2,12 +2,13 @@ language: python
 sudo: required
 matrix:
   include:
-  - env: TARGET=pep8
   - env: TARGET=py3
+  - env: TARGET=pep8
+  - env: TARGET=mypy
 script:
-- true
-install:
 - docker build . -t ${TARGET} -f .travis/${TARGET}.docker
+install:
+- pip install codecov
 deploy:
   provider: pypi
   user: athanaseus
