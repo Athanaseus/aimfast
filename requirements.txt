@@ -1,4 +1,4 @@
-astLib
+astLib==0.10.0
 astropy
 astroquery
 astro-tigger
@@ -7,6 +7,5 @@ jsonschema
 mock
 numpy
 numpydoc
-plotly
 scikit-learn
 scipy
