@@ -543,7 +543,7 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     RA = rad2deg(peak_source_flux.pos.ra)
     DEC = rad2deg(peak_source_flux.pos.dec)
     # Get source region and slice
-    wcs = WCS(residual_hdu[0].header)#, mode="pyfits")
+    wcs = WCS(residual_hdu[0].header, mode="pyfits")
     width = int(beam_size * area_factor)
     imslice = get_box(wcs, (RA, DEC), width)
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
@@ -578,7 +578,7 @@ def image_dynamic_range(fitsname, residual, area_factor=6):
 
     """
     fits_info = fitsInfo(fitsname)
-    # Get beam size otherwise use default (~5``).
+    # Get beam size otherwise use default (~6``).
     beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
     beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
     # Open the restored and residual images
