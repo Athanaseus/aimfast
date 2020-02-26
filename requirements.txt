@@ -2,6 +2,7 @@ astLib==0.10.0
 astropy
 astroquery
 astro-tigger
+attrs==19.1.0
 bokeh
 jsonschema
 mock
