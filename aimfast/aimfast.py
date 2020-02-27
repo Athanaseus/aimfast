@@ -307,7 +307,8 @@ def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
 
 
 def residual_image_stats(fitsname, test_normality=None, data_range=None,
-                         threshold=None, chans=None, mask=None):
+                         threshold=None, chans=None, mask=None,
+                         step_size=None, window_size=None):
     """Gets statistcal properties of a residual image.
 
     Parameters
@@ -324,6 +325,10 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         Channels to compute stats (e.g. 0~50;100~200)
     mask : file
         Fits mask to get stats in image
+    window_size : int
+        Window size to compute rms
+    step_size : int
+        Step size of sliding window
 
     Returns
     -------
@@ -364,6 +369,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
             d = data[i][data[i] > float(threshold)]
             if d.shape[0] > 0:
                 nchans.append(i)
+        import IPython; IPython.embed()
         residual_data = data[nchans]
     if mask:
         import numpy.ma as ma
@@ -400,7 +406,9 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     # Compute sliding window sigma
     LOGGER.info("Computing sliding window standard deviation ...")
     res_props['SLIDING_STDDev'] = float("{0:.6f}".format(sliding_window_std(
-                                                         residual_data)))
+                                                         residual_data,
+                                                         window_size,
+                                                         step_size)))
     LOGGER.info("SLIDING_STDDev = {}".format(res_props['SLIDING_STDDev']))
     # Perform normality testing
     if test_normality:
@@ -411,6 +419,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     props = res_props
     # Return dictionary of results
     return props
+
 
 def sliding_window_std(data, window_size=20, step_size=1):
     """Gets the standard deviation of the sliding window boxes pixel values
@@ -438,15 +447,20 @@ def sliding_window_std(data, window_size=20, step_size=1):
              if residual_data.shape[0] == 1
              else residual_data.shape[0])
     # Define a nxn window
-    (w_width, w_height) = (window_size, window_size)
+    (w_width, w_height) = (int(window_size), int(window_size))
+    # Check if window is less than image size
+    image_size = residual_data.shape[-1]
+    if int(window_size) > image_size:
+        raise Exception("Window size of {} should be less than image size {}".format(
+                         window_size, image_size))
     for frq_ax in range(nchan):
         # In case the first two axes are swapped
         if residual_data.shape[0] == 1:
             image = residual_data[0, frq_ax, :, :]
         else:
             image = residual_data[frq_ax, 0, :, :]
-        for x in range(0, image.shape[1] - w_width + 1, step_size):
-            for y in range(0, image.shape[0] - w_height + 1, step_size):
+        for x in range(0, image.shape[1] - w_width + 1, int(step_size)):
+            for y in range(0, image.shape[0] - w_height + 1, int(step_size)):
                 window = image[x:x + w_width, y:y + w_height]
                 windows_avg.append(np.array(window).mean())
     return np.array(windows_avg).std()
@@ -487,8 +501,8 @@ def normality_testing(data, test_normality='normaltest', data_range=None):
         raise ValueError("{:s}No data to compute stats."
                          "\nEither threshold too high "
                          "or all data is masked.{:s}".format(R, W))
-    if type(data_range) is int:
-        for dataset in range(len(res_data) / data_range):
+    if data_range:
+        for dataset in range(len(res_data) / int(data_range)):
             i = counter
             counter += data_range
             norm_res.append(getattr(stats, test_normality)(res_data[i: counter]))
@@ -1565,6 +1579,8 @@ def get_argparser():
              help='Name of the point spread function file or psf size in arcsec')
     argument('--residual-image', dest='residual',
              help='Name of the residual image fits file')
+    argument('--mask-image', dest='mask',
+             help='Name of the mask image fits file')
     argument('--normality-test', dest='test_normality',
              choices=('shapiro', 'normaltest'),
              help='Name of model to use for normality testing. \n'
@@ -1591,9 +1607,15 @@ def get_argparser():
              help='Get stats of channels with pixel flux above thresh in Jy/Beam')
     argument('-chans', '--channels', dest='channels',
              help='Get stats of specified channels e.g. "10~20;100~1000"')
+    argument('-ws', '--window-size', dest='window', default=20,
+             help='Window size to compute rms')
+    argument('-ss', '--step-size', dest='step', default=1,
+             help='Step size of sliding window')
     argument("--label",
-             help='Use this label instead of the FITS image path when saving'
-                  'data as JSON file.')
+             help='Use this label instead of the FITS image path when saving '
+                  'data as JSON file')
+    argument("--outfile",
+             help='Name of output file name. Default: fidelity_results.json')
     return parser
 
 
@@ -1639,18 +1661,28 @@ def main():
             print("{:s}Please provide psf fits file or psf size.\n"
                   "Otherwise a default beam size of six (~6``) asec "
                   "is used{:s}".format(R, W))
+
         if args.test_normality in ['shapiro', 'normaltest']:
-            if args.data_range:
-                stats = residual_image_stats(args.residual,
-                                             args.test_normality,
-                                             int(args.data_range))
-            else:
-                stats = residual_image_stats(args.residual, args.test_normality)
+            stats = residual_image_stats(args.residual,
+                                         args.test_normality,
+                                         args.data_range,
+                                         args.thresh,
+                                         args.channels,
+                                         args.mask,
+                                         args.step,
+                                         args.window)
         else:
             if not args.test_normality:
-                stats = residual_image_stats(args.residual)
+                stats = residual_image_stats(args.residual,
+                                             args.test_normality,
+                                             args.data_range,
+                                             args.thresh,
+                                             args.channels,
+                                             args.mask,
+                                             args.step,
+                                             args.window)
             else:
-                print("{:s}Please provide correct normality"
+                print("{:s}Please provide correct normality "
                       "model{:s}".format(R, W))
         stats.update({model_label: {
             'DR'                    : DR["global_rms"],
@@ -1661,17 +1693,26 @@ def main():
     elif args.residual:
         if args.residual not in output_dict.keys():
             if args.test_normality in ['shapiro', 'normaltest']:
-                if args.data_range:
-                    stats = residual_image_stats(args.residual,
-                                                 args.test_normality,
-                                                 int(args.data_range))
-                else:
-                    stats = residual_image_stats(args.residual, args.test_normality)
+                stats = residual_image_stats(args.residual,
+                                             args.test_normality,
+                                             args.data_range,
+                                             args.thresh,
+                                             args.channels,
+                                             args.mask,
+                                             args.step,
+                                             args.window)
             else:
                 if not args.test_normality:
-                    stats = residual_image_stats(args.residual)
+                    stats = residual_image_stats(args.residual,
+                                                 args.test_normality,
+                                                 args.data_range,
+                                                 args.thresh,
+                                                 args.channels,
+                                                 args.mask,
+                                                 args.step,
+                                                 args.window)
                 else:
-                    print("{:s}Please provide correct normality"
+                    print("{:s}Please provide correct normality "
                           "model{:s}".format(R, W))
             output_dict[residual_label] = stats
 
