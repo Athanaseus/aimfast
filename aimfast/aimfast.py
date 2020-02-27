@@ -322,7 +322,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     threshold : float, optional
         Cut-off threshold to select channels in a cube
     chans : str, optional
-        Channels to compute stats (e.g. 0~50;100~200)
+        Channels to compute stats (e.g. 1;0~50;100~200)
     mask : file
         Fits mask to get stats in image
     window_size : int
@@ -353,29 +353,37 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     residual_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
     residual_data = residual_hdu[0].data
-
     # Get residual data
-    data = residual_data[0]
+    # In case the first two axes are swapped
+    data = (residual_data[0]
+            if residual_data.shape[0] == 1
+            else residual_data[1])
     if chans:
         nchans = []
         chan_ranges = chans.split(';')
         for cr in chan_ranges:
-            c = cr.split('~')
-            nchans.extend(range(int(c[0]), int(c[1])))
-            residual_data = data[nchans]
+            if '~' in cr:
+                c = cr.split('~')
+                nchans.extend(range(int(c[0]), int(c[1]) + 1))
+            else:
+                nchans.append(int(cr))
+        residual_data = data[nchans]
+        data = residual_data
     if threshold:
         nchans = []
         for i in range(data.shape[0]):
             d = data[i][data[i] > float(threshold)]
             if d.shape[0] > 0:
                 nchans.append(i)
-        import IPython; IPython.embed()
         residual_data = data[nchans]
+        data = residual_data
     if mask:
         import numpy.ma as ma
         mask_hdu = fitsio.open(mask)
         mask_data = mask_hdu[0].data
-        residual_data = ma.masked_array(residual_data, mask=mask_data)
+        residual_data = ma.masked_array(data, mask=mask_data)
+        data = residual_data
+    residual_data = data
 
     # Get the mean value
     LOGGER.info("Computing mean ...")
@@ -442,23 +450,17 @@ def sliding_window_std(data, window_size=20, step_size=1):
     windows_avg = []
     # Get residual image data
     residual_data = data
-    # Get the number of frequency channels
-    nchan = (residual_data.shape[1]
-             if residual_data.shape[0] == 1
-             else residual_data.shape[0])
     # Define a nxn window
     (w_width, w_height) = (int(window_size), int(window_size))
+    # Get number of channels
+    nchan = residual_data.shape[0]
     # Check if window is less than image size
     image_size = residual_data.shape[-1]
     if int(window_size) > image_size:
         raise Exception("Window size of {} should be less than image size {}".format(
                          window_size, image_size))
     for frq_ax in range(nchan):
-        # In case the first two axes are swapped
-        if residual_data.shape[0] == 1:
-            image = residual_data[0, frq_ax, :, :]
-        else:
-            image = residual_data[frq_ax, 0, :, :]
+        image = residual_data[frq_ax, :, :]
         for x in range(0, image.shape[1] - w_width + 1, int(step_size)):
             for y in range(0, image.shape[0] - w_height + 1, int(step_size)):
                 window = image[x:x + w_width, y:y + w_height]
