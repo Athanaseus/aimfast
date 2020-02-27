@@ -102,13 +102,13 @@ class TestClass(object):
         output_value = aimfast.residual_image_stats(
             input_value,
             chans='2~3')
-        expected_value = {'SKEW': 0.336192,
-                          'KURT': 3.208809,
-                          'RMS': 3.3e-05,
-                          'MAD': 3.1e-05,
-                          'STDDev': 3.3e-05,
+        expected_value = {'SKEW': 0.287936,
+                          'KURT': 2.891433,
+                          'RMS': 3.2e-05,
+                          'MAD': 3.3e-05,
+                          'STDDev': 3.2e-05,
                           'SLIDING_STDDev': 3e-06,
-                          'MEAN': -4.20876e-06}
+                          'MEAN': -9.18495e-07}
         test(expected_value, output_value)
 
         # Test using threshold
@@ -126,15 +126,15 @@ class TestClass(object):
 
     def test_get_detected_sources_properties(self):
         """Test get detected sources properties"""
-        expected_label = 'None-model_a_'
+        expected_label = 'None-model_a_1'
         label = None
         input_dir = 'aimfast/tests/files'
         model1 = 'catalog.txt'
         model2 = 'catalog.lsm.html'
         model1_path = '{:s}/{:s}'.format(input_dir, model1)
         model2_path = '{:s}/{:s}'.format(input_dir, model2)
-        models = [[dict(label="{}-model_a_".format(label), path=model1_path),
-                   dict(label="{}-model_b_".format(label), path=model2_path)]]
+        models = [[dict(label="{}-model_a_1".format(label), path=model1_path),
+                   dict(label="{}-model_b_1".format(label), path=model2_path)]]
         expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
         output = aimfast.compare_models(models, tolerance=0.000001, plot=False,
                                         all_sources=True)
@@ -156,12 +156,12 @@ class TestClass(object):
         res2 = 'cube2.fits'
         res1_path = '{:s}/{:s}'.format(input_dir, res1)
         res2_path = '{:s}/{:s}'.format(input_dir, res2)
-        res_imgs = [[dict(label="{}-res_a_1_".format(label), path=res1_path),
-                    dict(label="{}-res_b_1_".format(label), path=res2_path)]]
+        res_imgs = [[dict(label="{}-res_a_1".format(label), path=res1_path),
+                    dict(label="{}-res_b_1".format(label), path=res2_path)]]
         expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
         output = aimfast._random_residual_results(res_imgs, data_points=50,
                                                   area_factor=2.0)
-        assert len(expected[res1]) == len(output[res1_path])
+        assert len(expected[expected_label]) == len(output[expected_label])
 
     def test_source_residual_results(self):
         """Test comparison of source residuals in images"""
@@ -174,12 +174,12 @@ class TestClass(object):
         skymodel_path = '{:s}/{:s}'.format(input_dir, skymodel)
         res1_path = '{:s}/{:s}'.format(input_dir, res1)
         res2_path = '{:s}/{:s}'.format(input_dir, res2)
-        res_imgs = [[dict(label="{}-res_b_1_".format(label), path=res2_path),
-                    dict(label="{}-res_a_1_".format(label), path=res1_path)]]
+        res_imgs = [[dict(label="{}-res_b_1".format(label), path=res2_path),
+                    dict(label="{}-res_a_1".format(label), path=res1_path)]]
         expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
         output = aimfast._source_residual_results(res_imgs, skymodel_path,
                                                   area_factor=2)
-        assert len(expected[res2]) == len(output[res2_path])
+        assert len(expected[expected_label]) == len(output[expected_label])
 
     def test_model_dynamic_range(self):
         """Test dynamic range from model"""
