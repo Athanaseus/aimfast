@@ -92,7 +92,7 @@ def rad2arcsec(x):
     return result
 
 
-def json_dump(data_dict, root='.'):
+def json_dump(data_dict, filename='fidelity_results.json', root='.'):
     """Dumps the computed dictionary results into a json file.
 
     Parameters
@@ -108,7 +108,7 @@ def json_dump(data_dict, root='.'):
     repeated image assessments will be replaced.
 
     """
-    filename = ('{:s}/fidelity_results.json'.format(root))
+    filename = ('{:s}/{:s}'.format(root, filename))
     LOGGER.info("Dumping results into the '{}' file".format(filename))
     try:
         # Extract data from the json data file
@@ -1173,7 +1173,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
     outfile = 'InputOutputPosition.html'
     output_file(outfile)
     position_plot_list = []
-    for model_pair in  all_models:
+    for model_pair in all_models:
         RA_offset = []
         RA_err = []
         DEC_offset = []
@@ -1198,7 +1198,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
         RA_mean = np.mean(RA_offset)
         DEC_mean = np.mean(DEC_offset)
         r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
-        # Generate data for a sigma circle around data points 
+        # Generate data for a sigma circle around data points
         pi, cos, sin = np.pi, np.cos, np.sin
         theta = np.linspace(0, 2.0 * pi, len(DEC_offset))
         x1 = RA_mean+(r1 * cos(theta))
@@ -1328,7 +1328,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                                                res1_object=res1_object,
                                                res2_object=res2_object,
                                                checkbox=checkbox),
-                                     code=""" 
+                                     code="""
                                           if (cb_obj.active.includes(0)) {
                                             res_ratio_object.visible = true;
                                           } else {
@@ -1774,4 +1774,7 @@ def main():
                     points=int(args.points) if args.points else 100)
 
     if output_dict:
-        json_dump(output_dict)
+        if args.outfile:
+            json_dump(output_dict, filename=args.outfile)
+        else:
+            json_dump(output_dict)
