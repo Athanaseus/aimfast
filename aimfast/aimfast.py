@@ -1083,7 +1083,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
         y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
         # Create additional feature on the plot such as hover, display text
-        TOOLS="crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
+        TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
                     data=dict(x=x, y=y,
                               label=["%s X %s" % (x_, y_) for x_, y_ in zip(x, y)]))
@@ -1211,10 +1211,10 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
         # Format data list into numpy arrays
         x = np.array(RA_offset)
         y = np.array(DEC_offset)
-        flux_in =  np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0] # For color
+        flux_in = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0]  # For color
         phase_centre_distance = DELTA_PHASE0 # For color
         # Create additional feature on the plot such as hover, display text
-        TOOLS="crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
+        TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
                     data=dict(x=x, y=y,
                               label=["%s X %s" % (x_, y_) for x_, y_ in zip(x, y)]))
@@ -1222,11 +1222,11 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
                  recovered_sources, RA_mean, DEC_mean)
         # Create a plot object
         plot_position = figure(title='[ {} ]'.format(text),
-                           x_axis_label='RA offset ({:s})'.format(
-                               POSITION_UNIT_SCALER['arcsec'][1]),
-                           y_axis_label='DEC offset ({:s})'.format(
-                               POSITION_UNIT_SCALER['arcsec'][1]),
-                           tools=TOOLS)
+                               x_axis_label='RA offset ({:s})'.format(
+                                   POSITION_UNIT_SCALER['arcsec'][1]),
+                               y_axis_label='DEC offset ({:s})'.format(
+                                   POSITION_UNIT_SCALER['arcsec'][1]),
+                               tools=TOOLS)
         # Get errors from the output positions
         err_xs = []
         err_ys = []
@@ -1295,14 +1295,14 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         y1 = np.array(res_noise_ratio)
         x1 = np.array(range(len(res_noise_ratio)))
         # Create additional feature on the plot such as hover, display text
-        TOOLS="crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
+        TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
                     data=dict(x=x1, y=y1,
                               label=["%s X %s" % (x_, y_) for x_, y_ in zip(x1, y1)]))
-        text="residuals1: {:.4f} | residuals2: {:.4f} | res1-to-res2: {:.4f}".format(
-                 np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
-                 np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
-                 np.mean(residuals2) / np.mean(residuals1))
+        text = "residuals1: {:.4f} | residuals2: {:.4f} | res1-to-res2: {:.4f}".format(
+                   np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
+                   np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
+                   np.mean(residuals2) / np.mean(residuals1))
         # Get y2 label and range
         y2_label = "Flux ({})".format(FLUX_UNIT_SCALER['micro'][1])
         y_max = max(res1) if max(res1) > max(res2) else max(res2)
