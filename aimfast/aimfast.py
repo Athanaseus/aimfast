@@ -31,17 +31,19 @@ from sklearn.metrics import mean_squared_error, r2_score
 
 
 # Unit multipleirs for plotting
-FLUX_UNIT_SCALER = {'jansky': [1e0, 'Jy'],
+FLUX_UNIT_SCALER = {
+                    'jansky': [1e0, 'Jy'],
                     'milli': [1e3, 'mJy'],
                     'micro': [1e6, u'\u03bcJy'],
                     'nano': [1e9, 'nJy'],
-}
+                   }
 
 
-POSITION_UNIT_SCALER = {'deg': [1e0, 'deg'],
+POSITION_UNIT_SCALER = {
+                        'deg': [1e0, 'deg'],
                         'arcmin': [60.0, u'`'],
                         'arcsec': [3600.0, u'``'],
-}
+                       }
 
 
 # Backgound color for plots
@@ -308,7 +310,7 @@ def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
 
 def residual_image_stats(fitsname, test_normality=None, data_range=None,
                          threshold=None, chans=None, mask=None,
-                         step_size=None, window_size=None):
+                         step_size=1, window_size=20):
     """Gets statistcal properties of a residual image.
 
     Parameters
@@ -429,7 +431,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     return props
 
 
-def sliding_window_std(data, window_size=20, step_size=1):
+def sliding_window_std(data, window_size, step_size):
     """Gets the standard deviation of the sliding window boxes pixel values
 
     Parameters
@@ -458,7 +460,7 @@ def sliding_window_std(data, window_size=20, step_size=1):
     image_size = residual_data.shape[-1]
     if int(window_size) > image_size:
         raise Exception("Window size of {} should be less than image size {}".format(
-                         window_size, image_size))
+                        window_size, image_size))
     for frq_ax in range(nchan):
         image = residual_data[frq_ax, :, :]
         for x in range(0, image.shape[1] - w_width + 1, int(step_size)):
@@ -1058,7 +1060,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
     outfile = 'InputOutputFluxDensity.html'
     output_file(outfile)
     flux_plot_list = []
-    for model_pair in  all_models:
+    for model_pair in all_models:
         name_labels = []
         flux_in_data = []
         flux_out_data = []
@@ -1078,8 +1080,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         reg = linregress(flux_in_data, flux_out_data)
         flux_R_score = reg.rvalue
         # Format data points value to a readable units
-        x = np.array(flux_in_data)*FLUX_UNIT_SCALER[units][0]
-        y = np.array(flux_out_data)*FLUX_UNIT_SCALER[units][0]
+        x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
+        y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
         # Create additional feature on the plot such as hover, display text
         TOOLS="crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
@@ -1119,7 +1121,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
                                                equal=equal,
                                                data=data,
                                                checkbox=checkbox),
-                                     code=""" 
+                                     code="""
                                           if (cb_obj.active.includes(0)) {
                                             errors.visible = true;
                                           } else {
