@@ -94,6 +94,7 @@ class TestClass(object):
                           'RMS': 2.6e-05,
                           'MAD': 3.2e-05,
                           'STDDev': 2.5e-05,
+                          'SLIDING_STDDev': 3e-06,
                           'MEAN': -5.57698e-06}
         test(expected_value, output_value)
 
@@ -106,6 +107,7 @@ class TestClass(object):
                           'RMS': 3.3e-05,
                           'MAD': 3.1e-05,
                           'STDDev': 3.3e-05,
+                          'SLIDING_STDDev': 3e-06,
                           'MEAN': -4.20876e-06}
         test(expected_value, output_value)
 
@@ -118,6 +120,7 @@ class TestClass(object):
                           'RMS': 3.1e-05,
                           'MAD': 3.2e-05,
                           'STDDev': 3.1e-05,
+                          'SLIDING_STDDev': 3e-06,
                           'MEAN': 1.21497e-06}
         test(expected_value, output_value)
 
@@ -137,7 +140,7 @@ class TestClass(object):
                                         all_sources=True)
         models = expected[expected_label]['models']
         # Remove the reisdual stats
-        expected.pop('cube1.fits')
+        expected.pop(expected_label)
         assert models == [model1, model2]
         assert(len(expected[expected_label]['flux'])
                == len(output[expected_label]['flux']))

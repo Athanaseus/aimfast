@@ -330,13 +330,15 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     props : dict
         Dictionary of stats properties.
         e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'RMS': 0.1,
-              'SKEW': 0.2, 'KURT': 0.3, 'MAD': 0.1}.
+              'SKEW': 0.2, 'KURT': 0.3, 'MAD': 0.4,
+              'SLIDING_STDDev': 0.5}.
 
     Notes
     -----
     If normality_test=True, dictionary of stats props becomes \
     e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, \
-          'MAD': 0.1, 'RMS': 0.1, 'NORM': (123.3,0.012)} \
+          'MAD': 0.4, 'RMS': 0.5, 'SLIDING_STDDev': 0.6,
+          'NORM': (123.3,0.012)} \
     whereby the first element is the statistics (or average if data_range specified) \
     of the datasets and second element is the p-value.
 
@@ -370,36 +372,53 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         residual_data = ma.masked_array(residual_data, mask=mask_data)
 
     # Get the mean value
+    LOGGER.info("Computing mean ...")
     res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
+    LOGGER.info("MEAN = {}".format(res_props['MEAN']))
     # Get the rms value
+    LOGGER.info("Computing root mean square ...")
     res_props['RMS'] = float("{0:.6f}".format(np.sqrt(np.mean(np.square(residual_data)))))
+    LOGGER.info("RMS = {}".format(res_props['RMS']))
     # Get the sigma value
+    LOGGER.info("Computing standard deviation ...")
     res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
+    LOGGER.info("STDDev = {}".format(res_props['STDDev']))
     # Flatten image
     res_data = residual_data.flatten()
     # Get the maximum absolute deviation
+    LOGGER.info("Computing median absolute deviation ...")
     res_props['MAD'] = float("{0:.6f}".format(stats.median_absolute_deviation(res_data)))
+    LOGGER.info("MAD = {}".format(res_props['MAD']))
     # Compute the skewness of the residual
+    LOGGER.info("Computing skewness ...")
     res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
+    LOGGER.info("SKEW = {}".format(res_props['SKEW']))
     # Compute the kurtosis of the residual
+    LOGGER.info("Computing kurtosis ...")
     res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
+    LOGGER.info("KURT = {}".format(res_props['KURT']))
     # Compute sliding window sigma
-    res_props['SLIDING_STDDev'] = float("{0:.6f}".format(sliding_window_std(fitsname)))
+    LOGGER.info("Computing sliding window standard deviation ...")
+    res_props['SLIDING_STDDev'] = float("{0:.6f}".format(sliding_window_std(
+                                                         residual_data)))
+    LOGGER.info("SLIDING_STDDev = {}".format(res_props['SLIDING_STDDev']))
     # Perform normality testing
     if test_normality:
+        LOGGER.info("Performing normality test ...")
         norm_props = normality_testing(res_data, test_normality, data_range)
         res_props.update(norm_props)
+        LOGGER.info("NORM = {}".format(res_props['NORM']))
     props = res_props
     # Return dictionary of results
     return props
 
-def sliding_window_std(fitsname, window_size=20, step_size=1):
+def sliding_window_std(data, window_size=20, step_size=1):
     """Gets the standard deviation of the sliding window boxes pixel values
 
     Parameters
     ----------
-    fitsname : fits file
-        Residual image (cube).
+    data : numpy.array
+        Residual residual array. i.e. fitsio.open(fitsname)[0].data
     window_size : int
         Window size to compute rms
     step_size : int
@@ -412,9 +431,8 @@ def sliding_window_std(fitsname, window_size=20, step_size=1):
 
     """
     windows_avg = []
-    # Open the residual image
-    residual_hdu = fitsio.open(fitsname)
-    residual_data = residual_hdu[0].data
+    # Get residual image data
+    residual_data = data
     # Get the number of frequency channels
     nchan = (residual_data.shape[1]
              if residual_data.shape[0] == 1
@@ -440,7 +458,7 @@ def normality_testing(data, test_normality='normaltest', data_range=None):
     Parameters
     ----------
     data : numpy.array
-        Residual residual array.
+        Residual residual array. i.e. fitsio.open(fitsname)[0].data
     test_normality : str
         Perform normality testing using either `shapiro` or `normaltest`.
     data_range : int
