@@ -1087,7 +1087,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         source = ColumnDataSource(
                     data=dict(x=x, y=y,
                               label=["%s X %s" % (x_, y_) for x_, y_ in zip(x, y)]))
-        text="Slope: {:.4f} | Intercept: {:.4f} | RMS Error: {:.4f} | R2: {:.4f} ".format(
+        text = "Slope: {:.4f} | Intercept: {:.4f} | "\
+               "RMS Error: {:.4f} | R2: {:.4f} ".format(
             reg.slope, reg.intercept * FLUX_UNIT_SCALER[units][0],
             np.sqrt(flux_MSE) * FLUX_UNIT_SCALER[units][0], flux_R_score)
         # Create a plot object
@@ -1103,7 +1104,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         for x, y, yerr in zip(np.array(flux_in_data)*FLUX_UNIT_SCALER[units][0],
                               np.array(flux_out_data)*FLUX_UNIT_SCALER[units][0],
                               np.array(flux_out_err_data)*FLUX_UNIT_SCALER[units][0]):
-            err_xs.append((x, x)) # TODO: Also if the main model has error plot them (+)
+            err_xs.append((x, x))  # TODO: Also if the main model has error plot them (+)
             err_ys.append((y - yerr, y + yerr))
         # Create a plot object for errors
         errors = plot_flux.multi_line(err_xs, err_ys, color='red')
@@ -1212,14 +1213,14 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
         x = np.array(RA_offset)
         y = np.array(DEC_offset)
         flux_in = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0]  # For color
-        phase_centre_distance = DELTA_PHASE0 # For color
+        phase_centre_distance = DELTA_PHASE0  # For color
         # Create additional feature on the plot such as hover, display text
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
                     data=dict(x=x, y=y,
                               label=["%s X %s" % (x_, y_) for x_, y_ in zip(x, y)]))
-        text="Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f})".format(
-                 recovered_sources, RA_mean, DEC_mean)
+        text = "Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f})".format(
+                   recovered_sources, RA_mean, DEC_mean)
         # Create a plot object
         plot_position = figure(title='[ {} ]'.format(text),
                                x_axis_label='RA offset ({:s})'.format(
