@@ -48,7 +48,9 @@ POSITION_UNIT_SCALER = {
 
 # Backgound color for plots
 BG_COLOR = 'rgb(229,229,229)'
-
+# Highlighters
+R = '\033[31m'  # red
+W = '\033[0m'   # white (normal)
 
 def create_logger():
     """Create a console logger"""
@@ -67,9 +69,9 @@ LOGGER = create_logger()
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
     "Extracts data from the json data file"
-    file = '{:s}/{:s}'.format(dir, filename)
+    filepath = f"{dir}/{filename}"
     LOGGER.info('Extracting data from the json data file')
-    with open(file) as f:
+    with open(filepath) as f:
         data = json.load(f)
         return data
 
@@ -109,7 +111,7 @@ def json_dump(data_dict, filename='fidelity_results.json', root='.'):
 
     """
     filename = ('{:s}/{:s}'.format(root, filename))
-    LOGGER.info("Dumping results into the '{}' file".format(filename))
+    LOGGER.info(f"Dumping results into the '{filename}' file")
     try:
         # Extract data from the json data file
         with open(filename) as data_file:
@@ -205,7 +207,7 @@ def measure_psf(psffile, arcsec_size=20):
         xmin = measure.minimum_position(tsec[tmid:])[0]
         tsec[tmid + xmin:] = tsec[tmid + xmin]
         if tsec[0] > 0.5 or tsec[-1] > 0.5:
-            LOGGER.info("PSF FWHM over {:.2f} arcsec".format(arcsec_size * 2))
+            LOGGER.info(f"PSF FWHM over {arcsec_size * 2:.2f} arcsec")
             return arcsec_size, arcsec_size
         x1 = interp1d(tsec[:tmid], range(tmid))(0.5)
         x2 = interp1d(1 - tsec[tmid:], range(tmid, len(tsec)))(0.5)
@@ -502,9 +504,9 @@ def normality_testing(data, test_normality='normaltest', data_range=None):
     counter = 0
     # Check size of image data
     if len(res_data) == 0:
-        raise ValueError("{:s}No data to compute stats."
+        raise ValueError(f"{R}No data to compute stats."
                          "\nEither threshold too high "
-                         "or all data is masked.{:s}".format(R, W))
+                         "or all data is masked.{W}")
     if data_range:
         for dataset in range(len(res_data) / int(data_range)):
             i = counter
@@ -892,7 +894,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
-    LOGGER.info("Number of sources recovered: {:d}".format(len(targets_scale)))
+    num_of_sources = len(targets_flux)
+    LOGGER.info(f"Number of sources recovered: {num_of_sources}")
     return targets_flux, targets_scale, targets_position
 
 
@@ -1006,8 +1009,8 @@ def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
     _models = []
     i = 0
     for model1, model2 in models.items():
-        _models.append([dict(label="{0:s}-model_a_{1:d}".format(label, i), path=model1),
-                        dict(label="{0:s}-model_b_{1:d}".format(label, i), path=model2)])
+        _models.append([dict(label="{}-model_a_{}".format(label, i), path=model1),
+                        dict(label="{}-model_b_{}".format(label, i), path=model2)])
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
     _source_astrometry_plotter(results, _models, inline=True)
@@ -1034,8 +1037,8 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
     _residual_images = []
     i = 0
     for res1, res2 in res_noise_images.items():
-        _residual_images.append([dict(label="{0:s}-res_a_{1:d}".format(label, i), path=res1),
-                                 dict(label="{0:s}-res_b_{1:d}".format(label, i), path=res2)])
+        _residual_images.append([dict(label="{}-res_a_{}".format(label, i), path=res1),
+                                 dict(label="{}-res_b_{}".format(label, i), path=res2)])
         i += 1
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
 
@@ -1086,7 +1089,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
                     data=dict(x=x, y=y,
-                              label=["%s X %s" % (x_, y_) for x_, y_ in zip(x, y)]))
+                              label=[f"{x_} X {y_}" for x_, y_ in zip(x, y)]))
         text = "Slope: {:.4f} | Intercept: {:.4f} | "\
                "RMS Error: {:.4f} | R2: {:.4f} ".format(
             reg.slope, reg.intercept * FLUX_UNIT_SCALER[units][0],
@@ -1101,42 +1104,59 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         # Get errors from the output fluxes
         err_xs = []
         err_ys = []
-        for x, y, yerr in zip(np.array(flux_in_data)*FLUX_UNIT_SCALER[units][0],
-                              np.array(flux_out_data)*FLUX_UNIT_SCALER[units][0],
-                              np.array(flux_out_err_data)*FLUX_UNIT_SCALER[units][0]):
+        for x, y, yerr in zip(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0],
+                              np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0],
+                              np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0]):
             err_xs.append((x, x))  # TODO: Also if the main model has error plot them (+)
             err_ys.append((y - yerr, y + yerr))
         # Create a plot object for errors
-        errors = plot_flux.multi_line(err_xs, err_ys, color='red')
+        errors = plot_flux.multi_line(err_xs, err_ys,
+                                      legend_label='Errors',
+                                      color='red')
         # Create a plot object for I_out = I_in line .i.e. Perfect match
         equal = plot_flux.line(np.array([flux_in_data[0],
-                                 flux_in_data[-1]])*FLUX_UNIT_SCALER[units][0],
-                       np.array([flux_in_data[0],
-                                 flux_in_data[-1]])*FLUX_UNIT_SCALER[units][0])
+                                        flux_in_data[-1]]) * FLUX_UNIT_SCALER[units][0],
+                               np.array([flux_in_data[0],
+                                        flux_in_data[-1]]) * FLUX_UNIT_SCALER[units][0],
+                               legend_label="Iₒᵤₜ=Iᵢₙ",
+                               line_dash='dashed',
+                               color='gray')
+        # Create a plot object for a Fit
+        inc = 1e-4
+        slope = reg.slope
+        intercept = reg.intercept
+        fit_xs = np.arange(start=flux_in_data[0] * FLUX_UNIT_SCALER[units][0],
+                           stop=flux_in_data[-1] * FLUX_UNIT_SCALER[units][0] + inc,
+                           step=inc)
+        fit_ys = slope * fit_xs + intercept
+        fit = plot_flux.line(fit_xs, fit_ys,
+                             legend_label='Fit',
+                             color='blue')
         # Create a plot object for the data points
-        data = plot_flux.circle('x', 'y', source=source)
+        data = plot_flux.circle('x', 'y', legend_label='Data', source=source)
         # Create checkboxes to hide and display error and fits
-        checkbox = CheckboxGroup(labels=["Errors", "I_out=I_in", "Fit"],
+        plot_flux.legend.location = "top_left"
+        checkbox = CheckboxGroup(labels=[u"Iₒᵤₜ=Iᵢₙ", "Errors", "Fit"],
                                  active=[0, 1, 2], width=100)
         checkbox.callback = CustomJS(args=dict(errors=errors,
                                                equal=equal,
-                                               data=data,
+                                               fit=fit,
                                                checkbox=checkbox),
                                      code="""
                                           if (cb_obj.active.includes(0)) {
-                                            errors.visible = true;
-                                          } else {
-                                            errors.visible = false;
-                                          }
-                                          if (cb_obj.active.includes(1)) {
                                             equal.visible = true;
                                           } else {
                                             equal.visible = false;
                                           }
-                                          if (cb_obj.active.includes(2)) {
-                                            data.visible = true;
+                                          if (cb_obj.active.includes(1)) {
+                                            errors.visible = true;
                                           } else {
-                                            data.visible = false;
+                                            errors.visible = false;
+                                          }
+                                          if (cb_obj.active.includes(2)) {
+                                            fit.visible = true;
+                                          } else {
+                                            fit.visible = false;
                                           }
                                           """)
         # Attaching the hover object with labels
@@ -1218,7 +1238,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
                     data=dict(x=x, y=y,
-                              label=["%s X %s" % (x_, y_) for x_, y_ in zip(x, y)]))
+                              label=[f"{x_} X {y_}" for x_, y_ in zip(x, y)]))
         text = "Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f})".format(
                    recovered_sources, RA_mean, DEC_mean)
         # Create a plot object
@@ -1627,15 +1647,13 @@ def get_argparser():
 def main():
     """Main function."""
     LOGGER.info("Welcome to AIMfast")
+    output_dict = dict()
     parser = get_argparser()
     args = parser.parse_args()
-    output_dict = dict()
-    R = '\033[31m'  # red
-    W = '\033[0m'   # white (normal)
     if not args.residual and not args.restored and not args.model \
             and not args.models and not args.noise:
-        print("{:s}Please provide lsm.html/fits file name(s)."
-              "\nOr\naimfast -h for arguments{:s}".format(R, W))
+        print(f"{R}Please provide lsm.html/fits file name(s)."
+              f"\nOr\naimfast -h for arguments{W}")
 
     if args.label:
         residual_label = "{0:s}-residual".format(args.label)
@@ -1648,7 +1666,7 @@ def main():
 
     if args.model and not args.noise:
         if not args.residual:
-            raise RuntimeError("{:s}Please provide residual fits file{:s}".format(R, W))
+            raise RuntimeError(f"{R}Please provide residual fits file{W}")
 
         if args.psf:
             if isinstance(args.psf, (str, unicode)):
@@ -1663,9 +1681,9 @@ def main():
                                      area_factor=args.factor)
         else:
             DR = model_dynamic_range(args.model, args.residual, psf_size)
-            print("{:s}Please provide psf fits file or psf size.\n"
+            print(f"{R}Please provide psf fits file or psf size.\n"
                   "Otherwise a default beam size of six (~6``) asec "
-                  "is used{:s}".format(R, W))
+                  f"is used{W}")
 
         if args.test_normality in ['shapiro', 'normaltest']:
             stats = residual_image_stats(args.residual,
@@ -1687,8 +1705,7 @@ def main():
                                              args.step,
                                              args.window)
             else:
-                print("{:s}Please provide correct normality "
-                      "model{:s}".format(R, W))
+                print(f"{R}Please provide correct normality model{W}")
         stats.update({model_label: {
             'DR'                    : DR["global_rms"],
             'DR_deepest_negative'   : DR["deepest_negative"],
@@ -1717,8 +1734,7 @@ def main():
                                                  args.step,
                                                  args.window)
                 else:
-                    print("{:s}Please provide correct normality "
-                          "model{:s}".format(R, W))
+                    print(f"{R}Please provide correct normality model{W}")
             output_dict[residual_label] = stats
 
     if args.restored and args.residual:
@@ -1733,20 +1749,19 @@ def main():
             'DR_global_rms'       : DR['global_rms'],
             'DR_local_rms'        : DR['local_rms']}
 
-    LOGGER.info(output_dict)
     if args.models:
         models = args.models
-        print("Number of model files: {:d}".format(len(models)))
+        print(f"Number of model pairs to compare: {len(models)}")
         if len(models) < 1:
-            print("{:s}Can only compare two models at a time.{:s}".format(R, W))
+            print(f"{R}Can only compare two models at a time.{W}")
         else:
             models_list = []
             for i, comp_mod in enumerate(models):
                 model1, model2 = comp_mod.split(':')
                 models_list.append(
-                    [dict(label="{0}-model_a_{1}".format(args.label, i),
+                    [dict(label="{}-model_a_{}".format(args.label, i),
                           path=model1),
-                     dict(label="{0}-model_b_{1}".format(args.label, i),
+                     dict(label="{}-model_b_{}".format(args.label, i),
                           path=model2)],
                 )
             output_dict = compare_models(models_list, phase_centre=args.phase,
@@ -1754,17 +1769,17 @@ def main():
 
     if args.noise:
         residuals = args.noise
-        LOGGER.info("Number of residual pairs to compare: {:d}".format(len(residuals)))
+        LOGGER.info(f"Number of residual pairs to compare: {len(residuals)}")
         if len(residuals) < 1:
-            print("{:s}Can only compare atleast one residual pair.{:s}".format(R, W))
+            print(f"{R}Can only compare atleast one residual pair.{W}")
         else:
             residuals_list = []
             for i, comp_res in enumerate(residuals):
                 res1, res2 = comp_res.split(':')
                 residuals_list.append(
-                    [dict(label="{0}-res_a_{1}".format(args.label, i),
+                    [dict(label="{}-res_a_{}".format(args.label, i),
                           path=res1),
-                     dict(label="{0}-res_b_{1}".format(args.label, i),
+                     dict(label="{}-res_b_{}".format(args.label, i),
                           path=res2)],
                 )
             if args.model:
@@ -1775,6 +1790,7 @@ def main():
                     points=int(args.points) if args.points else 100)
 
     if output_dict:
+        #LOGGER.info(output_dict)
         if args.outfile:
             json_dump(output_dict, filename=args.outfile)
         else:
