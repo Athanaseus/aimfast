@@ -2,6 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 pkg = 'aimfast'
+__version__ = "1.0.0"
 build_root = os.path.dirname(__file__)
 
 
@@ -18,18 +19,20 @@ def requirements():
 
 
 setup(name=pkg,
-      version="1.0.0",
+      version=__version__,
       description="An Astronomical Image Fidelity Assessment Tool.",
       long_description=readme(),
       author="Athanaseus Ramaila",
-      author_email="aramaila@ska.ac.za",
+      author_email="ramaila.jat@gmail.com",
       packages=find_packages(),
       url="https://github.com/Athanaseus/aimfast",
       license="GNU GPL 3",
-      classifiers=["Intended Audience :: Developers",
-                   "Programming Language :: Python :: 3",
+      classifiers=["Development Status :: 4 - Beta",
+                   "Intended Audience :: Developers",
+                   "Programming Language :: Python :: 3.6",
                    "Topic :: Scientific/Engineering :: Astronomy",
                    "Topic :: Software Development :: Libraries :: Python Modules"],
+      keywords="fits dataset lsm statistics models html jupyter",
       platforms=["OS Independent"],
       install_requires=requirements(),
       tests_require=["attrs",
@@ -38,4 +41,5 @@ setup(name=pkg,
       extras_require={'docs': ["sphinx-pypi-upload",
                                "numpydoc",
                                "Sphinx"]},
+      python_requires='>=3.6',
       scripts=['aimfast/bin/aimfast'])
