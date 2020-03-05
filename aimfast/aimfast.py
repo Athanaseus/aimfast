@@ -16,8 +16,16 @@ from scipy.stats import linregress
 from scipy.interpolate import interp1d
 from scipy.ndimage import measurements as measure
 
+from bokeh.transform import transform
+
+from bokeh.models.widgets import Div, PreText
+from bokeh.models.widgets import DataTable, TableColumn
+
 from bokeh.models import CheckboxGroup, CustomJS
 from bokeh.models import HoverTool, LinearAxis, Range1d
+from bokeh.models import ColorBar, ColumnDataSource, ColorBar
+from bokeh.models import LogColorMapper, LogTicker, LinearColorMapper
+
 from bokeh.layouts import row, column, gridplot, widgetbox, grid
 from bokeh.plotting import figure, output_file, show, save, ColumnDataSource
 
@@ -822,6 +830,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
     # {"source_name: [shape_out=(maj, min, angle), shape_out_err=, shape_in=,
     #                 scale_out, scale_out_err, I_in, source_name]
     targets_scale = dict()         # recovered sources scale
+    names = dict()
     for model_source in model_sources:
         I_out = 0.0
         I_out_err = 0.0
@@ -894,9 +903,16 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
+            names[name] = source_name
+    sources1 = model_lsm.sources
+    sources2 = pybdsm_lsm.sources
+    targets_not_matching_a, targets_not_matching_b = targets_not_matching(sources1,
+                                                                          sources2,
+                                                                          names)
     num_of_sources = len(targets_flux)
     LOGGER.info(f"Number of sources recovered: {num_of_sources}")
-    return targets_flux, targets_scale, targets_position
+    return (targets_flux, targets_scale, targets_position,
+            targets_not_matching_a, targets_not_matching_b)
 
 
 def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
@@ -931,6 +947,9 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
         results[heading]['flux'] = []
         results[heading]['shape'] = []
         results[heading]['position'] = []
+        # No matching source
+        results[heading]['no_match1'] = []
+        results[heading]['no_match2'] = []
         props = get_detected_sources_properties('{}'.format(input_model["path"]),
                                                 '{}'.format(output_model["path"]),
                                                 tolerance, phase_centre,
@@ -944,6 +963,12 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
         for i in range(len(props[2])):
             pos_prop = list(props[2].items())
             results[heading]['position'].append(pos_prop[i][-1])
+        for i in range(len(props[3])):
+            no_match_prop1 = list(props[3].items())
+            results[heading]['no_match1'].append(no_match_prop1[i][-1])
+        for i in range(len(props[4])):
+            no_match_prop2 = list(props[4].items())
+            results[heading]['no_match2'].append(no_match_prop2[i][-1])
     if plot:
         _source_flux_plotter(results, models)
         _source_astrometry_plotter(results, models)
@@ -958,6 +983,42 @@ def compare_residuals(residuals, skymodel=None, points=None,
         res = _random_residual_results(residuals, points)
     _residual_plotter(residuals, results=res, points=points, inline=inline)
     return res
+
+def targets_not_matching(sources1, sources2, matched_names):
+    """Plot model-model fluxes from lsm.html/txt models
+
+    Parameters
+    ----------
+    sources1: list
+        List of sources from model 1
+    sources2: list
+        List of sources Sources from model 2
+    matched_names: dict
+        Dict of names from model 2 that matched that of model 1
+
+    Returns
+    -------
+    target_no_match1: dict
+        Sources from model 1 that have no match in model 2
+    target_no_match2: dict
+        Sources from model 2 that have no match in model 1
+    """
+    targets_not_matching_a = dict()
+    targets_not_matching_b = dict()
+    for s1, s2 in zip(sources1, sources2):
+        if s1.name not in matched_names.keys():
+            props1 = [s1.name,
+                      s1.flux.I, s1.flux.I_err,
+                      s1.pos.ra, s1.pos.ra_err,
+                      s1.pos.dec, s1.pos.dec_err]
+            targets_not_matching_a[s1.name] = props1
+        if s2.name not in matched_names.values():
+            props2 = [s2.name,
+                      s2.flux.I, s2.flux.I_err,
+                      s2.pos.ra, s2.pos.ra_err,
+                      s2.pos.dec, s2.pos.dec_err]
+            targets_not_matching_b[s2.name] = props2
+    return targets_not_matching_a, targets_not_matching_b
 
 
 def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
@@ -1064,19 +1125,21 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
     output_file(outfile)
     flux_plot_list = []
     for model_pair in all_models:
+        heading = model_pair[0]['label']
         name_labels = []
         flux_in_data = []
         flux_out_data = []
         source_scale = []
-        phase_center_dist = []
+        phase_centre_dist = []
         flux_out_err_data = []
-        heading = model_pair[0]['label']
+        no_match1 = results[heading]['no_match1']
+        no_match2 = results[heading]['no_match2']
         for n in range(len(results[heading]['flux'])):
             flux_out_data.append(results[heading]['flux'][n][0])
             flux_out_err_data.append(results[heading]['flux'][n][1])
             flux_in_data.append(results[heading]['flux'][n][2])
             name_labels.append(results[heading]['flux'][n][3])
-            phase_center_dist.append(results[heading]['position'][n][3])
+            phase_centre_dist.append(results[heading]['position'][n][3])
             source_scale.append(results[heading]['shape'][n][3])
         # Compute some fit stats of the two models being compared
         flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
@@ -1085,22 +1148,38 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         # Format data points value to a readable units
         x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
         y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
+        z = np.array(phase_centre_dist)
         # Create additional feature on the plot such as hover, display text
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
-                    data=dict(x=x, y=y,
-                              label=[f"{x_} X {y_}" for x_, y_ in zip(x, y)]))
-        text = "Slope: {:.4f} | Intercept: {:.4f} | "\
-               "RMS Error: {:.4f} | R2: {:.4f} ".format(
-            reg.slope, reg.intercept * FLUX_UNIT_SCALER[units][0],
-            np.sqrt(flux_MSE) * FLUX_UNIT_SCALER[units][0], flux_R_score)
+                    data=dict(x=x, y=y, z=z, label=name_labels))
+                              #label=[f"{x_} X {y_}" for x_, y_ in zip(x, y)]))
+        text = model_pair[1]["path"].split("/")[-1].split('.')[0]
         # Create a plot object
-        plot_flux = figure(title='[ {} ]'.format(text),
+        plot_flux = figure(title=text,
                            x_axis_label='Input flux ({:s})'.format(
                                FLUX_UNIT_SCALER[units][1]),
                            y_axis_label='Output flux ({:s})'.format(
                                FLUX_UNIT_SCALER[units][1]),
                            tools=TOOLS)
+        plot_flux.title.text_font_size = '16pt'
+        # Create a color bar and size objects
+        color_bar_height=100
+        mapper_opts = dict(palette="Viridis256",
+                           low=min(phase_centre_dist),
+                           high=max(phase_centre_dist))
+        mapper = LinearColorMapper(**mapper_opts)
+        flux_mapper = LinearColorMapper(**mapper_opts)
+        color_bar = ColorBar(color_mapper=mapper,
+                             ticker=plot_flux.xaxis.ticker,
+                             formatter=plot_flux.xaxis.formatter,
+                             location=(0,0), orientation='horizontal')
+        color_bar_plot = figure(title="Phase centre distance (arcsec)",
+                                title_location="below",
+                                height=color_bar_height,
+                                toolbar_location=None,
+                                outline_line_color=None,
+                                min_border=0)
         # Get errors from the output fluxes
         err_xs = []
         err_ys = []
@@ -1111,16 +1190,16 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
             err_ys.append((y - yerr, y + yerr))
         # Create a plot object for errors
         errors = plot_flux.multi_line(err_xs, err_ys,
-                                      legend_label='Errors',
-                                      color='red')
+                                      legend_label="Errors",
+                                      color="red")
         # Create a plot object for I_out = I_in line .i.e. Perfect match
         equal = plot_flux.line(np.array([flux_in_data[0],
                                         flux_in_data[-1]]) * FLUX_UNIT_SCALER[units][0],
                                np.array([flux_in_data[0],
                                         flux_in_data[-1]]) * FLUX_UNIT_SCALER[units][0],
-                               legend_label="Iₒᵤₜ=Iᵢₙ",
-                               line_dash='dashed',
-                               color='gray')
+                               legend_label=u"Iₒᵤₜ=Iᵢₙ",
+                               line_dash="dashed",
+                               color="gray")
         # Create a plot object for a Fit
         inc = 1e-4
         slope = reg.slope
@@ -1130,12 +1209,17 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
                            step=inc)
         fit_ys = slope * fit_xs + intercept
         fit = plot_flux.line(fit_xs, fit_ys,
-                             legend_label='Fit',
-                             color='blue')
+                             legend_label="Fit",
+                             color="blue")
         # Create a plot object for the data points
-        data = plot_flux.circle('x', 'y', legend_label='Data', source=source)
-        # Create checkboxes to hide and display error and fits
-        plot_flux.legend.location = "top_left"
+        data = plot_flux.circle('x', 'y',
+                                name='data',
+                                legend_label="Data",
+                                source=source,
+                                line_color=None,
+                                fill_color={"field": "z",
+                                            "transform": mapper})
+        # Create checkboxes to hide and display error and fit
         checkbox = CheckboxGroup(labels=[u"Iₒᵤₜ=Iᵢₙ", "Errors", "Fit"],
                                  active=[0, 1, 2], width=100)
         checkbox.callback = CustomJS(args=dict(errors=errors,
@@ -1145,8 +1229,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
                                      code="""
                                           if (cb_obj.active.includes(0)) {
                                             equal.visible = true;
+                                            equal.legend.visible = true;
                                           } else {
                                             equal.visible = false;
+                                            equal.legend.visible = false;
                                           }
                                           if (cb_obj.active.includes(1)) {
                                             errors.visible = true;
@@ -1159,14 +1245,78 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
                                             fit.visible = false;
                                           }
                                           """)
+        # Table with stats data
+        cols = ["Stats", "Value"]
+        stats = {"Stats":["Slope",
+                          "Intercept",
+                          "RMS_Error",
+                          "R2"],
+                 "Value":[reg.slope,
+                          reg.intercept * FLUX_UNIT_SCALER[units][0],
+                          np.sqrt(flux_MSE) * FLUX_UNIT_SCALER[units][0],
+                          flux_R_score]}
+        source = ColumnDataSource(data=stats)
+        columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
+        dtab = DataTable(source=source, columns=columns,
+                         width=400, max_width=450,
+                         height=100, max_height=150,
+                         sizing_mode='stretch_both')
+        table_title = Div(text="Cross Match Stats")
+        table_title.align = 'center'
+        stats_table = column([table_title, dtab])
+        # Table with no match data1
+        cols1 = ["Source", "Flux", "Flux err", "RA", "RA err", "DEC", "DEC err"]
+        stats1 = {"Source": [s[0] for s in no_match1],
+                 "Flux": [s[1] for s in no_match1],
+                 "Flux err": [s[3] for s in no_match1],
+                 "RA": [s[3] for s in no_match1],
+                 "RA err": [s[4] for s in no_match1],
+                 "DEC": [s[5] for s in no_match1],
+                 "DEC err": [s[6] for s in no_match1]}
+        source1 = ColumnDataSource(data=stats1)
+        columns1 = [TableColumn(field=x, title=x.capitalize()) for x in cols1]
+        dtab1 = DataTable(source=source1, columns=columns1,
+                         width=400, max_width=450,
+                         height=100, max_height=150,
+                         sizing_mode='stretch_both')
+        table_title1 = Div(text="Non-matching sources from model 1")
+        table_title1.align = 'center'
+        stats_table1 = column([table_title1, dtab1])
+        # Table with no match data1
+        cols2 = ["Source", "Flux", "Flux err", "RA", "RA err", "DEC", "DEC err"]
+        stats2 = {"Source": [s[0] for s in no_match2],
+                 "Flux": [s[1] for s in no_match2],
+                 "Flux err": [s[3] for s in no_match2],
+                 "RA": [s[3] for s in no_match2],
+                 "RA err": [s[4] for s in no_match2],
+                 "DEC": [s[5] for s in no_match2],
+                 "DEC err": [s[6] for s in no_match2]}
+        source2 = ColumnDataSource(data=stats2)
+        columns2 = [TableColumn(field=x, title=x.capitalize()) for x in cols2]
+        dtab2 = DataTable(source=source2, columns=columns2,
+                         width=400, max_width=450,
+                         height=100, max_height=150,
+                         sizing_mode='stretch_both')
+        table_title2 = Div(text="Non-matching sources from model 2")
+        table_title2.align = 'center'
+        stats_table2 = column([table_title2, dtab2])
         # Attaching the hover object with labels
         hover = plot_flux.select(dict(type=HoverTool))
+        hover.names = ['data']
         hover.tooltips = OrderedDict([
-            ("index", "$index"),
-            ("(x,y)", "(@x, @y)"),
-            ("label", "@label")])
+            ("(Input,Output)", "(@x,@y)"),
+            ("source", "@label")])
+        # Legend position
+        plot_flux.legend.location = "top_left"
+        plot_flux.legend.click_policy = 'hide'
+        # Colorbar position
+        color_bar_plot.add_layout(color_bar, "below")
+        color_bar_plot.title.align = "center"
         # Append all plots and checkboxes
-        flux_plot_list.append(row(plot_flux, widgetbox(checkbox)))
+        flux_plot_list.append(column(row(plot_flux, widgetbox(stats_table),
+                                         stats_table1, stats_table2),
+                                     color_bar_plot))
+          
     # Make the plots in a column layout
     flux_plots = column(flux_plot_list)
     # Save the plot (html)
@@ -1232,42 +1382,122 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
         # Format data list into numpy arrays
         x = np.array(RA_offset)
         y = np.array(DEC_offset)
-        flux_in = np.array(flux_in_data)*FLUX_UNIT_SCALER['milli'][0]  # For color
-        phase_centre_distance = DELTA_PHASE0  # For color
+        flux_in = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0] * 10  # For radius
+        phase_centre_distance = np.array(DELTA_PHASE0)  # For color
         # Create additional feature on the plot such as hover, display text
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
-                    data=dict(x=x, y=y,
-                              label=[f"{x_} X {y_}" for x_, y_ in zip(x, y)]))
-        text = "Total sources: {:d} | (RA, DEC) mean: ({:.4f}, {:.4f})".format(
-                   recovered_sources, RA_mean, DEC_mean)
+                    data=dict(x=x, y=y, z=phase_centre_distance,
+                              f=flux_in, label=source_labels))
+        text = model_pair[1]["path"].split("/")[-1].split('.')[0]
         # Create a plot object
-        plot_position = figure(title='[ {} ]'.format(text),
+        plot_position = figure(title=text,
                                x_axis_label='RA offset ({:s})'.format(
                                    POSITION_UNIT_SCALER['arcsec'][1]),
                                y_axis_label='DEC offset ({:s})'.format(
                                    POSITION_UNIT_SCALER['arcsec'][1]),
                                tools=TOOLS)
+        plot_position.title.text_font_size = '16pt'
+        # Create a color bar and size objects
+        color_bar_height=100
+        mapper_opts = dict(palette="Viridis256",
+                           low=min(phase_centre_distance),
+                           high=max(phase_centre_distance))
+        mapper = LinearColorMapper(**mapper_opts)
+        flux_mapper = LinearColorMapper(**mapper_opts)
+        color_bar = ColorBar(color_mapper=mapper,
+                             ticker=plot_position.xaxis.ticker,
+                             formatter=plot_position.xaxis.formatter,
+                             location=(0,0), orientation='horizontal')
+        color_bar_plot = figure(title="Phase centre distance (arcsec)",
+                                title_location="below",
+                                height=color_bar_height,
+                                toolbar_location=None,
+                                outline_line_color=None,
+                                min_border=0)
         # Get errors from the output positions
-        err_xs = []
-        err_ys = []
+        err_xs1 = []
+        err_ys1 = []
+        err_xs2 = []
+        err_ys2 = []
         for x, y, xerr, yerr in zip(x, y, np.array(RA_err), np.array(DEC_err)):
-            err_xs.append((x - xerr, x + xerr))
-            err_ys.append((y - yerr, y + yerr))
-
-        # Creat an sigma circle plot object
-        plot_position.line(np.array(x1), np.array(y1))
-        # Create position data points plot object
-        plot_position.circle('x', 'y', source=source)
+            err_xs1.append((x - xerr, x + xerr))
+            err_ys1.append((y, y))
+            err_xs2.append((x, x))
+            err_ys2.append((y - yerr, y + yerr))
         # Create a plot object for errors
-        plot_position.multi_line(err_xs, err_ys, color='red')
+        error1_plot = plot_position.multi_line(err_xs1, err_ys1,
+                                               legend_label="Errors",
+                                               color="red")
+        error2_plot = plot_position.multi_line(err_xs2, err_ys2,
+                                               legend_label="Errors",
+                                               color="red")
+        # Creat an sigma circle plot object
+        sigma_plot = plot_position.line(np.array(x1), np.array(y1), legend_label='Sigma')
+        # Create position data points plot object
+        plot_position.circle('x', 'y',
+                             name='data',
+                             source=source,
+                             line_color=None,
+                             size='f',
+                             legend_label='Data',
+                             fill_color={"field": "z",
+                                         "transform": mapper})
+        # Create checkboxes to hide and display error and fit
+        checkbox = CheckboxGroup(labels=["Sigma", "Errors"],
+                                 active=[0, 1], width=100)
+        checkbox.callback = CustomJS(args=dict(error1_plot=error1_plot,
+                                               error2_plot=error2_plot,
+                                               sigma_plot=sigma_plot,
+                                               checkbox=checkbox),
+                                     code="""
+                                          if (cb_obj.active.includes(0)) {
+                                            sigma_plot.visible = true;
+                                          } else {
+                                            sigma_plot.visible = false;
+                                          }
+                                          if (cb_obj.active.includes(1)) {
+                                            error1_plot.visible = true;
+                                            error2_plot.visible = true;
+                                          } else {
+                                            error1_plot.visible = false;
+                                            error2_plot.visible = false;
+                                          }
+                                          """)
+        # Table with stats data
+        cols = ["Stats", "Value"]
+        stats = {"Stats":["Total sources",
+                          "(RA, DEC) mean",
+                          "Sigma sources",
+                          "(RA, DEC) sigma"],
+                 "Value":[recovered_sources,
+                          "({:e}, {:e})".format(RA_mean, DEC_mean),
+                          one_sigma_sources,
+                          "({:e}, {:e})".format(r1, r1)]}
+        source = ColumnDataSource(data=stats)
+        columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
+        dtab = DataTable(source=source, columns=columns,
+                         width=450, max_width=800,
+                         height=100, max_height=150,
+                         sizing_mode='stretch_both')
+        table_title = Div(text="Cross Match Stats")
+        table_title.align = 'center'
+        stats_table = column([table_title, dtab])
         # Attaching the hover object with labels
         hover = plot_position.select(dict(type=HoverTool))
+        hover.names = ['data']
         hover.tooltips = OrderedDict([
-            ("index", "$index"),
-            ("(x,y)", "(@x, @y)"),
-            ("label", "@label")])
-        position_plot_list.append(plot_position)
+            ("(RA_offset,DEC_offset)", "(@x,@y)"),
+            ("source", "@label")])
+        # Legend position
+        plot_position.legend.location = "top_left"
+        # Colorbar position
+        color_bar_plot.add_layout(color_bar, "below")
+        color_bar_plot.title.align = "center"
+        # Append object to plot list
+        position_plot_list.append(column(row(plot_position,
+                                             widgetbox(stats_table)),
+                                         color_bar_plot))
     # Make the plots in a column layout
     position_plots = column(position_plot_list)
     # Save the plot (html)
@@ -1318,18 +1548,14 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         # Create additional feature on the plot such as hover, display text
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
-                    data=dict(x=x1, y=y1,
-                              label=["%s X %s" % (x_, y_) for x_, y_ in zip(x1, y1)]))
-        text = "residuals1: {:.4f} | residuals2: {:.4f} | res1-to-res2: {:.4f}".format(
-                   np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
-                   np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
-                   np.mean(residuals2) / np.mean(residuals1))
+                    data=dict(x=x1, y=y1, res1=res1, res2=res2, label=name_labels))
+        text = residual_pair[1]["path"].split("/")[-1].split('.')[0]
         # Get y2 label and range
         y2_label = "Flux ({})".format(FLUX_UNIT_SCALER['micro'][1])
         y_max = max(res1) if max(res1) > max(res2) else max(res2)
         y_min = min(res1) if min(res1) < min(res2) else min(res2)
         # Create a plot objects and set axis limits
-        plot_residual = figure(title='[ {} ]'.format(text),
+        plot_residual = figure(title=text,
                                x_axis_label='Sources',
                                y_axis_label='Res1-to-Res2',
                                tools=TOOLS)
@@ -1339,9 +1565,20 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         plot_residual.add_layout(LinearAxis(y_range_name=y2_label,
                                             axis_label=y2_label),
                                  'right')
-        res_ratio_object = plot_residual.line(x1, y1, color='green')
-        res1_object = plot_residual.line(x1, res1, color='red', y_range_name=y2_label)
-        res2_object = plot_residual.line(x1, res2, color='blue', y_range_name=y2_label)
+        res_ratio_object = plot_residual.line('x', 'y',
+                                              name='ratios',
+                                              source=source,
+                                              color='green',
+                                              legend_label='res1-to-res2')
+        res1_object = plot_residual.line(x1, res1,
+                                         color='red',
+                                         legend_label='res1',
+                                         y_range_name=y2_label)
+        res2_object = plot_residual.line(x1, res2,
+                                         color='blue',
+                                         legend_label='res2',
+                                         y_range_name=y2_label)
+        plot_residual.title.text_font_size = '16pt'
         # Create checkboxes to hide and display error and fits
         checkbox = CheckboxGroup(labels=["res1-to-res2", "residual1", "residual2"],
                                  active=[0, 1, 2], width=100)
@@ -1366,13 +1603,34 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                                             res2_object.visible = false;
                                           }
                                           """)
+        # Table with stats data
+        cols = ["Stats", "Value"]
+        stats = {"Stats":["Residual1",
+                          "Residual2",
+                          "Res1-to-Res2"],
+                 "Value":[np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
+                          np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
+                          np.mean(residuals2) / np.mean(residuals1)]}
+        source = ColumnDataSource(data=stats)
+        columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
+        dtab = DataTable(source=source, columns=columns,
+                         width=450, max_width=800,
+                         height=100, max_height=150,
+                         sizing_mode='stretch_both')
+        table_title = Div(text="Cross Match Stats")
+        table_title.align = 'center'
+        stats_table = column([table_title, dtab])
         # Attaching the hover object with labels
         hover = plot_residual.select(dict(type=HoverTool))
+        hover.names = ['ratios']
         hover.tooltips = OrderedDict([
-            ("index", "$index"),
-            ("(xx,yy)", "(@x, @y)"),
-            ("label", "@label")])
-        residual_plot_list.append(row(plot_residual, checkbox))
+            ("ratio", "@y"),
+            ("(Res1,Res2)", "(@res1,@res2)"),
+            ("source", "@label")])
+        # Position of legend
+        plot_residual.legend.location = "top_left"
+        # Add object to plot list
+        residual_plot_list.append(row(plot_residual, widgetbox(stats_table)))
     # Make the plots in a column layout
     residual_plots = column(residual_plot_list)
     # Save the plot (html)
