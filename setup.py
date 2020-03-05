@@ -5,7 +5,6 @@ pkg = 'aimfast'
 __version__ = "1.0.0"
 build_root = os.path.dirname(__file__)
 
-
 def readme():
     """Get readme content for package long description"""
     with open(os.path.join(build_root, 'README.rst')) as f:
@@ -40,6 +39,7 @@ setup(name=pkg,
                      "numpy"],
       extras_require={'docs': ["sphinx-pypi-upload",
                                "numpydoc",
-                               "Sphinx"]},
+                               "Sphinx"]
+                      'sf': ["bdsf"]},
       python_requires='>=3.6',
       scripts=['aimfast/bin/aimfast'])
