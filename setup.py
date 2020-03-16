@@ -39,7 +39,10 @@ setup(name=pkg,
                      "numpy"],
       extras_require={'docs': ["sphinx-pypi-upload",
                                "numpydoc",
-                               "Sphinx"]
-                      'sf': ["bdsf"]},
+                               "Sphinx"],
+                      'aegean': ["AegeanTools"],
+                      'bdsf': ["bdsf"],
+                      'source_finders': ["bdsf",
+                                         "AegeanTools"]},
       python_requires='>=3.6',
       scripts=['aimfast/bin/aimfast'])
