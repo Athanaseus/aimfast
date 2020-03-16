@@ -4,6 +4,7 @@ import Tigger
 import random
 import string
 import logging
+import aimfast
 import argparse
 import tempfile
 import numpy as np
@@ -36,6 +37,9 @@ from astropy.io import fits as fitsio
 from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
 from sklearn.metrics import mean_squared_error, r2_score
+
+from aimfast.auxiliary import aegean, bdsf, get_online_catalog
+from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec, dec2deg, ra2deg
 
 
 # Unit multipleirs for plotting
@@ -74,6 +78,13 @@ def create_logger():
 
 LOGGER = create_logger()
 
+def generate_default_config(configfile):
+    "Generate default config file for running source finders"
+    from shutil import copyfile
+    LOGGER.info(f"Getting parameter file: {configfile}")
+    aim_path = os.path.dirname(os.path.dirname(os.path.abspath(aimfast.__file__)))
+    copyfile(f"{aim_path}/aimfast/source_finder.yml", configfile)
+    
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
     "Extracts data from the json data file"
@@ -82,24 +93,6 @@ def get_aimfast_data(filename='fidelity_results.json', dir='.'):
     with open(filepath) as f:
         data = json.load(f)
         return data
-
-
-def deg2arcsec(x):
-    """Converts 'x' from degrees to arcseconds."""
-    result = float(x) * 3600.00
-    return result
-
-
-def rad2deg(x):
-    """Converts 'x' from radian to degrees."""
-    result = float(x) * (180 / np.pi)
-    return result
-
-
-def rad2arcsec(x):
-    """Converts `x` from radians to arcseconds."""
-    result = float(x) * (3600.0 * 180.0 / np.pi)
-    return result
 
 
 def json_dump(data_dict, filename='fidelity_results.json', root='.'):
@@ -727,7 +720,6 @@ def get_model(catalog):
         ex, ex_err = map(np.deg2rad, (float(src["a"]), float(src["err_a"])))
         ey, ey_err = map(np.deg2rad, (float(src["b"]), float(src["err_b"])))
         pa, pa_err = map(np.deg2rad, (float(src["pa"]), float(src["err_pa"])))
-
         if ex and ey:
             shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
                                           ey_err=ey_err, pa_err=pa_err)
@@ -742,7 +734,6 @@ def get_model(catalog):
         else:
             source.setAttribute("I_peak", float(src["int_flux"]))
             source.setAttribute("I_peak_err", float(src["err_int_flux"]))
-
         return source
 
     def tigger_src_fits(src, idx):
@@ -757,7 +748,6 @@ def get_model(catalog):
         ex, ex_err = map(np.deg2rad, (float(src["DC_Maj"]), float(src["E_DC_Maj"])))
         ey, ey_err = map(np.deg2rad, (float(src["DC_Min"]), float(src["E_DC_Min"])))
         pa, pa_err = map(np.deg2rad, (float(src["PA"]), float(src["E_PA"])))
-
         if ex and ey:
             shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
                                           ey_err=ey_err, pa_err=pa_err)
@@ -772,7 +762,6 @@ def get_model(catalog):
         else:
             source.setAttribute("I_peak", src["Total_flux"])
             source.setAttribute("I_peak_err", src["E_Total_flux"])
-
         return source
 
     tfile = tempfile.NamedTemporaryFile(suffix='.txt')
@@ -838,7 +827,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         RA = model_source.pos.ra
         DEC = model_source.pos.dec
         I_in = model_source.flux.I
-        sources = pybdsm_lsm.getSourcesNear(RA, DEC, area_factor)
+        tolerance = area_factor * (np.pi / (3600.0 * 180))
+        sources = pybdsm_lsm.getSourcesNear(RA, DEC, tolerance)
         # More than one source detected, thus we sum up all the detected sources
         # within a radius equal to the beam size in radians around the true target
         # coordinate
@@ -915,7 +905,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             targets_not_matching_a, targets_not_matching_b)
 
 
-def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
+def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
                    all_sources=False):
     """Plot model1 source properties against that of model2
 
@@ -924,7 +914,7 @@ def compare_models(models, tolerance=0.000001, plot=True, phase_centre=None,
     models : dict
         Tigger formatted model files e.g {model1: model2}.
     tolerance : float
-        Tolerace in detecting source from model 2.
+        Tolerace in detecting source from model 2 (in arcsec).
     plot : bool
         Output html plot from which a png can be obtained.
     phase_centre : str
@@ -1021,7 +1011,7 @@ def targets_not_matching(sources1, sources2, matched_names):
     return targets_not_matching_a, targets_not_matching_b
 
 
-def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
+def plot_photometry(models, label=None, tolerance=0.2, phase_centre=None,
                     all_sources=False):
     """Plot model-model fluxes from lsm.html/txt models
 
@@ -1032,7 +1022,7 @@ def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
     label : str
         Use this label instead of the FITS image path when saving data.
     tolerance: float
-        Radius around the source to be cross matched.
+        Radius around the source to be cross matched (in arcsec).
     phase_centre : str
         Phase centre of catalog (if not already embeded)
     all_source: bool
@@ -1049,7 +1039,7 @@ def plot_photometry(models, label=None, tolerance=0.00001, phase_centre=None,
     _source_flux_plotter(results, _models, inline=True)
 
 
-def plot_astrometry(models, label=None, tolerance=0.00001, phase_centre=None,
+def plot_astrometry(models, label=None, tolerance=0.2, phase_centre=None,
                     all_sources=False):
     """Plot model-model positions from lsm.html/txt models
 
@@ -1193,10 +1183,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
                                       legend_label="Errors",
                                       color="red")
         # Create a plot object for I_out = I_in line .i.e. Perfect match
-        equal = plot_flux.line(np.array([flux_in_data[0],
-                                        flux_in_data[-1]]) * FLUX_UNIT_SCALER[units][0],
-                               np.array([flux_in_data[0],
-                                        flux_in_data[-1]]) * FLUX_UNIT_SCALER[units][0],
+        equal = plot_flux.line(np.array([min(flux_in_data),
+                                         max(flux_in_data)]) * FLUX_UNIT_SCALER[units][0],
+                               np.array([min(flux_in_data),
+                                         max(flux_in_data)]) * FLUX_UNIT_SCALER[units][0],
                                legend_label=u"Iₒᵤₜ=Iᵢₙ",
                                line_dash="dashed",
                                color="gray")
@@ -1204,8 +1194,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         inc = 1e-4
         slope = reg.slope
         intercept = reg.intercept
-        fit_xs = np.arange(start=flux_in_data[0] * FLUX_UNIT_SCALER[units][0],
-                           stop=flux_in_data[-1] * FLUX_UNIT_SCALER[units][0] + inc,
+        fit_xs = np.arange(start=min(flux_in_data) * FLUX_UNIT_SCALER[units][0],
+                           stop=max(flux_in_data) * FLUX_UNIT_SCALER[units][0] + inc,
                            step=inc)
         fit_ys = slope * fit_xs + intercept
         fit = plot_flux.line(fit_xs, fit_ys,
@@ -1845,14 +1835,46 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
     return results
 
 
+def get_sf_params(configfile):
+    import yaml
+    with open(r'{}'.format(configfile)) as file:
+        sf_parameters = yaml.load(file, Loader=yaml.FullLoader)
+    return sf_parameters
+
+def source_finding(sf_params, sf=None):
+    outfile = None
+    aegean_sf = sf_params.pop('aegean')
+    pybd_sf = sf_params.pop('pybdsf')
+    enable_aegean = aegean_sf.pop('enable')
+    enable_pybdsf = pybd_sf.pop('enable')
+    if enable_aegean or sf in ['aegean']:
+        filename = aegean_sf['filename']
+        LOGGER.info(f"Running aegean source finder on image: {filename}")
+        outfile = aegean(filename, aegean_sf, LOGGER)
+    if enable_pybdsf or sf in ['pybdsf']:
+        filename = pybd_sf['filename']
+        LOGGER.info(f"Running pybdsf source finder on image: {filename}")
+        outfile = bdsf(filename, pybd_sf, LOGGER)
+    if not enable_aegean and not enable_pybdsf and not sf:
+        LOGGER.error("No source finder selected.")
+    return outfile
+
+
 def get_argparser():
     """Get argument parser."""
     parser = argparse.ArgumentParser(
-        description=("Examine radio image fidelity by obtaining: \n"
+        description=("Examine radio image fidelity and source recovery by obtaining: \n"
                      "- The four (4) moments of a residual image \n"
                      "- The Dynamic range in restored image \n"
-                     "- Comparing the tigger input and output model sources \n"
+                     "- Comparing the fits images by running source finder \n"
+                     "- Comparing the tigger models and online catalogs (NVSS, SDSS) \n"
                      "- Comparing the on source/random residuals to noise"))
+    subparser = parser.add_subparsers(dest='subcommand')
+    sf = subparser.add_parser('source-finder')
+    sf.add_argument('-c', '--config', dest='config',
+                    help='Config file to run source finder of choice (YAML format)')
+    sf.add_argument('-gc', '--generate-config', dest='generate',
+                    help='Genrate config file to run source finder of choice')
     argument = partial(parser.add_argument)
     argument('--tigger-model', dest='model',
              help='Name of the tigger model lsm.html file')
@@ -1873,15 +1895,24 @@ def get_argparser():
              help='Data range to perform normality testing')
     argument('-af', '--area-factor', dest='factor', type=float, default=6,
              help='Factor to multiply the beam area to get target peak area')
+    argument('-tol', '--tolerance', dest='tolerance', type=float, default=0.2,
+             help='Tolerance to cross-match sources in arcsec')
     argument('-as', '--all-source', dest='all', default=False, action='store_true',
              help='Compare all sources irrespective of shape, otherwise only '
                   'point-like sources are compared')
     argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html model2.lsm.html')
+    argument('--compare-images', dest='images', nargs="+", type=str,
+             help='List of restored image (fits) files to compare. \n'
+                  'Note that this will initially run a source finder. \n'
+                  'e.g. --compare-models iamge1.fits image2.fits')
     argument('--compare-residuals', dest='noise', nargs="+", type=str,
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals residuals.fits noise.fits')
+    argument('-sf', '--source-finder', dest='sourcery',
+             default='pybdsf', choices=('aegean', 'pybdsf'),
+             help='Source finder to run if comparing restored images')
     argument('-dp', '--data-points', dest='points',
              help='Data points to sample the residual/noise image')
     argument('-ptc', '--phase-centre', dest='phase',
@@ -1908,10 +1939,15 @@ def main():
     output_dict = dict()
     parser = get_argparser()
     args = parser.parse_args()
-    if not args.residual and not args.restored and not args.model \
-            and not args.models and not args.noise:
+    if args.subcommand:
+       if args.config:
+           source_finding(args.config)
+       if args.generate:
+           generate_default_config(args.generate)
+    elif not args.residual and not args.restored and not args.model \
+            and not args.models and not args.noise and not args.images:
         print(f"{R}Please provide lsm.html/fits file name(s)."
-              f"\nOr\naimfast -h for arguments{W}")
+              f"\nOr\naimfast -h for arguments.{W}")
 
     if args.label:
         residual_label = "{0:s}-residual".format(args.label)
@@ -2022,7 +2058,9 @@ def main():
                      dict(label="{}-model_b_{}".format(args.label, i),
                           path=model2)],
                 )
-            output_dict = compare_models(models_list, phase_centre=args.phase,
+            output_dict = compare_models(models_list,
+                                         tolerance=args.tolerance,
+                                         phase_centre=args.phase,
                                          all_sources=args.all)
 
     if args.noise:
@@ -2046,6 +2084,31 @@ def main():
                 output_dict = compare_residuals(
                     residuals_list,
                     points=int(args.points) if args.points else 100)
+
+    if args.images:
+       configfile = 'default_sf_config.yml'
+       generate_default_config(configfile)
+       images = args.images
+       sourcery = args.sourcery
+       images_list = []
+       for i, comp_ims in enumerate(images):
+           image1, image2 = comp_ims.split(':')
+           sf_params1 = get_sf_params(configfile)
+           sf_params1[sourcery]['filename'] = image1
+           out1 = source_finding(sf_params1, sourcery)
+           sf_params2 = get_sf_params(configfile)
+           sf_params2[sourcery]['filename'] = image2
+           out2 = source_finding(sf_params2, sourcery)
+           images_list.append(
+               [dict(label="{}-model_a_{}".format(args.label, i),
+                     path=out1),
+                dict(label="{}-model_b_{}".format(args.label, i),
+                     path=out2)])
+       output_dict = compare_models(images_list,
+                                    tolerance=args.tolerance,
+                                    phase_centre=args.phase,
+                                    all_sources=args.all)
+ 
 
     if output_dict:
         #LOGGER.info(output_dict)
