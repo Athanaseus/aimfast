@@ -39,7 +39,7 @@ from Tigger.Coordinates import angular_dist_pos_angle
 from sklearn.metrics import mean_squared_error, r2_score
 
 from aimfast.auxiliary import aegean, bdsf, get_online_catalog
-from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec, dec2deg, ra2deg
+from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec, dec2deg, ra2deg, rad2deg
 
 
 # Unit multipleirs for plotting

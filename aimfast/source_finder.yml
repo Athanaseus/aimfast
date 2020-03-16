@@ -3,6 +3,7 @@ pybdsf:
   filename:                    # Input image file name
   outfile:                     # Output file name. None => file is named automatically
   clobber: true                # Overwrite exist existing file
+  ncores: 4                    # Number of cores to execute
   adaptive_rms_box: false      # Use adaptive rms_box when determining rms and mean maps
   frequency:                   # Frequency in Hz of input image.
   freq0:                       # Start frequency (unit => Hz)
@@ -14,7 +15,7 @@ pybdsf:
   aperture_posn: centroid      # Position the aperture (if aperture is not None) on: 'centroid' or 'peak' of the source
   thresh:                      # Type of thresholding: None => calculate inside program, 'fdr' => use false detection rate algorithm, 'hard' => use sigma clipping
   mean_map:                    # Background mean map: 'default' => calc whether to use or not, 'zero' => 0, 'const' => clipped mean, 'map' => use 2-D map
-  rms_box:                 # Box size, step size for rms/mean map calculation. Specify as (box, step) in pixels
+  rms_box:                     # Box size, step size for rms/mean map calculation. Specify as (box, step) in pixels
   rms_map:                     # Background rms map: True => use 2-D rms map; False => use constant rms; None => calculate inside program
   format: fits                 # Format of output catalog ["bbs", "ds9", "fits", "star", "kvis", "ascii", "csv", "casabox", "sagecal"]
   stop_at:                     # Stops after: 'isl' = island finding step or 'read' = image reading step

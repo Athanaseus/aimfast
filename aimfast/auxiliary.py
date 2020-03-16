@@ -185,9 +185,10 @@ def aegean(image, kwargs, log):
 
 def bdsf(image, kwargs, log):
     img_opts = {}
-    write_opts = {}
+    write_opts = {'outfile': None}
     freq0 = None
     spi_do = False
+    ncores = 4
     write_catalog = ['bbs_patches', 'bbs_patches_mask',
                      'catalog_type', 'clobber',
                      'correct_proj', 'format',
@@ -201,6 +202,9 @@ def bdsf(image, kwargs, log):
             continue
         if name in ['multi_chan_beam']:
             multi_chan_beam = value
+            continue
+        if name in ['ncores']:
+            ncores = value
             continue
         if name in write_catalog:
             write_opts[name] = value
@@ -235,9 +239,8 @@ def bdsf(image, kwargs, log):
         img_opts['beam_spectrum'] = beams
 
     image = img_opts.pop('filename')
-    #ncores = img_opts.pop('ncores')
     filename = os.path.basename(image)
-    outfile = '{}-pybdsf.fits'.format(image[:-5])
-    img = bdsm.process_image(image, **img_opts, ncores=2)
-    img.write_catalog(outfile=outfile, clobber=True, format='fits', catalog_type='gaul')
+    outfile = write_opts.pop('outfile') or '{}-pybdsf.fits'.format(image[:-5])
+    img = bdsm.process_image(image, **img_opts, ncores=ncores)
+    img.write_catalog(outfile=outfile, **write_opts)
     return outfile
