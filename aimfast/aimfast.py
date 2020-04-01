@@ -1059,7 +1059,7 @@ def targets_not_matching(sources1, sources2, matched_names):
 
 
 def get_source_overlay(sources1, sources2):
-    """Doc"""
+    """Get source from models compare for overlay"""
     sources = dict()
     for s in sources1:
         props = [s.name,
@@ -1067,14 +1067,16 @@ def get_source_overlay(sources1, sources2):
                  s.pos.ra, s.pos.ra_err,
                  s.pos.dec, s.pos.dec_err,
                  1]
-        sources[s.name] = props
+        sources[s.name+'-1'] = props
+    print("Model 1 source: {}".format(len(sources1)))
     for s in sources2:
         props = [s.name,
                  s.flux.I, s.flux.I_err,
                  s.pos.ra, s.pos.ra_err,
                  s.pos.dec, s.pos.dec_err,
                  2]
-        sources[s.name] = props
+        sources[s.name+'-2'] = props
+    print("Model 2 source: {}".format(len(sources2)))
     return sources
 
 
