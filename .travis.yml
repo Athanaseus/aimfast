@@ -5,6 +5,8 @@ matrix:
   - env: TARGET=py3
   - env: TARGET=pep8
   - env: TARGET=mypy
+  allow_failures:
+  - env: TARGET=pep8
 script:
 - docker build . -t ${TARGET} -f .travis/${TARGET}.docker
 install:
