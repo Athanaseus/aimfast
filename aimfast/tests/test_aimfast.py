@@ -129,8 +129,8 @@ class TestClass(object):
         expected_label = 'None-model_a_1'
         label = None
         input_dir = 'aimfast/tests/files'
-        model1 = 'catalog.txt'
-        model2 = 'catalog.lsm.html'
+        model1 = 'catalog1.txt'
+        model2 = 'catalog2.lsm.html'
         model1_path = '{:s}/{:s}'.format(input_dir, model1)
         model2_path = '{:s}/{:s}'.format(input_dir, model2)
         models = [[dict(label="{}-model_a_1".format(label), path=model1_path),
@@ -170,7 +170,7 @@ class TestClass(object):
         input_dir = 'aimfast/tests/files'
         res1 = 'cube1.fits'
         res2 = 'cube2.fits'
-        skymodel = 'catalog.lsm.html'
+        skymodel = 'catalog2.lsm.html'
         skymodel_path = '{:s}/{:s}'.format(input_dir, skymodel)
         res1_path = '{:s}/{:s}'.format(input_dir, res1)
         res2_path = '{:s}/{:s}'.format(input_dir, res2)
