@@ -22,6 +22,7 @@ from bokeh.transform import transform
 from bokeh.models.widgets import Div, PreText
 from bokeh.models.widgets import DataTable, TableColumn
 
+from bokeh.models import Circle
 from bokeh.models import CheckboxGroup, CustomJS
 from bokeh.models import HoverTool, LinearAxis, Range1d
 from bokeh.models import ColorBar, ColumnDataSource, ColorBar
@@ -165,7 +166,7 @@ def fitsInfo(fitsname=None):
                                       str(hdr['CRVAL2']) + hdr['CUNIT2'])
     except:
         centre = 'J2000.0,0.0deg,0.0deg'
-    skyArea = (numPix * ddec)**2
+    skyArea = (numPix * ddec) ** 2
     fitsinfo = {'wcs': wcs, 'ra': ra, 'dec': dec,
                 'dra': dra, 'ddec': ddec, 'raPix': raPix,
                 'decPix': decPix, 'b_size': beam_size,
@@ -736,6 +737,33 @@ def get_model(catalog):
             source.setAttribute("I_peak_err", float(src["err_int_flux"]))
         return source
 
+
+    def tigger_src_online(src, idx):
+        """Get ascii catalog source as a tigger source """
+
+        name = "SRC%d" % idx
+        flux = ModelClasses.Polarization(float(src["S1.4"]), 0, 0, 0,
+                                         I_err=float(src["e_S1.4"]))
+        ra, ra_err = map(np.deg2rad, (float(ra2deg(src["RAJ2000"])),
+                                      float(src["e_RAJ2000"])))
+        dec, dec_err = map(np.deg2rad, (float(dec2deg(src["DEJ2000"])),
+                                        float(src["e_DEJ2000"])))
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+        ex, ex_err = map(np.deg2rad, (float(src['MajAxis']), float(0.00)))
+        ey, ey_err = map(np.deg2rad, (float(src['MinAxis']), float(0.00)))
+        pa, pa_err = map(np.deg2rad, (float(0.00), float(0.00)))
+        if ex and ey:
+            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
+                                          ey_err=ey_err, pa_err=pa_err)
+        else:
+            shape = None
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        # Adding source peak flux (error) as extra flux attributes for sources,
+        # and to avoid null values for point sources I_peak = src["Total_flux"]
+        source.setAttribute("I_peak", float(src["S1.4"]))
+        source.setAttribute("I_peak_err", float(src["e_S1.4"]))
+        return source
+
     def tigger_src_fits(src, idx):
         """Get fits catalog source as a tigger source """
 
@@ -757,8 +785,9 @@ def get_model(catalog):
         # Adding source peak flux (error) as extra flux attributes for sources,
         # and to avoid null values for point sources I_peak = src["Total_flux"]
         if shape:
-            source.setAttribute("I_peak", src["Peak_flux"])
-            source.setAttribute("I_peak_err", src["E_peak_flux"])
+            pass # TODO: Check for other models what peak is
+            #source.setAttribute("I_peak", src["Peak_flux"])
+            #source.setAttribute("I_peak_err", src["E_peak_flux"])
         else:
             source.setAttribute("I_peak", src["Total_flux"])
             source.setAttribute("I_peak_err", src["E_Total_flux"])
@@ -772,7 +801,13 @@ def get_model(catalog):
     tfile.close()
     ext = os.path.splitext(catalog)[-1]
     if ext in ['.html', '.txt']:
-        model = Tigger.load(catalog)
+        if 'nvss' in catalog or 'sdss' in catalog:
+            data = Table.read(catalog, format='ascii')
+            for i, src in enumerate(data):
+                model.sources.append(tigger_src_online(src, i))
+        else:
+            model = Tigger.load(catalog)
+        model.save(catalog[:-4]+".lsm.html")
     if ext in ['.tab', '.csv']:
         data = Table.read(catalog, format='ascii')
         for i, src in enumerate(data):
@@ -899,10 +934,12 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
     targets_not_matching_a, targets_not_matching_b = targets_not_matching(sources1,
                                                                           sources2,
                                                                           names)
+    sources_overlay = get_source_overlay(sources1, sources2)
     num_of_sources = len(targets_flux)
-    LOGGER.info(f"Number of sources recovered: {num_of_sources}")
+    LOGGER.info(f"Number of sources matched: {num_of_sources}")
     return (targets_flux, targets_scale, targets_position,
-            targets_not_matching_a, targets_not_matching_b)
+            targets_not_matching_a, targets_not_matching_b,
+            sources_overlay)
 
 
 def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
@@ -940,6 +977,7 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
         # No matching source
         results[heading]['no_match1'] = []
         results[heading]['no_match2'] = []
+        results[heading]['overlay'] = []
         props = get_detected_sources_properties('{}'.format(input_model["path"]),
                                                 '{}'.format(output_model["path"]),
                                                 tolerance, phase_centre,
@@ -959,6 +997,10 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
         for i in range(len(props[4])):
             no_match_prop2 = list(props[4].items())
             results[heading]['no_match2'].append(no_match_prop2[i][-1])
+        for i in range(len(props[5])):
+            no_match_prop2 = list(props[5].items())
+            results[heading]['overlay'].append(no_match_prop2[i][-1])
+        results[heading]['tolerance'] = tolerance
     if plot:
         _source_flux_plotter(results, models)
         _source_astrometry_plotter(results, models)
@@ -992,6 +1034,7 @@ def targets_not_matching(sources1, sources2, matched_names):
         Sources from model 1 that have no match in model 2
     target_no_match2: dict
         Sources from model 2 that have no match in model 1
+
     """
     targets_not_matching_a = dict()
     targets_not_matching_b = dict()
@@ -1009,6 +1052,26 @@ def targets_not_matching(sources1, sources2, matched_names):
                       s2.pos.dec, s2.pos.dec_err]
             targets_not_matching_b[s2.name] = props2
     return targets_not_matching_a, targets_not_matching_b
+
+
+def get_source_overlay(sources1, sources2):
+    """Doc"""
+    sources = dict()
+    for s in sources1:
+        props = [s.name,
+                 s.flux.I, s.flux.I_err,
+                 s.pos.ra, s.pos.ra_err,
+                 s.pos.dec, s.pos.dec_err,
+                 1]
+        sources[s.name] = props
+    for s in sources2:
+        props = [s.name,
+                 s.flux.I, s.flux.I_err,
+                 s.pos.ra, s.pos.ra_err,
+                 s.pos.dec, s.pos.dec_err,
+                 2]
+        sources[s.name] = props
+    return sources
 
 
 def plot_photometry(models, label=None, tolerance=0.2, phase_centre=None,
@@ -1257,36 +1320,36 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         # Table with no match data1
         cols1 = ["Source", "Flux", "Flux err", "RA", "RA err", "DEC", "DEC err"]
         stats1 = {"Source": [s[0] for s in no_match1],
-                 "Flux": [s[1] for s in no_match1],
-                 "Flux err": [s[3] for s in no_match1],
-                 "RA": [s[3] for s in no_match1],
-                 "RA err": [s[4] for s in no_match1],
-                 "DEC": [s[5] for s in no_match1],
-                 "DEC err": [s[6] for s in no_match1]}
+                  "Flux": [s[1] for s in no_match1],
+                  "Flux err": [s[3] for s in no_match1],
+                  "RA": [s[3] for s in no_match1],
+                  "RA err": [s[4] for s in no_match1],
+                  "DEC": [s[5] for s in no_match1],
+                  "DEC err": [s[6] for s in no_match1]}
         source1 = ColumnDataSource(data=stats1)
         columns1 = [TableColumn(field=x, title=x.capitalize()) for x in cols1]
         dtab1 = DataTable(source=source1, columns=columns1,
-                         width=400, max_width=450,
-                         height=100, max_height=150,
-                         sizing_mode='stretch_both')
+                          width=400, max_width=450,
+                          height=100, max_height=150,
+                          sizing_mode='stretch_both')
         table_title1 = Div(text="Non-matching sources from model 1")
         table_title1.align = 'center'
         stats_table1 = column([table_title1, dtab1])
         # Table with no match data1
         cols2 = ["Source", "Flux", "Flux err", "RA", "RA err", "DEC", "DEC err"]
         stats2 = {"Source": [s[0] for s in no_match2],
-                 "Flux": [s[1] for s in no_match2],
-                 "Flux err": [s[3] for s in no_match2],
-                 "RA": [s[3] for s in no_match2],
-                 "RA err": [s[4] for s in no_match2],
-                 "DEC": [s[5] for s in no_match2],
-                 "DEC err": [s[6] for s in no_match2]}
+                  "Flux": [s[1] for s in no_match2],
+                  "Flux err": [s[3] for s in no_match2],
+                  "RA": [s[3] for s in no_match2],
+                  "RA err": [s[4] for s in no_match2],
+                  "DEC": [s[5] for s in no_match2],
+                  "DEC err": [s[6] for s in no_match2]}
         source2 = ColumnDataSource(data=stats2)
         columns2 = [TableColumn(field=x, title=x.capitalize()) for x in cols2]
         dtab2 = DataTable(source=source2, columns=columns2,
-                         width=400, max_width=450,
-                         height=100, max_height=150,
-                         sizing_mode='stretch_both')
+                          width=400, max_width=450,
+                          height=100, max_height=150,
+                          sizing_mode='stretch_both')
         table_title2 = Div(text="Non-matching sources from model 2")
         table_title2.align = 'center'
         stats_table2 = column([table_title2, dtab2])
@@ -1345,6 +1408,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
         flux_out_data = []
         delta_pos_data = []
         heading = model_pair[0]['label']
+        overlays = results[heading]['overlay']
+        tolerance = results[heading]['tolerance']
         for n in range(len(results[heading]['flux'])):
             flux_out_data.append(results[heading]['flux'][n][0])
             delta_pos_data.append(results[heading]['position'][n][0])
@@ -1370,14 +1435,14 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
             (ra_off, dec_off) for ra_off, dec_off in zip(RA_offset, DEC_offset)
             if abs(ra_off) <= max(abs(x1)) and abs(dec_off) <= max(abs(y1))])
         # Format data list into numpy arrays
-        x = np.array(RA_offset)
-        y = np.array(DEC_offset)
+        x_ra = np.array(RA_offset)
+        y_dec = np.array(DEC_offset)
         flux_in = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0] * 10  # For radius
         phase_centre_distance = np.array(DELTA_PHASE0)  # For color
         # Create additional feature on the plot such as hover, display text
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
         source = ColumnDataSource(
-                    data=dict(x=x, y=y, z=phase_centre_distance,
+                    data=dict(x=x_ra, y=y_dec, z=phase_centre_distance,
                               f=flux_in, label=source_labels))
         text = model_pair[1]["path"].split("/")[-1].split('.')[0]
         # Create a plot object
@@ -1388,8 +1453,66 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
                                    POSITION_UNIT_SCALER['arcsec'][1]),
                                tools=TOOLS)
         plot_position.title.text_font_size = '16pt'
-        # Create a color bar and size objects
+        # Create an image overlay
+        s1_ra_rad = np.unwrap([src[3] for src in overlays if src[-1] == 1])
+        s1_ra_deg = [rad2deg(s_ra) for s_ra in s1_ra_rad]
+        s1_dec_rad = [src[5] for src in overlays if src[-1] == 1]
+        s1_dec_deg = [rad2deg(s_dec) for s_dec in s1_dec_rad]
+        s1_labels = [src[0] for src in overlays if src[-1] == 1]
+        s1_flux = [src[1] for src in overlays if src[-1] == 1]
+        s2_ra_rad = np.unwrap([src[3] for src in overlays if src[-1] == 2])
+        s2_ra_deg = [rad2deg(s_ra) for s_ra in s2_ra_rad]
+        s2_dec_rad = [src[5] for src in overlays if src[-1] == 2]
+        s2_dec_deg = [rad2deg(s_dec) for s_dec in s2_dec_rad]
+        s2_labels = [src[0] for src in overlays if src[-1] == 2]
+        s2_flux = [src[1] for src in overlays if src[-1] == 2]
+        overlay_source = ColumnDataSource(
+                    data=dict(x1=s1_ra_deg, y1=s1_dec_deg,
+                              x2=s2_ra_deg, y2=s2_dec_deg,
+                              s1_label=s1_labels,
+                              s2_label=s2_labels,
+                              s1_flux=s1_flux,
+                              s2_flux=s2_flux,
+                             ))
+        plot_overlay = figure(title="Overlay Plot of the catalogs",
+                              x_axis_label='RA ({:s})'.format(
+                                  POSITION_UNIT_SCALER['deg'][1]),
+                              y_axis_label='DEC ({:s})'.format(
+                                  POSITION_UNIT_SCALER['deg'][1]),
+                              match_aspect=True,
+                              tools=TOOLS)
+        plot_overlay.ellipse('x1', 'y1',
+                             name='tolerance',
+                             source=overlay_source,
+                             width=tolerance/3600.0,
+                             height=tolerance/3600.0,
+                             line_color=None,
+                             color='#CAB2D6')
+        m1 = plot_overlay.circle('x1', 'y1',
+                             name='model1',
+                             legend_label='Model1',
+                             source=overlay_source,
+                             line_color=None,
+                             color='green')
+        m2 = plot_overlay.circle('x2', 'y2',
+                             name='model1',
+                             legend_label='Model2',
+                             source=overlay_source,
+                             line_color=None,
+                             color='red')
+        plot_overlay.title.align = 'center'
+        #plot_overlay.background_fill_color = 'grey'
+        plot_overlay.legend.location = "top_left"
+        plot_overlay.legend.click_policy = 'hide'
         color_bar_height=100
+        # Attaching the hover object with labels
+        #m1.select(HoverTool).tooltips = {"RA":"$x1", "DEC":"$y1"}
+        #hover = plot_overlay.select(dict(type=HoverTool))
+        #hover.names = ['model1']
+        #hover.tooltips = OrderedDict([
+        #    ("(RA,DEC)", "(@x1,@y1)"),
+        #    ("source", "@s1_label")])
+        # Colorbar Mapper
         mapper_opts = dict(palette="Viridis256",
                            low=min(phase_centre_distance),
                            high=max(phase_centre_distance))
@@ -1410,7 +1533,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
         err_ys1 = []
         err_xs2 = []
         err_ys2 = []
-        for x, y, xerr, yerr in zip(x, y, np.array(RA_err), np.array(DEC_err)):
+        for x, y, xerr, yerr in zip(x_ra, y_dec, np.array(RA_err), np.array(DEC_err)):
             err_xs1.append((x - xerr, x + xerr))
             err_ys1.append((y, y))
             err_xs2.append((x, x))
@@ -1481,11 +1604,12 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
             ("source", "@label")])
         # Legend position
         plot_position.legend.location = "top_left"
+        plot_position.legend.click_policy = 'hide'
         # Colorbar position
         color_bar_plot.add_layout(color_bar, "below")
         color_bar_plot.title.align = "center"
         # Append object to plot list
-        position_plot_list.append(column(row(plot_position,
+        position_plot_list.append(column(row(plot_position, plot_overlay,
                                              widgetbox(stats_table)),
                                          color_bar_plot))
     # Make the plots in a column layout
@@ -1906,12 +2030,16 @@ def get_argparser():
     argument('--compare-images', dest='images', nargs="+", type=str,
              help='List of restored image (fits) files to compare. \n'
                   'Note that this will initially run a source finder. \n'
-                  'e.g. --compare-models iamge1.fits image2.fits')
+                  'e.g. --compare-models image1.fits image2.fits')
+    argument('--compare-online', dest='online', nargs="+", type=str,
+             help='List of catalog models (html/ascii, fits) restored image (fits)'
+                  ' files to compare with online catalog. \n'
+                  'e.g. --compare-models image1.fits image2.fits')
     argument('--compare-residuals', dest='noise', nargs="+", type=str,
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals residuals.fits noise.fits')
     argument('-sf', '--source-finder', dest='sourcery',
-             default='pybdsf', choices=('aegean', 'pybdsf'),
+             choices=('aegean', 'pybdsf'),
              help='Source finder to run if comparing restored images')
     argument('-dp', '--data-points', dest='points',
              help='Data points to sample the residual/noise image')
@@ -1945,7 +2073,8 @@ def main():
        if args.generate:
            generate_default_config(args.generate)
     elif not args.residual and not args.restored and not args.model \
-            and not args.models and not args.noise and not args.images:
+            and not args.models and not args.noise and not args.images \
+            and not args.online:
         print(f"{R}Please provide lsm.html/fits file name(s)."
               f"\nOr\naimfast -h for arguments.{W}")
 
@@ -2108,6 +2237,38 @@ def main():
                                     tolerance=args.tolerance,
                                     phase_centre=args.phase,
                                     all_sources=args.all)
+
+    if args.online:
+       configfile = 'default_sf_config.yml'
+       generate_default_config(configfile)
+       models = args.online
+       sourcery = args.sourcery
+       pc_coord = args.phase.split(',')[1:]
+       pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
+       images_list = []
+       get_online_catalog(catalog='NVSS', width='2d', thresh=2.0,
+                          centre_coord=pc_coord,
+                          catalog_table='nvss_catalog_table.txt')
+
+       for i, ims in enumerate(models):
+           image1 = ims
+           if sourcery:
+               sf_params1 = get_sf_params(configfile)
+               sf_params1[sourcery]['filename'] = image1
+               out1 = source_finding(sf_params1, sourcery)
+               image1 = out1
+
+           images_list.append(
+               [dict(label="{}-model_a_{}".format(args.label, i),
+                     path='nvss_catalog_table.txt'),
+                dict(label="{}-model_b_{}".format(args.label, i),
+                     path=image1)])
+
+       output_dict = compare_models(images_list,
+                                    tolerance=args.tolerance,
+                                    phase_centre=args.phase,
+                                    all_sources=args.all)
+
  
 
     if output_dict:

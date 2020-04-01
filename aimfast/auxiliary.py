@@ -11,6 +11,7 @@ except (ModuleNotFoundError, ImportError):
 
 from astropy.io import ascii
 from astropy import units as u
+from astropy.table import Table
 from astroquery.vizier import Vizier
 from astropy.io import fits as pyfits
 from astropy import coordinates as coord
@@ -151,17 +152,15 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
     dec_deg = []
 
     if catalog == 'NVSS':
-        for i in xrange(0, len(table['RAJ2000'])):
-            table['RAJ2000'][i] = string.join(
-                string.split(table['RAJ2000'][i], ' '), ':')
+        for i in range(0, len(table['RAJ2000'])):
+            table['RAJ2000'][i] = ':'.join(table['RAJ2000'][i].split(' '))
             ra_deg.append(ra2deg(table['RAJ2000'][i]))
-            table['DEJ2000'][i] = string.join(
-                string.split(table['DEJ2000'][i], ' '), ':')
+            table['DEJ2000'][i] = ':'.join(table['DEJ2000'][i].split(' '))
             dec_deg.append(dec2deg(table['DEJ2000'][i]))
 
         above_thresh = table['S1.4'] < thresh
 
-    for i in xrange(1, len(table.colnames)):
+    for i in range(1, len(table.colnames)):
         table[table.colnames[i]][above_thresh] = np.nan
 
     table = Table(table, masked=True)
