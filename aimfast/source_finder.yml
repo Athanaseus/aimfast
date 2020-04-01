@@ -9,7 +9,7 @@ pybdsf:
   freq0:                       # Start frequency (unit => Hz)
   thresh_isl: 3.0              # Threshold for the island boundary in number of sigma above the mean. Determines extent of island used for fitting
   thresh_pix: 5.0              # Source detection threshold: threshold for the island peak in number of sigma above the mean
-  catalog_type: gaul           # Type of catalog to write:  'gaul' - Gaussian list, 'srl' - source list (formed by grouping Gaussians), 'shap' - shapelet list (FITS format only)
+  catalog_type: srl           # Type of catalog to write:  'gaul' - Gaussian list, 'srl' - source list (formed by grouping Gaussians), 'shap' - shapelet list (FITS format only)
   group_tol: 1.0               # Tolerance for grouping of Gaussians into sources: larger values will result in larger sources
   group_by_isl: false          # Group all Gaussians in each island into a single source
   aperture_posn: centroid      # Position the aperture (if aperture is not None) on: 'centroid' or 'peak' of the source
