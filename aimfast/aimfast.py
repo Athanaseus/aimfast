@@ -816,6 +816,10 @@ def get_model(catalog):
         data = Table.read(catalog, format='fits')
         for i, src in enumerate(data):
             model.sources.append(tigger_src_fits(src, i))
+        fits_file = catalog.replace('-pybdsf', '')
+        wcs = WCS(fits_file)
+        centre = wcs.getCentreWCSCoords()
+        model.ra0, model.dec0 = map(np.deg2rad, centre)
     return model
 
 
