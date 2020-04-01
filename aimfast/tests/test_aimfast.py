@@ -139,8 +139,6 @@ class TestClass(object):
         output = aimfast.compare_models(models, tolerance=0.2, plot=False,
                                         all_sources=True)
         models = expected[expected_label]['models']
-        # Remove the reisdual stats
-        expected.pop(expected_label)
         assert models == [model1, model2]
         assert(len(expected[expected_label]['flux'])
                == len(output[expected_label]['flux']))
