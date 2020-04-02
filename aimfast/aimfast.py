@@ -1209,7 +1209,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
         z = np.array(phase_centre_dist)
         # Create additional feature on the plot such as hover, display text
-        TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
+        TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
         source = ColumnDataSource(
                     data=dict(x=x, y=y, z=z, label=name_labels))
                               #label=[f"{x_} X {y_}" for x_, y_ in zip(x, y)]))
@@ -1278,32 +1278,6 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
                                 line_color=None,
                                 fill_color={"field": "z",
                                             "transform": mapper})
-        # Create checkboxes to hide and display error and fit
-        checkbox = CheckboxGroup(labels=[u"Iₒᵤₜ=Iᵢₙ", "Errors", "Fit"],
-                                 active=[0, 1, 2], width=100)
-        checkbox.callback = CustomJS(args=dict(errors=errors,
-                                               equal=equal,
-                                               fit=fit,
-                                               checkbox=checkbox),
-                                     code="""
-                                          if (cb_obj.active.includes(0)) {
-                                            equal.visible = true;
-                                            equal.legend.visible = true;
-                                          } else {
-                                            equal.visible = false;
-                                            equal.legend.visible = false;
-                                          }
-                                          if (cb_obj.active.includes(1)) {
-                                            errors.visible = true;
-                                          } else {
-                                            errors.visible = false;
-                                          }
-                                          if (cb_obj.active.includes(2)) {
-                                            fit.visible = true;
-                                          } else {
-                                            fit.visible = false;
-                                          }
-                                          """)
         # Table with stats data
         cols = ["Stats", "Value"]
         stats = {"Stats":["Slope",
@@ -1371,7 +1345,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         # Colorbar position
         color_bar_plot.add_layout(color_bar, "below")
         color_bar_plot.title.align = "center"
-        # Append all plots and checkboxes
+        # Append all plots
         flux_plot_list.append(column(row(plot_flux, widgetbox(stats_table),
                                          stats_table1, stats_table2),
                                      color_bar_plot))
@@ -1446,7 +1420,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
         flux_in = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0] * 10  # For radius
         phase_centre_distance = np.array(DELTA_PHASE0)  # For color
         # Create additional feature on the plot such as hover, display text
-        TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
+        TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
         source = ColumnDataSource(
                     data=dict(x=x_ra, y=y_dec, z=phase_centre_distance,
                               f=flux_in, label=source_labels))
@@ -1562,27 +1536,6 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
                              legend_label='Data',
                              fill_color={"field": "z",
                                          "transform": mapper})
-        # Create checkboxes to hide and display error and fit
-        checkbox = CheckboxGroup(labels=["Sigma", "Errors"],
-                                 active=[0, 1], width=100)
-        checkbox.callback = CustomJS(args=dict(error1_plot=error1_plot,
-                                               error2_plot=error2_plot,
-                                               sigma_plot=sigma_plot,
-                                               checkbox=checkbox),
-                                     code="""
-                                          if (cb_obj.active.includes(0)) {
-                                            sigma_plot.visible = true;
-                                          } else {
-                                            sigma_plot.visible = false;
-                                          }
-                                          if (cb_obj.active.includes(1)) {
-                                            error1_plot.visible = true;
-                                            error2_plot.visible = true;
-                                          } else {
-                                            error1_plot.visible = false;
-                                            error2_plot.visible = false;
-                                          }
-                                          """)
         # Table with stats data
         cols = ["Stats", "Value"]
         stats = {"Stats":["Total sources",
@@ -1666,7 +1619,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         y1 = np.array(res_noise_ratio)
         x1 = np.array(range(len(res_noise_ratio)))
         # Create additional feature on the plot such as hover, display text
-        TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
+        TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
         source = ColumnDataSource(
                     data=dict(x=x1, y=y1, res1=res1, res2=res2, label=name_labels))
         text = residual_pair[1]["path"].split("/")[-1].split('.')[0]
@@ -1699,30 +1652,6 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
                                          legend_label='res2',
                                          y_range_name=y2_label)
         plot_residual.title.text_font_size = '16pt'
-        # Create checkboxes to hide and display error and fits
-        checkbox = CheckboxGroup(labels=["res1-to-res2", "residual1", "residual2"],
-                                 active=[0, 1, 2], width=100)
-        checkbox.callback = CustomJS(args=dict(res_ratio_object=res_ratio_object,
-                                               res1_object=res1_object,
-                                               res2_object=res2_object,
-                                               checkbox=checkbox),
-                                     code="""
-                                          if (cb_obj.active.includes(0)) {
-                                            res_ratio_object.visible = true;
-                                          } else {
-                                            res_ratio_object.visible = false;
-                                          }
-                                          if (cb_obj.active.includes(1)) {
-                                            res1_object.visible = true;
-                                          } else {
-                                            res1_object.visible = false;
-                                          }
-                                          if (cb_obj.active.includes(2)) {
-                                            res2_object.visible = true;
-                                          } else {
-                                            res2_object.visible = false;
-                                          }
-                                          """)
         # Table with stats data
         cols = ["Stats", "Value"]
         stats = {"Stats":["Residual1",
