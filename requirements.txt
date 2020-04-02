@@ -1,10 +1,13 @@
-astLib
+astLib==0.10.0
 astropy
+astroquery
 astro-tigger
+attrs==19.1.0
+bokeh
 jsonschema
 mock
 numpy
 numpydoc
-plotly
+pyyaml
 scikit-learn
 scipy

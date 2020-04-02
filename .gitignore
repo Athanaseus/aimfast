@@ -20,3 +20,6 @@ docs/_build/
 
 # Unit test / coverage reports
 .pytest_cache/
+
+# Compiled bytecode
+aimfast/*.pyc

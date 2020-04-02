@@ -1,0 +1,83 @@
+pybdsf:
+  enable: false
+  filename:                    # Input image file name
+  outfile:                     # Output file name. None => file is named automatically
+  clobber: true                # Overwrite exist existing file
+  ncores: 4                    # Number of cores to execute
+  adaptive_rms_box: false      # Use adaptive rms_box when determining rms and mean maps
+  frequency:                   # Frequency in Hz of input image.
+  freq0:                       # Start frequency (unit => Hz)
+  thresh_isl: 3.0              # Threshold for the island boundary in number of sigma above the mean. Determines extent of island used for fitting
+  thresh_pix: 5.0              # Source detection threshold: threshold for the island peak in number of sigma above the mean
+  catalog_type: srl           # Type of catalog to write:  'gaul' - Gaussian list, 'srl' - source list (formed by grouping Gaussians), 'shap' - shapelet list (FITS format only)
+  group_tol: 1.0               # Tolerance for grouping of Gaussians into sources: larger values will result in larger sources
+  group_by_isl: false          # Group all Gaussians in each island into a single source
+  aperture_posn: centroid      # Position the aperture (if aperture is not None) on: 'centroid' or 'peak' of the source
+  thresh:                      # Type of thresholding: None => calculate inside program, 'fdr' => use false detection rate algorithm, 'hard' => use sigma clipping
+  mean_map:                    # Background mean map: 'default' => calc whether to use or not, 'zero' => 0, 'const' => clipped mean, 'map' => use 2-D map
+  rms_box:                     # Box size, step size for rms/mean map calculation. Specify as (box, step) in pixels
+  rms_map:                     # Background rms map: True => use 2-D rms map; False => use constant rms; None => calculate inside program
+  format: fits                 # Format of output catalog ["bbs", "ds9", "fits", "star", "kvis", "ascii", "csv", "casabox", "sagecal"]
+  stop_at:                     # Stops after: 'isl' = island finding step or 'read' = image reading step
+  pi_thresh_isl:               # Correct source parameters for image projection (BBS format only)
+  pi_thresh_pix:               # Source detection threshold for PI image: threshold for the island peak in number of sigma above the mean. Uses thresh_pix if not set
+  correct_proj: true
+  psf_vary_do: false
+  psf_fwhm:
+  psf_itess_method: 0
+  output_opts: false
+  psf_kappa2: 2.0
+  psf_nsig: 3.0
+  psf_over: 2
+  psf_snrcut: 10.0
+  psf_snrcutstack: 15.0
+  psf_snrtop: 0.15
+  psf_stype_only: true
+  psf_smooth:
+  psf_high_snr: 
+  indir:
+  opdir_overwrite:
+  output_all:
+  print_timing:
+  quiet: false
+  savefits_meanim: false
+  savefits_normim: false
+  savefits_rankim: false
+  savefits_residim: false
+  savefits_rmsim: false
+  verbose_fitting: false
+  solnname:
+  shapelet_do: false
+  shapelet_basis: cartesian
+  shapelet_gresid: false
+  shapelet_fitmode:
+  spectralindex_do: false      # Calculate spectral indices (for multi-channel image)
+  incl_chan: false             # Include flux densities from each channel
+  beam:                  # FWHM of restoring beam. Specify as (maj, min, pos ang E of N) in degrees.     
+  fix_to_beam: true            # Fix major and minor axes and PA of Gaussians to beam
+  beam_sp_derive:              
+  multi_chan_beam: 
+  beam_spectrum:
+  collapse_av:
+  collapse_ch0:                # Find polarisation properties
+  collapse_mode:
+  collapse_wt:
+  frequency_sp:
+  specind_snr: 3.0
+  specind_maxchan: 0
+  polarisation_do: false
+  pi_fit: false
+  ncores: 
+aegean:
+  enable: false
+  filename:                   # Image to extract radio sources
+  table: ascii                # Additional table outputs, format inferred from extension (database: .db, votable: .vot, and ascii: .csv/.tab)
+  slice:                      # If the input data is a cube, then this slice will determine the array index of the image which will be processed by aegean
+  psf:                        # A .fits file that represents the local psf
+  noise:                      # A .fits file that represents the image noise
+  region:                     # Use this regions file to restrict source finding in this image. Use MIMAS region (.mim) files
+  forcerms:                   # Assume a single image noise of rms
+  forcebkg:                   # Assume a single image background
+  maxsummits:                 # If more than *maxsummits* summits are detected in an island, no fitting is done, only estimation. [default: no limit]
+  seedclip: 5                 # The clipping value (in sigmas) for seeding islands
+  floodclip: 4                # The clipping value (in sigmas) for growing islands
