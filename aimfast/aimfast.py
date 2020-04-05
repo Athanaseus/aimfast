@@ -28,7 +28,7 @@ from bokeh.models import HoverTool, LinearAxis, Range1d
 from bokeh.models import ColorBar, ColumnDataSource, ColorBar
 from bokeh.models import LogColorMapper, LogTicker, LinearColorMapper
 
-from bokeh.layouts import row, column, gridplot, widgetbox, grid
+from bokeh.layouts import row, column, gridplot, grid
 from bokeh.plotting import figure, output_file, show, save, ColumnDataSource
 
 from astLib.astWCS import WCS
@@ -1353,7 +1353,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         color_bar_plot.add_layout(color_bar, "below")
         color_bar_plot.title.align = "center"
         # Append all plots
-        flux_plot_list.append(column(row(plot_flux, widgetbox(stats_table),
+        flux_plot_list.append(column(row(plot_flux, column(stats_table),
                                          stats_table1, stats_table2),
                                      color_bar_plot))
           
@@ -1429,7 +1429,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         # Format data list into numpy arrays
         x_ra = np.array(RA_offset)
         y_dec = np.array(DEC_offset)
-        flux_in = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0] * 10  # For radius
+        # TODO: Use flux as a radius dimension
+        flux_in = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0]
         phase_centre_distance = np.array(DELTA_PHASE0)  # For color
         # Create additional feature on the plot such as hover, display text
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
@@ -1544,7 +1545,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                              name='data',
                              source=source,
                              line_color=None,
-                             size='f',
+                             #size='f',
                              legend_label='Data',
                              fill_color={"field": "z",
                                          "transform": mapper})
@@ -1571,8 +1572,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         hover = plot_position.select(dict(type=HoverTool))
         hover.names = ['data']
         hover.tooltips = OrderedDict([
-            ("(RA_offset,DEC_offset)", "(@x,@y)"),
-            ("source", "@label")])
+            ("source", "@label"),
+            ("Flux_in (mJy)", "@f"),
+            ("(RA_offset,DEC_offset)", "(@x,@y)")])
         # Legend position
         plot_position.legend.location = "top_left"
         plot_position.legend.click_policy = 'hide'
@@ -1581,7 +1583,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         color_bar_plot.title.align = "center"
         # Append object to plot list
         position_plot_list.append(column(row(plot_position, plot_overlay,
-                                             widgetbox(stats_table)),
+                                             column(stats_table)),
                                          color_bar_plot))
     # Make the plots in a column layout
     position_plots = column(position_plot_list)
@@ -1691,7 +1693,7 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         # Position of legend
         plot_residual.legend.location = "top_left"
         # Add object to plot list
-        residual_plot_list.append(row(plot_residual, widgetbox(stats_table)))
+        residual_plot_list.append(row(plot_residual, column(stats_table)))
     # Make the plots in a column layout
     residual_plots = column(residual_plot_list)
     # Save the plot (html)
