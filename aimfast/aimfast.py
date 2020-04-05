@@ -947,7 +947,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
 
 
 def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
-                   all_sources=False):
+                   all_sources=False, prefix=None):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -962,6 +962,8 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
         Phase centre of catalog (if not already embeded)
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
+    prefix : str
+        Prefix for output htmls
 
     Returns
     -------
@@ -1006,8 +1008,8 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
             results[heading]['overlay'].append(no_match_prop2[i][-1])
         results[heading]['tolerance'] = tolerance
     if plot:
-        _source_flux_plotter(results, models)
-        _source_astrometry_plotter(results, models)
+        _source_flux_plotter(results, models, prefix=prefix)
+        _source_astrometry_plotter(results, models, prefix=prefix)
     return results
 
 
@@ -1068,7 +1070,7 @@ def get_source_overlay(sources1, sources2):
                  s.pos.dec, s.pos.dec_err,
                  1]
         sources[s.name+'-1'] = props
-    print("Model 1 source: {}".format(len(sources1)))
+    LOGGER.info("Model 1 source: {}".format(len(sources1)))
     for s in sources2:
         props = [s.name,
                  s.flux.I, s.flux.I_err,
@@ -1076,7 +1078,7 @@ def get_source_overlay(sources1, sources2):
                  s.pos.dec, s.pos.dec_err,
                  2]
         sources[s.name+'-2'] = props
-    print("Model 2 source: {}".format(len(sources2)))
+    LOGGER.info("Model 2 source: {}".format(len(sources2)))
     return sources
 
 
@@ -1163,7 +1165,7 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
 
 
-def _source_flux_plotter(results, all_models, inline=False, units='milli'):
+def _source_flux_plotter(results, all_models, inline=False, units='milli', prefix=None):
     """Plot flux results and save output as html file.
 
     Parameters
@@ -1178,9 +1180,14 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
         Allow inline plotting inside a notebook.
     units : str
         Data points and axis label units
+    prefix : str
+        Prefix for output htmls
 
     """
-    outfile = 'InputOutputFluxDensity.html'
+    if prefix:
+        outfile = f'{prefix}-InputOutputFluxDensity.html'
+    else:
+        outfile = 'InputOutputFluxDensity.html'
     output_file(outfile)
     flux_plot_list = []
     for model_pair in all_models:
@@ -1357,7 +1364,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli'):
     LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
 
 
-def _source_astrometry_plotter(results, all_models, inline=False, units=''):
+def _source_astrometry_plotter(results, all_models, inline=False, units='', prefix=None):
     """Plot astrometry results and save output as html file.
 
     Parameters
@@ -1372,9 +1379,14 @@ def _source_astrometry_plotter(results, all_models, inline=False, units=''):
         Allow inline plotting inside a notebook.
     units : str
         Data points and axis label units
+    prefix : str
+        Prefix for output htmls
 
     """
-    outfile = 'InputOutputPosition.html'
+    if prefix:
+        outfile = f'{prefix}-InputOutputPosition.html'
+    else:
+        outfile = 'InputOutputPosition.html'
     output_file(outfile)
     position_plot_list = []
     for model_pair in all_models:
@@ -1993,6 +2005,8 @@ def get_argparser():
     argument("--label",
              help='Use this label instead of the FITS image path when saving '
                   'data as JSON file')
+    argument("--html-prefix", dest='htmlprefix',
+             help='Prefix of output html files. Default: None.')
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
     return parser
@@ -2127,7 +2141,8 @@ def main():
             output_dict = compare_models(models_list,
                                          tolerance=args.tolerance,
                                          phase_centre=args.phase,
-                                         all_sources=args.all)
+                                         all_sources=args.all,
+                                         prefix=args.htmlprefix)
 
     if args.noise:
         residuals = args.noise
@@ -2175,7 +2190,8 @@ def main():
        output_dict = compare_models(images_list,
                                     tolerance=args.tolerance,
                                     phase_centre=args.phase,
-                                    all_sources=args.all)
+                                    all_sources=args.all,
+                                    prefix=args.htmlprefix)
 
     if args.online:
        configfile = 'default_sf_config.yml'
@@ -2206,7 +2222,8 @@ def main():
        output_dict = compare_models(images_list,
                                     tolerance=args.tolerance,
                                     phase_centre=args.phase,
-                                    all_sources=args.all)
+                                    all_sources=args.all,
+                                    prefix=args.htmlprefix)
 
  
 
