@@ -1014,12 +1014,13 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
 
 
 def compare_residuals(residuals, skymodel=None, points=None,
-                      inline=False, area_factor=2.0):
+                      inline=False, area_factor=2.0, prefix=None):
     if skymodel:
         res = _source_residual_results(residuals, skymodel, area_factor)
     else:
         res = _random_residual_results(residuals, points)
-    _residual_plotter(residuals, results=res, points=points, inline=inline)
+    _residual_plotter(residuals, results=res, points=points,
+                      inline=inline, prefix=prefix)
     return res
 
 def targets_not_matching(sources1, sources2, matched_names):
@@ -1466,8 +1467,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                               s1_label=s1_labels,
                               s2_label=s2_labels,
                               s1_flux=s1_flux,
-                              s2_flux=s2_flux,
-                             ))
+                              s2_flux=s2_flux))
         plot_overlay = figure(title="Overlay Plot of the catalogs",
                               x_axis_label='RA ({:s})'.format(
                                   POSITION_UNIT_SCALER['deg'][1]),
@@ -1593,7 +1593,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
     LOGGER.info('Saving astrometry comparisons in {}'.format(outfile))
 
 
-def _residual_plotter(res_noise_images, points=None, results=None, inline=False):
+def _residual_plotter(res_noise_images, points=None, results=None,
+                      inline=False, prefix=None):
     """Plot ratios of random residuals and noise
 
     Parameters
@@ -1606,12 +1607,20 @@ def _residual_plotter(res_noise_images, points=None, results=None, inline=False)
         Structured output results.
     inline : bool
         Allow inline plotting inside a notebook.
+    prefix : str
+        Prefix for output htmls
 
     """
     if points:
-        outfile = 'RandomResidualNoiseRatio.html'
+        if prefix:
+            outfile = f'{prefix}-RandomResidualNoiseRatio.html'
+        else:
+            outfile = 'RandomResidualNoiseRatio.html'
     else:
-        outfile = 'SourceResidualNoiseRatio.html'
+        if prefix:
+            outfile = f'{prefix}-SourceResidualNoiseRatio.html'
+        else:
+            outfile = 'SourceResidualNoiseRatio.html'
     output_file(outfile)
     residual_plot_list = []
     for residual_pair in res_noise_images:
@@ -2163,10 +2172,13 @@ def main():
                           path=res2)],
                 )
             if args.model:
-                output_dict = compare_residuals(residuals_list, args.model)
+                output_dict = compare_residuals(residuals_list,
+                                                args.model,
+                                                prefix=args.htmlprefix)
             else:
                 output_dict = compare_residuals(
                     residuals_list,
+                    prefix=args.htmlprefix,
                     points=int(args.points) if args.points else 100)
 
     if args.images:
