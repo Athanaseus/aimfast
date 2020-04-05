@@ -1267,12 +1267,12 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                                line_dash="dashed",
                                color="gray")
         # Create a plot object for a Fit
-        inc = 1e-4
+        fit_points = 100
         slope = reg.slope
         intercept = reg.intercept
-        fit_xs = np.arange(start=min(flux_in_data) * FLUX_UNIT_SCALER[units][0],
-                           stop=max(flux_in_data) * FLUX_UNIT_SCALER[units][0] + inc,
-                           step=inc)
+        fit_xs = np.linspace(min(flux_in_data) * FLUX_UNIT_SCALER[units][0],
+                             max(flux_in_data) * FLUX_UNIT_SCALER[units][0],
+                             fit_points)
         fit_ys = slope * fit_xs + intercept
         fit = plot_flux.line(fit_xs, fit_ys,
                              legend_label="Fit",
@@ -1417,8 +1417,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         DEC_mean = np.mean(DEC_offset)
         r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
         # Generate data for a sigma circle around data points
+        fit_points = 100
         pi, cos, sin = np.pi, np.cos, np.sin
-        theta = np.linspace(0, 2.0 * pi, len(DEC_offset))
+        theta = np.linspace(0, 2.0 * pi, fit_points)
         x1 = RA_mean+(r1 * cos(theta))
         y1 = DEC_mean+(r2 * sin(theta))
         # Get the number of sources recovered and within 1 sigma
@@ -1430,7 +1431,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         x_ra = np.array(RA_offset)
         y_dec = np.array(DEC_offset)
         # TODO: Use flux as a radius dimension
-        flux_in = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0]
+        flux_in = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0])
         phase_centre_distance = np.array(DELTA_PHASE0)  # For color
         # Create additional feature on the plot such as hover, display text
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
@@ -1488,7 +1489,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                              line_color=None,
                              color='green')
         m2 = plot_overlay.circle('x2', 'y2',
-                             name='model1',
+                             name='model2',
                              legend_label='Model2',
                              source=overlay_source,
                              line_color=None,
@@ -1497,7 +1498,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         #plot_overlay.background_fill_color = 'grey'
         plot_overlay.legend.location = "top_left"
         plot_overlay.legend.click_policy = 'hide'
-        color_bar_height=100
+        color_bar_height = 100
         # Attaching the hover object with labels
         #m1.select(HoverTool).tooltips = {"RA":"$x1", "DEC":"$y1"}
         #hover = plot_overlay.select(dict(type=HoverTool))
