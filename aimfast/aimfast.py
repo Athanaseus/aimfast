@@ -805,9 +805,9 @@ def get_model(catalog):
             data = Table.read(catalog, format='ascii')
             for i, src in enumerate(data):
                 model.sources.append(tigger_src_online(src, i))
+            model.save(catalog[:-4]+".lsm.html")
         else:
             model = Tigger.load(catalog)
-        model.save(catalog[:-4]+".lsm.html")
     if ext in ['.tab', '.csv']:
         data = Table.read(catalog, format='ascii')
         for i, src in enumerate(data):
@@ -1935,6 +1935,8 @@ def get_argparser():
     sf.add_argument('-gc', '--generate-config', dest='generate',
                     help='Genrate config file to run source finder of choice')
     argument = partial(parser.add_argument)
+    argument('-c', '--config', dest='config',
+                    help='Config file to run source finder of choice (YAML format)')
     argument('--tigger-model', dest='model',
              help='Name of the tigger model lsm.html file')
     argument('--restored-image', dest='restored',
@@ -2150,8 +2152,10 @@ def main():
                     points=int(args.points) if args.points else 100)
 
     if args.images:
-       configfile = 'default_sf_config.yml'
-       generate_default_config(configfile)
+       configfile = args.config
+       if not configfile:
+           configfile = 'default_sf_config.yml'
+           generate_default_config(configfile)
        images = args.images
        sourcery = args.sourcery
        images_list = []
