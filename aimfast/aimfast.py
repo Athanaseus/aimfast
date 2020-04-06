@@ -1014,11 +1014,13 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
 
 
 def compare_residuals(residuals, skymodel=None, points=None,
-                      inline=False, area_factor=2.0, prefix=None):
+                      inline=False, area_factor=None,
+                      prefix=None, fov_factor=None):
     if skymodel:
         res = _source_residual_results(residuals, skymodel, area_factor)
     else:
-        res = _random_residual_results(residuals, points)
+        res = _random_residual_results(residuals, points,
+                                       fov_factor, area_factor)
     _residual_plotter(residuals, results=res, points=points,
                       inline=inline, prefix=prefix)
     return res
@@ -1714,7 +1716,8 @@ def _residual_plotter(res_noise_images, points=None, results=None,
     LOGGER.info('Saving residual comparision plots {}'.format(outfile))
 
 
-def _random_residual_results(res_noise_images, data_points=100, area_factor=2):
+def _random_residual_results(res_noise_images, data_points=None,
+                             fov_factor=None, area_factor=None):
     """Plot ratios of random residuals and noise
 
     Parameters
@@ -1724,7 +1727,9 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2):
     data_points: int
         Number of data points to extract
     area_factor : float
-        Factor to multiply the beam area.
+        Factor to multiply the beam area
+    fov_factor : float
+        Factor to multiply the field of view for random points
 
     Returns
     -------
@@ -1761,9 +1766,10 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2):
         res_data1 = res_hdu1[0].data
         res_data2 = res_hdu2[0].data
         # Get random pixel coordinates
-        pix_coord_deg = _get_random_pixel_coord(data_points,
-                                                sky_area=fits_info['skyArea'] * 0.9,
-                                                phase_centre=fits_info['centre'])
+        pix_coord_deg = _get_random_pixel_coord(
+                            data_points,
+                            phase_centre=fits_info['centre'],
+                            sky_area=fits_info['skyArea'] * fov_factor)
         # Get the number of frequency channels
         nchan = (res_data1.shape[1]
                  if res_data1.shape[0] == 1
@@ -1776,8 +1782,11 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2):
             imslice = get_box(fits_info["wcs"], (RA, DEC), width)
             # Get noise rms in the box around the point coordinate
             res1_area = res_data1[0, 0, :, :][imslice]
-            res1_rms = res1_area.std()
             res2_area = res_data1[0, 0, :, :][imslice]
+            # Ignore empty arrays due to points at the edge
+            if not res1_area.size or not res2_area.size:
+                continue
+            res1_rms = res1_area.std()
             res2_rms = res2_area.std()
             # if image is cube then average along freq axis
             if nchan > 1:
@@ -1812,7 +1821,7 @@ def _random_residual_results(res_noise_images, data_points=100, area_factor=2):
     return results
 
 
-def _source_residual_results(res_noise_images, skymodel, area_factor=2):
+def _source_residual_results(res_noise_images, skymodel, area_factor=None):
     """Plot ratios of source residuals and noise
 
     Parameters
@@ -1984,8 +1993,10 @@ def get_argparser():
                   'NB: normaltest is the D`Agostino')
     argument('-dr', '--data-range', dest='data_range',
              help='Data range to perform normality testing')
-    argument('-af', '--area-factor', dest='factor', type=float, default=6,
+    argument('-af', '--area-factor', dest='factor', type=float, default=2,
              help='Factor to multiply the beam area to get target peak area')
+    argument('-fov', '--fov-factor', dest='fov_factor', type=float, default=0.9,
+             help='Factor to multiply the field of view for rando points. i.e. 0.0-1.0')
     argument('-tol', '--tolerance', dest='tolerance', type=float, default=0.2,
              help='Tolerance to cross-match sources in arcsec')
     argument('-as', '--all-source', dest='all', default=False, action='store_true',
@@ -2044,8 +2055,8 @@ def main():
     elif not args.residual and not args.restored and not args.model \
             and not args.models and not args.noise and not args.images \
             and not args.online:
-        print(f"{R}Please provide lsm.html/fits file name(s)."
-              f"\nOr\naimfast -h for arguments.{W}")
+        LOGGER.error(f"{R}Please provide lsm.html/fits file name(s).{W}")
+        LOGGER.error(f"{R}Or aimfast -h for arguments.{W}")
 
     if args.label:
         residual_label = "{0:s}-residual".format(args.label)
@@ -2073,9 +2084,9 @@ def main():
                                      area_factor=args.factor)
         else:
             DR = model_dynamic_range(args.model, args.residual, psf_size)
-            print(f"{R}Please provide psf fits file or psf size.\n"
-                  "Otherwise a default beam size of six (~6``) asec "
-                  f"is used{W}")
+            LOGGER.warning(f"{R}Please provide psf fits file or psf size.\n"
+                           "Otherwise a default beam size of six (~6``) asec "
+                           f"is used{W}")
 
         if args.test_normality in ['shapiro', 'normaltest']:
             stats = residual_image_stats(args.residual,
@@ -2097,7 +2108,7 @@ def main():
                                              args.step,
                                              args.window)
             else:
-                print(f"{R}Please provide correct normality model{W}")
+                LOGGER.error(f"{R}Please provide correct normality model{W}")
         stats.update({model_label: {
             'DR'                    : DR["global_rms"],
             'DR_deepest_negative'   : DR["deepest_negative"],
@@ -2126,7 +2137,7 @@ def main():
                                                  args.step,
                                                  args.window)
                 else:
-                    print(f"{R}Please provide correct normality model{W}")
+                    LOGGER.error(f"{R}Please provide correct normality model{W}")
             output_dict[residual_label] = stats
 
     if args.restored and args.residual:
@@ -2143,9 +2154,9 @@ def main():
 
     if args.models:
         models = args.models
-        print(f"Number of model pairs to compare: {len(models)}")
+        LOGGER.info(f"Number of model pairs to compare: {len(models)}")
         if len(models) < 1:
-            print(f"{R}Can only compare two models at a time.{W}")
+            LOGGER.error(f"{R}Can only compare two models at a time.{W}")
         else:
             models_list = []
             for i, comp_mod in enumerate(models):
@@ -2166,7 +2177,7 @@ def main():
         residuals = args.noise
         LOGGER.info(f"Number of residual pairs to compare: {len(residuals)}")
         if len(residuals) < 1:
-            print(f"{R}Can only compare atleast one residual pair.{W}")
+            LOGGER.error(f"{R}Can only compare atleast one residual pair.{W}")
         else:
             residuals_list = []
             for i, comp_res in enumerate(residuals):
@@ -2180,10 +2191,13 @@ def main():
             if args.model:
                 output_dict = compare_residuals(residuals_list,
                                                 args.model,
+                                                area_factor=args.factor,
                                                 prefix=args.htmlprefix)
             else:
                 output_dict = compare_residuals(
                     residuals_list,
+                    area_factor=args.factor,
+                    fov_factor=args.fov_factor,
                     prefix=args.htmlprefix,
                     points=int(args.points) if args.points else 100)
 
