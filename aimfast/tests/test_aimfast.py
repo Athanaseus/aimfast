@@ -130,7 +130,7 @@ class TestClass(object):
         label = None
         input_dir = 'aimfast/tests/files'
         model1 = 'catalog1.txt'
-        model2 = 'catalog2.lsm.html'
+        model2 = 'catalog1.lsm.html'
         model1_path = '{:s}/{:s}'.format(input_dir, model1)
         model2_path = '{:s}/{:s}'.format(input_dir, model2)
         models = [[dict(label="{}-model_a_1".format(label), path=model1_path),
@@ -147,36 +147,37 @@ class TestClass(object):
 
     def test_random_residual_results(self):
         """Test comparison of random residuals in images"""
-        expected_label = 'None-res_a_1'
-        label = None
+        expected_label = 'random-res_a_0'
+        label = 'random'
         input_dir = 'aimfast/tests/files'
         res1 = 'cube1.fits'
         res2 = 'cube2.fits'
         res1_path = '{:s}/{:s}'.format(input_dir, res1)
         res2_path = '{:s}/{:s}'.format(input_dir, res2)
-        res_imgs = [[dict(label="{}-res_a_1".format(label), path=res1_path),
-                    dict(label="{}-res_b_1".format(label), path=res2_path)]]
+        res_imgs = [[dict(label="{}-res_a_0".format(label), path=res1_path),
+                    dict(label="{}-res_b_0".format(label), path=res2_path)]]
         expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
-        output = aimfast._random_residual_results(res_imgs, data_points=50,
-                                                  area_factor=2.0)
+        output = aimfast._random_residual_results(res_imgs, data_points=10,
+                                                  area_factor=0.5, fov_factor=0.5)
         assert len(expected[expected_label]) == len(output[expected_label])
 
     def test_source_residual_results(self):
         """Test comparison of source residuals in images"""
-        expected_label = 'None-res_b_1'
-        label = None
+        default_area_factor = 2.0
+        expected_label = 'source-res_a_0'
+        label = 'source'
         input_dir = 'aimfast/tests/files'
         res1 = 'cube1.fits'
         res2 = 'cube2.fits'
-        skymodel = 'catalog2.lsm.html'
+        skymodel = 'catalog.lsm.html'
         skymodel_path = '{:s}/{:s}'.format(input_dir, skymodel)
         res1_path = '{:s}/{:s}'.format(input_dir, res1)
         res2_path = '{:s}/{:s}'.format(input_dir, res2)
-        res_imgs = [[dict(label="{}-res_b_1".format(label), path=res2_path),
-                    dict(label="{}-res_a_1".format(label), path=res1_path)]]
+        res_imgs = [[dict(label="{}-res_a_0".format(label), path=res1_path),
+                     dict(label="{}-res_b_0".format(label), path=res2_path)]]
         expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
         output = aimfast._source_residual_results(res_imgs, skymodel_path,
-                                                  area_factor=2)
+                                                  area_factor=default_area_factor)
         assert len(expected[expected_label]) == len(output[expected_label])
 
     def test_model_dynamic_range(self):
