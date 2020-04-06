@@ -20,4 +20,4 @@ deploy:
     secure: F+OIyV1/4cd7BETtDN6a+GAaMRoNnid1HFODVj45xJ4iRrZDOkKxKCL9P9Eh5bfixxT2aE8+O7vLL5HwkMoTs1iS0wJqUo+9AT9cgeDeXwRwPb0XBwyYXSJD/UbRdOl2xs42RV4Kz+WXeKppFWfby19K8KJDGT87CxLGN6htct51vmn/FYLG5qVabcprp82LBC5XJ2YoyqihJ1DWKxOqui9GV6NmtvYX6uLDV0Fi2iMJu3wcgdVVnCe1GCzxt+4BNAhRA7gIdi+oR9WxAB5xroitCs6U9I+wzHTFrMm3Ld/3KgpD9Pl94RTq0dZStccw3KwoLg7UIgEEiKIgR/wR/0LqcbVOGOVaXJaVHKCQWB3ACAPRn5eotIYPeW+mkPIDx0ObX2pmqekA3J+rXpOqElYDQUvHk0CORneSIsd6ufnxYRaO8DzQ77Agh+bpPvPGQZVf+PPzJVfGrYZ+2+t3YgGjEDPAySoxNC/Tdz6BcgmiwwNaz8qQbrzreIigTpz5T/7QrxrSoTsXirN/r7ip6tjweBoxPsAPvKOp/zpf086XT6mFyUupQiyr72xOtkuMitzcHaYE/g2xEB9FRhSZyQIrdCHb0W1m8iPxBesDZy7RYHfygmqxpuTWjgUnV/HKWVu8mufgj3MXpmFo3Uz22O+UURRh6ne8WnuC44xRdCE=
   on:
     tags: true
-    repo: athanaseus/aimfast
+    repo: Athanaseus/aimfast
