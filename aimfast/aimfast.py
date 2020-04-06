@@ -237,7 +237,7 @@ def get_box(wcs, radec, w):
     Returns
     -------
     box : tuple
-        A box centered at radec.
+        A box centred at radec.
 
     """
     raPix, decPix = wcs.wcs2pix(*radec)
@@ -1303,7 +1303,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                          height=100, max_height=150,
                          sizing_mode='stretch_both')
         table_title = Div(text="Cross Match Stats")
-        table_title.align = 'center'
+        table_title.align = "center"
         stats_table = column([table_title, dtab])
         # Table with no match data1
         cols1 = ["Source", "Flux", "Flux err", "RA", "RA err", "DEC", "DEC err"]
@@ -1321,7 +1321,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                           height=100, max_height=150,
                           sizing_mode='stretch_both')
         table_title1 = Div(text="Non-matching sources from model 1")
-        table_title1.align = 'center'
+        table_title1.align = "center"
         stats_table1 = column([table_title1, dtab1])
         # Table with no match data1
         cols2 = ["Source", "Flux", "Flux err", "RA", "RA err", "DEC", "DEC err"]
@@ -1339,7 +1339,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                           height=100, max_height=150,
                           sizing_mode='stretch_both')
         table_title2 = Div(text="Non-matching sources from model 2")
-        table_title2.align = 'center'
+        table_title2.align = "center"
         stats_table2 = column([table_title2, dtab2])
         # Attaching the hover object with labels
         hover = plot_flux.select(dict(type=HoverTool))
@@ -1347,9 +1347,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         hover.tooltips = OrderedDict([
             ("(Input,Output)", "(@x,@y)"),
             ("source", "@label")])
-        # Legend position
+        # Legend position and title align
         plot_flux.legend.location = "top_left"
-        plot_flux.legend.click_policy = 'hide'
+        plot_flux.title.align = "center"
+        plot_flux.legend.click_policy = "hide"
         # Colorbar position
         color_bar_plot.add_layout(color_bar, "below")
         color_bar_plot.title.align = "center"
@@ -1494,10 +1495,10 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                              source=overlay_source,
                              line_color=None,
                              color='red')
-        plot_overlay.title.align = 'center'
+        plot_overlay.title.align = "center"
         #plot_overlay.background_fill_color = 'grey'
         plot_overlay.legend.location = "top_left"
-        plot_overlay.legend.click_policy = 'hide'
+        plot_overlay.legend.click_policy = "hide"
         color_bar_height = 100
         # Attaching the hover object with labels
         #m1.select(HoverTool).tooltips = {"RA":"$x1", "DEC":"$y1"}
@@ -1567,7 +1568,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                          height=100, max_height=150,
                          sizing_mode='stretch_both')
         table_title = Div(text="Cross Match Stats")
-        table_title.align = 'center'
+        table_title.align = "center"
         stats_table = column([table_title, dtab])
         # Attaching the hover object with labels
         hover = plot_position.select(dict(type=HoverTool))
@@ -1576,9 +1577,10 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             ("source", "@label"),
             ("Flux_in (mJy)", "@f"),
             ("(RA_offset,DEC_offset)", "(@x,@y)")])
-        # Legend position
+        # Legend position and title align
         plot_position.legend.location = "top_left"
-        plot_position.legend.click_policy = 'hide'
+        plot_position.legend.click_policy = "hide"
+        plot_position.title.align = "center"
         # Colorbar position
         color_bar_plot.add_layout(color_bar, "below")
         color_bar_plot.title.align = "center"
@@ -1691,7 +1693,7 @@ def _residual_plotter(res_noise_images, points=None, results=None,
                          height=100, max_height=150,
                          sizing_mode='stretch_both')
         table_title = Div(text="Cross Match Stats")
-        table_title.align = 'center'
+        table_title.align = "center"
         stats_table = column([table_title, dtab])
         # Attaching the hover object with labels
         hover = plot_residual.select(dict(type=HoverTool))
@@ -1700,8 +1702,9 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             ("ratio", "@y"),
             ("(Res1,Res2)", "(@res1,@res2)"),
             ("source", "@label")])
-        # Position of legend
+        # Position of legend and title align
         plot_residual.legend.location = "top_left"
+        plot_residual.title.align = "center"
         # Add object to plot list
         residual_plot_list.append(row(plot_residual, column(stats_table)))
     # Make the plots in a column layout
@@ -1885,8 +1888,11 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=2):
             imslice = get_box(fits_info["wcs"], (RA, DEC), width)
             # Get noise rms in the box around the point coordinate
             res1_area = res_data1[0, 0, :, :][imslice]
-            res1_rms = res1_area.std()
             res2_area = res_data1[0, 0, :, :][imslice]
+            # Ignore empty arrays due to sources at the edge
+            if not res1_area.size or not res2_area.size:
+                continue
+            res1_rms = res1_area.std()
             res2_rms = res2_area.std()
             # if image is cube then average along freq axis
             if nchan > 1:
