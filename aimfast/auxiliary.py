@@ -56,7 +56,7 @@ def rad2deg(x):
 
 def rad2arcsec(x):
     """Converts `x` from radians to arcseconds
-    
+ 
     Parameters
     ----------
     x : float
@@ -167,6 +167,7 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
     ascii.write(table, catalog_table, overwrite=True)
     return table
 
+
 def aegean(image, kwargs, log):
     args = ['aegean']
     for name, value in kwargs.items():
@@ -181,6 +182,7 @@ def aegean(image, kwargs, log):
     log.info("Running: {}".format(" ".join(args)))
     run = subprocess.run(" ".join(args), shell=True)
     log.info("The exit code was: {}".format(run.returncode))
+
 
 def bdsf(image, kwargs, log):
     img_opts = {}

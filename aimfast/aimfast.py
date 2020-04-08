@@ -1490,7 +1490,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                              legend_label='Model1',
                              source=overlay_source,
                              line_color=None,
-                             color='green')
+                             color='blue')
         m2 = plot_overlay.circle('x2', 'y2',
                              name='model2',
                              legend_label='Model2',
@@ -1498,17 +1498,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                              line_color=None,
                              color='red')
         plot_overlay.title.align = "center"
-        #plot_overlay.background_fill_color = 'grey'
         plot_overlay.legend.location = "top_left"
         plot_overlay.legend.click_policy = "hide"
         color_bar_height = 100
-        # Attaching the hover object with labels
-        #m1.select(HoverTool).tooltips = {"RA":"$x1", "DEC":"$y1"}
-        #hover = plot_overlay.select(dict(type=HoverTool))
-        #hover.names = ['model1']
-        #hover.tooltips = OrderedDict([
-        #    ("(RA,DEC)", "(@x1,@y1)"),
-        #    ("source", "@s1_label")])
         # Colorbar Mapper
         mapper_opts = dict(palette="Viridis256",
                            low=min(phase_centre_distance),
@@ -1518,7 +1510,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         color_bar = ColorBar(color_mapper=mapper,
                              ticker=plot_position.xaxis.ticker,
                              formatter=plot_position.xaxis.formatter,
-                             location=(0,0), orientation='horizontal')
+                             location=(0, 0), orientation='horizontal')
         color_bar_plot = figure(title="Phase centre distance (arcsec)",
                                 title_location="below",
                                 height=color_bar_height,
@@ -1555,14 +1547,14 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                          "transform": mapper})
         # Table with stats data
         cols = ["Stats", "Value"]
-        stats = {"Stats":["Total sources",
-                          "(RA, DEC) mean",
-                          "Sigma sources",
-                          "(RA, DEC) sigma"],
-                 "Value":[recovered_sources,
-                          "({:e}, {:e})".format(RA_mean, DEC_mean),
-                          one_sigma_sources,
-                          "({:e}, {:e})".format(r1, r1)]}
+        stats = {"Stats": ["Total sources",
+                           "(RA, DEC) mean",
+                           "Sigma sources",
+                           "(RA, DEC) sigma"],
+                 "Value": [recovered_sources,
+                           "({:e}, {:e})".format(RA_mean, DEC_mean),
+                           one_sigma_sources,
+                           "({:e}, {:e})".format(r1, r1)]}
         source = ColumnDataSource(data=stats)
         columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
         dtab = DataTable(source=source, columns=columns,
@@ -1682,12 +1674,12 @@ def _residual_plotter(res_noise_images, points=None, results=None,
         plot_residual.title.text_font_size = '16pt'
         # Table with stats data
         cols = ["Stats", "Value"]
-        stats = {"Stats":["Residual1",
-                          "Residual2",
-                          "Res1-to-Res2"],
-                 "Value":[np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
-                          np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
-                          np.mean(residuals2) / np.mean(residuals1)]}
+        stats = {"Stats": ["Residual1",
+                           "Residual2",
+                           "Res1-to-Res2"],
+                 "Value": [np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
+                           np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
+                           np.mean(residuals2) / np.mean(residuals1)]}
         source = ColumnDataSource(data=stats)
         columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
         dtab = DataTable(source=source, columns=columns,
@@ -2004,15 +1996,15 @@ def get_argparser():
                   'point-like sources are compared')
     argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
-                  'e.g. --compare-models model1.lsm.html model2.lsm.html')
+                  'e.g. --compare-models model1.lsm.html:model2.lsm.html')
     argument('--compare-images', dest='images', nargs="+", type=str,
              help='List of restored image (fits) files to compare. \n'
                   'Note that this will initially run a source finder. \n'
-                  'e.g. --compare-models image1.fits image2.fits')
+                  'e.g. --compare-images image1.fits:image2.fits')
     argument('--compare-online', dest='online', nargs="+", type=str,
              help='List of catalog models (html/ascii, fits) restored image (fits)'
                   ' files to compare with online catalog. \n'
-                  'e.g. --compare-models image1.fits image2.fits')
+                  'e.g. --compare-online image1.fits image2.fits')
     argument('--compare-residuals', dest='noise', nargs="+", type=str,
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals residuals.fits noise.fits')
@@ -2048,10 +2040,10 @@ def main():
     parser = get_argparser()
     args = parser.parse_args()
     if args.subcommand:
-       if args.config:
-           source_finding(args.config)
-       if args.generate:
-           generate_default_config(args.generate)
+        if args.config:
+            source_finding(args.config)
+        if args.generate:
+            generate_default_config(args.generate)
     elif not args.residual and not args.restored and not args.model \
             and not args.models and not args.noise and not args.images \
             and not args.online:
@@ -2202,66 +2194,67 @@ def main():
                     points=int(args.points) if args.points else 100)
 
     if args.images:
-       configfile = args.config
-       if not configfile:
-           configfile = 'default_sf_config.yml'
-           generate_default_config(configfile)
-       images = args.images
-       sourcery = args.sourcery
-       images_list = []
-       for i, comp_ims in enumerate(images):
-           image1, image2 = comp_ims.split(':')
-           sf_params1 = get_sf_params(configfile)
-           sf_params1[sourcery]['filename'] = image1
-           out1 = source_finding(sf_params1, sourcery)
-           sf_params2 = get_sf_params(configfile)
-           sf_params2[sourcery]['filename'] = image2
-           out2 = source_finding(sf_params2, sourcery)
-           images_list.append(
-               [dict(label="{}-model_a_{}".format(args.label, i),
-                     path=out1),
-                dict(label="{}-model_b_{}".format(args.label, i),
-                     path=out2)])
-       output_dict = compare_models(images_list,
-                                    tolerance=args.tolerance,
-                                    phase_centre=args.phase,
-                                    all_sources=args.all,
-                                    prefix=args.htmlprefix)
+        configfile = args.config
+        if not configfile:
+            configfile = 'default_sf_config.yml'
+            generate_default_config(configfile)
+        images = args.images
+        sourcery = args.sourcery
+        images_list = []
+        for i, comp_ims in enumerate(images):
+            image1, image2 = comp_ims.split(':')
+            sf_params1 = get_sf_params(configfile)
+            sf_params1[sourcery]['filename'] = image1
+            out1 = source_finding(sf_params1, sourcery)
+            sf_params2 = get_sf_params(configfile)
+            sf_params2[sourcery]['filename'] = image2
+            out2 = source_finding(sf_params2, sourcery)
+            images_list.append(
+                [dict(label="{}-model_a_{}".format(args.label, i),
+                      path=out1),
+                 dict(label="{}-model_b_{}".format(args.label, i),
+                      path=out2)])
+        output_dict = compare_models(images_list,
+                                     tolerance=args.tolerance,
+                                     phase_centre=args.phase,
+                                     all_sources=args.all,
+                                     prefix=args.htmlprefix)
 
     if args.online:
-       configfile = 'default_sf_config.yml'
-       generate_default_config(configfile)
-       models = args.online
-       sourcery = args.sourcery
-       pc_coord = args.phase.split(',')[1:]
-       pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
-       images_list = []
-       get_online_catalog(catalog='NVSS', width='2d', thresh=2.0,
-                          centre_coord=pc_coord,
-                          catalog_table='nvss_catalog_table.txt')
+        configfile = 'default_sf_config.yml'
+        generate_default_config(configfile)
+        models = args.online
+        sourcery = args.sourcery
+        if args.phase:
+            pc_coord = args.phase.split(',')[1:]
+            pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
+        else:
+            raise ValueError(f"{R}Provide phase centre. e.g. -ptc 'J2000,-30deg,0deg'.{W}")
+        images_list = []
+        get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
+                           centre_coord=pc_coord,
+                           catalog_table='nvss_catalog_table.txt')
 
-       for i, ims in enumerate(models):
-           image1 = ims
-           if sourcery:
-               sf_params1 = get_sf_params(configfile)
-               sf_params1[sourcery]['filename'] = image1
-               out1 = source_finding(sf_params1, sourcery)
-               image1 = out1
+        for i, ims in enumerate(models):
+            image1 = ims
+            if sourcery:
+                sf_params1 = get_sf_params(configfile)
+                sf_params1[sourcery]['filename'] = image1
+                out1 = source_finding(sf_params1, sourcery)
+                image1 = out1
 
-           images_list.append(
-               [dict(label="{}-model_a_{}".format(args.label, i),
-                     path='nvss_catalog_table.txt'),
-                dict(label="{}-model_b_{}".format(args.label, i),
-                     path=image1)])
+            images_list.append(
+                [dict(label="{}-model_a_{}".format(args.label, i),
+                      path='nvss_catalog_table.txt'),
+                 dict(label="{}-model_b_{}".format(args.label, i),
+                      path=image1)])
 
-       output_dict = compare_models(images_list,
-                                    tolerance=args.tolerance,
-                                    phase_centre=args.phase,
-                                    all_sources=args.all,
-                                    prefix=args.htmlprefix)
-
+        output_dict = compare_models(images_list,
+                                     tolerance=args.tolerance,
+                                     phase_centre=args.phase,
+                                     all_sources=args.all,
+                                     prefix=args.htmlprefix)
  
-
     if output_dict:
         #LOGGER.info(output_dict)
         if args.outfile:
