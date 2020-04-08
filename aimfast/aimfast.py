@@ -1357,8 +1357,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         color_bar_plot.add_layout(color_bar, "below")
         color_bar_plot.title.align = "center"
         # Append all plots
-        flux_plot_list.append(column(row(plot_flux, column(stats_table),
-                                         stats_table1, stats_table2),
+        flux_plot_list.append(column(row(plot_flux,
+                                         column(stats_table,
+                                                stats_table1,
+                                                stats_table2)),
                                      color_bar_plot))
           
     # Make the plots in a column layout
