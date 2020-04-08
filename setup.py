@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 pkg = 'aimfast'
-__version__ = "1.0-pre6"
+__version__ = "1.0-pre7"
 build_root = os.path.dirname(__file__)
 
 def readme():
@@ -45,4 +45,5 @@ setup(name=pkg,
                       'source_finders': ["bdsf",
                                          "AegeanTools"]},
       python_requires='>=3.6',
+      include_package_data=True,
       scripts=['aimfast/bin/aimfast'])
