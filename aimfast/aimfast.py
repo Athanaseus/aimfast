@@ -1498,17 +1498,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                              line_color=None,
                              color='red')
         plot_overlay.title.align = "center"
-        #plot_overlay.background_fill_color = 'grey'
         plot_overlay.legend.location = "top_left"
         plot_overlay.legend.click_policy = "hide"
         color_bar_height = 100
-        # Attaching the hover object with labels
-        #m1.select(HoverTool).tooltips = {"RA":"$x1", "DEC":"$y1"}
-        #hover = plot_overlay.select(dict(type=HoverTool))
-        #hover.names = ['model1']
-        #hover.tooltips = OrderedDict([
-        #    ("(RA,DEC)", "(@x1,@y1)"),
-        #    ("source", "@s1_label")])
         # Colorbar Mapper
         mapper_opts = dict(palette="Viridis256",
                            low=min(phase_centre_distance),
@@ -1518,7 +1510,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         color_bar = ColorBar(color_mapper=mapper,
                              ticker=plot_position.xaxis.ticker,
                              formatter=plot_position.xaxis.formatter,
-                             location=(0,0), orientation='horizontal')
+                             location=(0, 0), orientation='horizontal')
         color_bar_plot = figure(title="Phase centre distance (arcsec)",
                                 title_location="below",
                                 height=color_bar_height,
@@ -1555,14 +1547,14 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                          "transform": mapper})
         # Table with stats data
         cols = ["Stats", "Value"]
-        stats = {"Stats":["Total sources",
-                          "(RA, DEC) mean",
-                          "Sigma sources",
-                          "(RA, DEC) sigma"],
-                 "Value":[recovered_sources,
-                          "({:e}, {:e})".format(RA_mean, DEC_mean),
-                          one_sigma_sources,
-                          "({:e}, {:e})".format(r1, r1)]}
+        stats = {"Stats": ["Total sources",
+                           "(RA, DEC) mean",
+                           "Sigma sources",
+                           "(RA, DEC) sigma"],
+                 "Value": [recovered_sources,
+                           "({:e}, {:e})".format(RA_mean, DEC_mean),
+                           one_sigma_sources,
+                           "({:e}, {:e})".format(r1, r1)]}
         source = ColumnDataSource(data=stats)
         columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
         dtab = DataTable(source=source, columns=columns,
@@ -1682,12 +1674,12 @@ def _residual_plotter(res_noise_images, points=None, results=None,
         plot_residual.title.text_font_size = '16pt'
         # Table with stats data
         cols = ["Stats", "Value"]
-        stats = {"Stats":["Residual1",
-                          "Residual2",
-                          "Res1-to-Res2"],
-                 "Value":[np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
-                          np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
-                          np.mean(residuals2) / np.mean(residuals1)]}
+        stats = {"Stats": ["Residual1",
+                           "Residual2",
+                           "Res1-to-Res2"],
+                 "Value": [np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
+                           np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
+                           np.mean(residuals2) / np.mean(residuals1)]}
         source = ColumnDataSource(data=stats)
         columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
         dtab = DataTable(source=source, columns=columns,
@@ -2262,9 +2254,7 @@ def main():
                                      phase_centre=args.phase,
                                      all_sources=args.all,
                                      prefix=args.htmlprefix)
-
  
-
     if output_dict:
         #LOGGER.info(output_dict)
         if args.outfile:
