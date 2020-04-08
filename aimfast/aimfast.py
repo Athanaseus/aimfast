@@ -2048,10 +2048,10 @@ def main():
     parser = get_argparser()
     args = parser.parse_args()
     if args.subcommand:
-       if args.config:
-           source_finding(args.config)
-       if args.generate:
-           generate_default_config(args.generate)
+        if args.config:
+            source_finding(args.config)
+        if args.generate:
+            generate_default_config(args.generate)
     elif not args.residual and not args.restored and not args.model \
             and not args.models and not args.noise and not args.images \
             and not args.online:
@@ -2202,66 +2202,66 @@ def main():
                     points=int(args.points) if args.points else 100)
 
     if args.images:
-       configfile = args.config
-       if not configfile:
-           configfile = 'default_sf_config.yml'
-           generate_default_config(configfile)
-       images = args.images
-       sourcery = args.sourcery
-       images_list = []
-       for i, comp_ims in enumerate(images):
-           image1, image2 = comp_ims.split(':')
-           sf_params1 = get_sf_params(configfile)
-           sf_params1[sourcery]['filename'] = image1
-           out1 = source_finding(sf_params1, sourcery)
-           sf_params2 = get_sf_params(configfile)
-           sf_params2[sourcery]['filename'] = image2
-           out2 = source_finding(sf_params2, sourcery)
-           images_list.append(
-               [dict(label="{}-model_a_{}".format(args.label, i),
-                     path=out1),
-                dict(label="{}-model_b_{}".format(args.label, i),
-                     path=out2)])
-       output_dict = compare_models(images_list,
-                                    tolerance=args.tolerance,
-                                    phase_centre=args.phase,
-                                    all_sources=args.all,
-                                    prefix=args.htmlprefix)
+        configfile = args.config
+        if not configfile:
+            configfile = 'default_sf_config.yml'
+            generate_default_config(configfile)
+        images = args.images
+        sourcery = args.sourcery
+        images_list = []
+        for i, comp_ims in enumerate(images):
+            image1, image2 = comp_ims.split(':')
+            sf_params1 = get_sf_params(configfile)
+            sf_params1[sourcery]['filename'] = image1
+            out1 = source_finding(sf_params1, sourcery)
+            sf_params2 = get_sf_params(configfile)
+            sf_params2[sourcery]['filename'] = image2
+            out2 = source_finding(sf_params2, sourcery)
+            images_list.append(
+                [dict(label="{}-model_a_{}".format(args.label, i),
+                      path=out1),
+                 dict(label="{}-model_b_{}".format(args.label, i),
+                      path=out2)])
+        output_dict = compare_models(images_list,
+                                     tolerance=args.tolerance,
+                                     phase_centre=args.phase,
+                                     all_sources=args.all,
+                                     prefix=args.htmlprefix)
 
     if args.online:
-       configfile = 'default_sf_config.yml'
-       generate_default_config(configfile)
-       models = args.online
-       sourcery = args.sourcery
-       if args.phase:
-           pc_coord = args.phase.split(',')[1:]
-           pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
-       else:
-           raise ValueError(f"{R}Provide phase centre. e.g. -ptc 'J2000,-30deg,0deg'.{W}")
-       images_list = []
-       get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
-                          centre_coord=pc_coord,
-                          catalog_table='nvss_catalog_table.txt')
+        configfile = 'default_sf_config.yml'
+        generate_default_config(configfile)
+        models = args.online
+        sourcery = args.sourcery
+        if args.phase:
+            pc_coord = args.phase.split(',')[1:]
+            pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
+        else:
+            raise ValueError(f"{R}Provide phase centre. e.g. -ptc 'J2000,-30deg,0deg'.{W}")
+        images_list = []
+        get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
+                           centre_coord=pc_coord,
+                           catalog_table='nvss_catalog_table.txt')
 
-       for i, ims in enumerate(models):
-           image1 = ims
-           if sourcery:
-               sf_params1 = get_sf_params(configfile)
-               sf_params1[sourcery]['filename'] = image1
-               out1 = source_finding(sf_params1, sourcery)
-               image1 = out1
+        for i, ims in enumerate(models):
+            image1 = ims
+            if sourcery:
+                sf_params1 = get_sf_params(configfile)
+                sf_params1[sourcery]['filename'] = image1
+                out1 = source_finding(sf_params1, sourcery)
+                image1 = out1
 
-           images_list.append(
-               [dict(label="{}-model_a_{}".format(args.label, i),
-                     path='nvss_catalog_table.txt'),
-                dict(label="{}-model_b_{}".format(args.label, i),
-                     path=image1)])
+            images_list.append(
+                [dict(label="{}-model_a_{}".format(args.label, i),
+                      path='nvss_catalog_table.txt'),
+                 dict(label="{}-model_b_{}".format(args.label, i),
+                      path=image1)])
 
-       output_dict = compare_models(images_list,
-                                    tolerance=args.tolerance,
-                                    phase_centre=args.phase,
-                                    all_sources=args.all,
-                                    prefix=args.htmlprefix)
+        output_dict = compare_models(images_list,
+                                     tolerance=args.tolerance,
+                                     phase_centre=args.phase,
+                                     all_sources=args.all,
+                                     prefix=args.htmlprefix)
 
  
 
