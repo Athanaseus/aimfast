@@ -1490,7 +1490,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                              legend_label='Model1',
                              source=overlay_source,
                              line_color=None,
-                             color='green')
+                             color='blue')
         m2 = plot_overlay.circle('x2', 'y2',
                              name='model2',
                              legend_label='Model2',
@@ -2004,15 +2004,15 @@ def get_argparser():
                   'point-like sources are compared')
     argument('--compare-models', dest='models', nargs="+", type=str,
              help='List of tigger model (text/lsm.html) files to compare \n'
-                  'e.g. --compare-models model1.lsm.html model2.lsm.html')
+                  'e.g. --compare-models model1.lsm.html:model2.lsm.html')
     argument('--compare-images', dest='images', nargs="+", type=str,
              help='List of restored image (fits) files to compare. \n'
                   'Note that this will initially run a source finder. \n'
-                  'e.g. --compare-models image1.fits image2.fits')
+                  'e.g. --compare-images image1.fits:image2.fits')
     argument('--compare-online', dest='online', nargs="+", type=str,
              help='List of catalog models (html/ascii, fits) restored image (fits)'
                   ' files to compare with online catalog. \n'
-                  'e.g. --compare-models image1.fits image2.fits')
+                  'e.g. --compare-online image1.fits image2.fits')
     argument('--compare-residuals', dest='noise', nargs="+", type=str,
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals residuals.fits noise.fits')
@@ -2233,10 +2233,13 @@ def main():
        generate_default_config(configfile)
        models = args.online
        sourcery = args.sourcery
-       pc_coord = args.phase.split(',')[1:]
-       pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
+       if args.phase:
+           pc_coord = args.phase.split(',')[1:]
+           pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
+       else:
+           raise ValueError(f"{R}Provide phase centre. e.g. -ptc 'J2000,-30deg,0deg'.{W}")
        images_list = []
-       get_online_catalog(catalog='NVSS', width='2d', thresh=2.0,
+       get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
                           centre_coord=pc_coord,
                           catalog_table='nvss_catalog_table.txt')
 
