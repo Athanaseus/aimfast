@@ -2013,20 +2013,20 @@ def get_argparser():
     argument('-as', '--all-source', dest='all', default=False, action='store_true',
              help='Compare all sources irrespective of shape, otherwise only '
                   'point-like sources are compared')
-    argument('--compare-models', dest='models', nargs="+", type=str,
+    argument('--compare-models', dest='models', nargs=2, action='append',
              help='List of tigger model (text/lsm.html) files to compare \n'
-                  'e.g. --compare-models model1.lsm.html:model2.lsm.html')
-    argument('--compare-images', dest='images', nargs="+", type=str,
+                  'e.g. --compare-models model1.lsm.html model2.lsm.html')
+    argument('--compare-images', dest='images', nargs=2, action='append',
              help='List of restored image (fits) files to compare. \n'
                   'Note that this will initially run a source finder. \n'
-                  'e.g. --compare-images image1.fits:image2.fits')
-    argument('--compare-online', dest='online', nargs="+", type=str,
+                  'e.g. --compare-images image1.fits image2.fits')
+    argument('--compare-online', dest='online', nargs=1, action='append',
              help='List of catalog models (html/ascii, fits) restored image (fits)'
                   ' files to compare with online catalog. \n'
-                  'e.g. --compare-online image1.fits image2.fits')
-    argument('--compare-residuals', dest='noise', nargs="+", type=str,
+                  'e.g. --compare-online image1.fit')
+    argument('--compare-residuals', dest='noise', nargs=2, action='append',
              help='List of noise-like (fits) files to compare \n'
-                  'e.g. --compare-residuals residuals.fits noise.fits')
+                  'e.g. --compare-residuals residual1.fits residual2.fits')
     argument('-sf', '--source-finder', dest='sourcery',
              choices=('aegean', 'pybdsf'),
              help='Source finder to run if comparing restored images')
@@ -2171,7 +2171,7 @@ def main():
         else:
             models_list = []
             for i, comp_mod in enumerate(models):
-                model1, model2 = comp_mod.split(':')
+                model1, model2 = comp_mod[0], comp_mod[1]
                 models_list.append(
                     [dict(label="{}-model_a_{}".format(args.label, i),
                           path=model1),
@@ -2192,7 +2192,7 @@ def main():
         else:
             residuals_list = []
             for i, comp_res in enumerate(residuals):
-                res1, res2 = comp_res.split(':')
+                res1, res2 = comp_res[0], comp_res[1]
                 residuals_list.append(
                     [dict(label="{}-res_a_{}".format(args.label, i),
                           path=res1),
@@ -2221,7 +2221,7 @@ def main():
         sourcery = args.sourcery
         images_list = []
         for i, comp_ims in enumerate(images):
-            image1, image2 = comp_ims.split(':')
+            image1, image2 = comp_ims[0], comp_ims[1]
             sf_params1 = get_sf_params(configfile)
             sf_params1[sourcery]['filename'] = image1
             out1 = source_finding(sf_params1, sourcery)
