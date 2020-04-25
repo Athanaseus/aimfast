@@ -85,7 +85,7 @@ def generate_default_config(configfile):
     LOGGER.info(f"Getting parameter file: {configfile}")
     aim_path = os.path.dirname(os.path.dirname(os.path.abspath(aimfast.__file__)))
     copyfile(f"{aim_path}/aimfast/source_finder.yml", configfile)
-    
+ 
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
     "Extracts data from the json data file"
@@ -1376,7 +1376,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                                          column(stats_table,
                                                 stats_table1,
                                                 stats_table2)),
-                                     color_bar_plot)) 
+                                     color_bar_plot))
     # Make the plots in a column layout
     flux_plots = column(flux_plot_list)
     # Save the plot (html)
@@ -2271,7 +2271,7 @@ def main():
                                      phase_centre=args.phase,
                                      all_sources=args.all,
                                      prefix=args.htmlprefix)
- 
+
     if output_dict:
         if args.outfile:
             json_dump(output_dict, filename=args.outfile)
