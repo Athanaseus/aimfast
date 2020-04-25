@@ -737,7 +737,6 @@ def get_model(catalog):
             source.setAttribute("I_peak_err", float(src["err_int_flux"]))
         return source
 
-
     def tigger_src_online(src, idx):
         """Get ascii catalog source as a tigger source """
 
@@ -1257,7 +1256,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         color_bar = ColorBar(color_mapper=mapper,
                              ticker=plot_flux.xaxis.ticker,
                              formatter=plot_flux.xaxis.formatter,
-                             location=(0,0), orientation='horizontal')
+                             location=(0, 0), orientation='horizontal')
         color_bar_plot = figure(title="Phase centre distance (arcsec)",
                                 title_location="below",
                                 height=color_bar_height,
@@ -1306,14 +1305,14 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         # Table with stats data
         deci = 3  # Round off to this decimal places
         cols = ["Stats", "Value"]
-        stats = {"Stats":["Slope",
-                          "Intercept",
-                          "RMS_Error",
-                          "R2"],
-                 "Value":[f"{reg.slope:.{deci}f}",
-                          f"{reg.intercept * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
-                          f"{np.sqrt(flux_MSE) * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
-                          f"{flux_R_score:.{deci}f}"]}
+        stats = {"Stats": ["Slope",
+                           "Intercept",
+                           "RMS_Error",
+                           "R2"],
+                 "Value": [f"{reg.slope:.{deci}f}",
+                           f"{reg.intercept * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
+                           f"{np.sqrt(flux_MSE) * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
+                           f"{flux_R_score:.{deci}f}"]}
         source = ColumnDataSource(data=stats)
         columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
         dtab = DataTable(source=source, columns=columns,
@@ -1377,8 +1376,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                                          column(stats_table,
                                                 stats_table1,
                                                 stats_table2)),
-                                     color_bar_plot))
-          
+                                     color_bar_plot)) 
     # Make the plots in a column layout
     flux_plots = column(flux_plot_list)
     # Save the plot (html)
@@ -2275,7 +2273,6 @@ def main():
                                      prefix=args.htmlprefix)
  
     if output_dict:
-        #LOGGER.info(output_dict)
         if args.outfile:
             json_dump(output_dict, filename=args.outfile)
         else:
