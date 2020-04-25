@@ -96,15 +96,16 @@ def get_aimfast_data(filename='fidelity_results.json', dir='.'):
         return data
 
 
-def json_dump(data_dict, filename='fidelity_results.json', root='.'):
+def json_dump(data_dict, filename='fidelity_results.json'):
     """Dumps the computed dictionary results into a json file.
 
     Parameters
     ----------
     data_dict : dict
         Dictionary with output results to save.
-    root : str
-        Directory to save output json file (default is current directory).
+    filename : str
+        Name of file json file where fidelity results will be dumped.
+        Default is 'fidelity_results.json' in the current directory.
 
     Note1
     ----
@@ -112,7 +113,6 @@ def json_dump(data_dict, filename='fidelity_results.json', root='.'):
     repeated image assessments will be replaced.
 
     """
-    filename = ('{:s}/{:s}'.format(root, filename))
     LOGGER.info(f"Dumping results into the '{filename}' file")
     try:
         # Extract data from the json data file
@@ -1025,7 +1025,7 @@ def compare_residuals(residuals, skymodel=None, points=None,
                       inline=inline, prefix=prefix)
     return res
 
-def targets_not_matching(sources1, sources2, matched_names):
+def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
     """Plot model-model fluxes from lsm.html/txt models
 
     Parameters
@@ -1036,6 +1036,8 @@ def targets_not_matching(sources1, sources2, matched_names):
         List of sources Sources from model 2
     matched_names: dict
         Dict of names from model 2 that matched that of model 1
+    flux_units: str
+        Units of flux density for tabulated values
 
     Returns
     -------
@@ -1045,20 +1047,28 @@ def targets_not_matching(sources1, sources2, matched_names):
         Sources from model 2 that have no match in model 1
 
     """
+    deci = 2  # round off to this decimal places
+    units = flux_units
     targets_not_matching_a = dict()
     targets_not_matching_b = dict()
     for s1, s2 in zip(sources1, sources2):
         if s1.name not in matched_names.keys():
             props1 = [s1.name,
-                      s1.flux.I, s1.flux.I_err,
-                      s1.pos.ra, s1.pos.ra_err,
-                      s1.pos.dec, s1.pos.dec_err]
+                      round(s1.flux.I*FLUX_UNIT_SCALER[units][0], deci),
+                      round(s1.flux.I_err*FLUX_UNIT_SCALER[units][0], deci),
+                      round(rad2deg(s1.pos.ra), deci),
+                      f'{rad2deg(s1.pos.ra_err):.{deci}e}',
+                      round(rad2deg(s1.pos.dec), deci),
+                      f'{rad2deg(s1.pos.dec_err):.{deci}e}']
             targets_not_matching_a[s1.name] = props1
         if s2.name not in matched_names.values():
             props2 = [s2.name,
-                      s2.flux.I, s2.flux.I_err,
-                      s2.pos.ra, s2.pos.ra_err,
-                      s2.pos.dec, s2.pos.dec_err]
+                      round(s2.flux.I*FLUX_UNIT_SCALER[units][0], deci),
+                      round(s2.flux.I_err*FLUX_UNIT_SCALER[units][0], deci),
+                      round(rad2deg(s2.pos.ra), deci),
+                      f'{rad2deg(s2.pos.ra_err):.{deci}e}',
+                      round(rad2deg(s2.pos.dec), deci),
+                      f'{rad2deg(s2.pos.dec_err):.{deci}e}']
             targets_not_matching_b[s2.name] = props2
     return targets_not_matching_a, targets_not_matching_b
 
@@ -1289,15 +1299,16 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                                 fill_color={"field": "z",
                                             "transform": mapper})
         # Table with stats data
+        deci = 3  # Round off to this decimal places
         cols = ["Stats", "Value"]
         stats = {"Stats":["Slope",
                           "Intercept",
                           "RMS_Error",
                           "R2"],
-                 "Value":[reg.slope,
-                          reg.intercept * FLUX_UNIT_SCALER[units][0],
-                          np.sqrt(flux_MSE) * FLUX_UNIT_SCALER[units][0],
-                          flux_R_score]}
+                 "Value":[f"{reg.slope:.{deci}f}",
+                          f"{reg.intercept * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
+                          f"{np.sqrt(flux_MSE) * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
+                          f"{flux_R_score:.{deci}f}"]}
         source = ColumnDataSource(data=stats)
         columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
         dtab = DataTable(source=source, columns=columns,
@@ -1548,15 +1559,16 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                              fill_color={"field": "z",
                                          "transform": mapper})
         # Table with stats data
+        deci = 2  # round off to this decimal places
         cols = ["Stats", "Value"]
         stats = {"Stats": ["Total sources",
                            "(RA, DEC) mean",
                            "Sigma sources",
                            "(RA, DEC) sigma"],
                  "Value": [recovered_sources,
-                           "({:e}, {:e})".format(RA_mean, DEC_mean),
+                           f"({RA_mean:.{deci}e}, {DEC_mean:.{deci}e})",
                            one_sigma_sources,
-                           "({:e}, {:e})".format(r1, r1)]}
+                           f"({r1:.{deci}e}, {r2:.{deci}e})"]}
         source = ColumnDataSource(data=stats)
         columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
         dtab = DataTable(source=source, columns=columns,
