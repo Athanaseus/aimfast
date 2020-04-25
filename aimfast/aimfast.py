@@ -785,7 +785,7 @@ def get_model(catalog):
         # Adding source peak flux (error) as extra flux attributes for sources,
         # and to avoid null values for point sources I_peak = src["Total_flux"]
         if shape:
-            pass # TODO: Check for other models what peak is
+            pass  # TODO: Check for other models what peak is
             #source.setAttribute("I_peak", src["Peak_flux"])
             #source.setAttribute("I_peak_err", src["E_peak_flux"])
         else:
@@ -1238,7 +1238,6 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
         source = ColumnDataSource(
                     data=dict(x=x, y=y, z=z, label=name_labels))
-                              #label=[f"{x_} X {y_}" for x_, y_ in zip(x, y)]))
         text = model_pair[1]["path"].split("/")[-1].split('.')[0]
         # Create a plot object
         plot_flux = figure(title=text,
@@ -1249,7 +1248,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                            tools=TOOLS)
         plot_flux.title.text_font_size = '16pt'
         # Create a color bar and size objects
-        color_bar_height=100
+        color_bar_height = 100
         mapper_opts = dict(palette="Viridis256",
                            low=min(phase_centre_dist),
                            high=max(phase_centre_dist))
