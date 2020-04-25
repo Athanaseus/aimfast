@@ -1055,20 +1055,26 @@ def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
         if s1.name not in matched_names.keys():
             props1 = [s1.name,
                       round(s1.flux.I*FLUX_UNIT_SCALER[units][0], deci),
-                      round(s1.flux.I_err*FLUX_UNIT_SCALER[units][0], deci),
+                      round(s1.flux.I_err*FLUX_UNIT_SCALER[units][0], deci)
+                          if s1.flux.I_err else None,
                       round(rad2deg(s1.pos.ra), deci),
-                      f'{rad2deg(s1.pos.ra_err):.{deci}e}',
+                      f'{rad2deg(s1.pos.ra_err):.{deci}e}'
+                          if s1.pos.ra_err else None,
                       round(rad2deg(s1.pos.dec), deci),
-                      f'{rad2deg(s1.pos.dec_err):.{deci}e}']
+                      f'{rad2deg(s1.pos.dec_err):.{deci}e}'
+                          if s1.pos.dec_err else None]
             targets_not_matching_a[s1.name] = props1
         if s2.name not in matched_names.values():
             props2 = [s2.name,
                       round(s2.flux.I*FLUX_UNIT_SCALER[units][0], deci),
-                      round(s2.flux.I_err*FLUX_UNIT_SCALER[units][0], deci),
+                      round(s2.flux.I_err*FLUX_UNIT_SCALER[units][0], deci)
+                          if s2.flux.I_err else None,
                       round(rad2deg(s2.pos.ra), deci),
-                      f'{rad2deg(s2.pos.ra_err):.{deci}e}',
+                      f'{rad2deg(s2.pos.ra_err):.{deci}e}'
+                          if s2.pos.ra_err else None,
                       round(rad2deg(s2.pos.dec), deci),
-                      f'{rad2deg(s2.pos.dec_err):.{deci}e}']
+                      f'{rad2deg(s2.pos.dec_err):.{deci}e}'
+                          if s1.pos.dec_err else None]
             targets_not_matching_b[s2.name] = props2
     return targets_not_matching_a, targets_not_matching_b
 
