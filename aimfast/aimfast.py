@@ -1378,13 +1378,14 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                                                     stats_table1,
                                                     stats_table2)),
                                          color_bar_plot))
+        else:
+            LOGGER.warn('No plot created for {}'.format(model_pair[1]["path"]))
+    if flux_plot_list:
         # Make the plots in a column layout
         flux_plots = column(flux_plot_list)
         # Save the plot (html)
         save(flux_plots, title=outfile)
         LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
-    else:
-        LOGGER.warn('No plot created.')
 
 
 def _source_astrometry_plotter(results, all_models, inline=False, units='', prefix=None):
@@ -1604,13 +1605,14 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             position_plot_list.append(column(row(plot_position, plot_overlay,
                                                  column(stats_table)),
                                              color_bar_plot))
+        else:
+            LOGGER.warn('No plot created for {}'.format(model_pair[1]["path"]))
+    if position_plot_list:
         # Make the plots in a column layout
         position_plots = column(position_plot_list)
         # Save the plot (html)
         save(position_plots, title=outfile)
         LOGGER.info('Saving astrometry comparisons in {}'.format(outfile))
-    else:
-        LOGGER.warn('No plot created.')
  
 
 def _residual_plotter(res_noise_images, points=None, results=None,
@@ -1726,13 +1728,14 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.title.align = "center"
             # Add object to plot list
             residual_plot_list.append(row(plot_residual, column(stats_table)))
+        else:
+            LOGGER.warn('No plot created. Found 0 or 1 data point in {}'.format(res_image))
+    if residual_plot_list:
         # Make the plots in a column layout
         residual_plots = column(residual_plot_list)
         # Save the plot (html)
         save(residual_plots, title=outfile)
         LOGGER.info('Saving residual comparision plots {}'.format(outfile))
-    else:
-        LOGGER.warn('No plot created. Found 0 or 1 data point.')
 
 
 def _random_residual_results(res_noise_images, data_points=None,
@@ -1790,9 +1793,12 @@ def _random_residual_results(res_noise_images, data_points=None,
                             phase_centre=fits_info['centre'],
                             sky_area=fits_info['skyArea'] * fov_factor)
         # Get the number of frequency channels
-        nchan = (res_data1.shape[1]
-                 if res_data1.shape[0] == 1
-                 else res_data1.shape[0])
+        nchan1 = (res_data1.shape[1]
+                  if res_data1.shape[0] == 1
+                  else res_data1.shape[0])
+        nchan2 = (res_data2.shape[1]
+                  if res_data2.shape[0] == 1
+                  else res_data2.shape[0])
         for RA, DEC in pix_coord_deg:
             i += 1
             # Get width of box around source
@@ -1808,25 +1814,30 @@ def _random_residual_results(res_noise_images, data_points=None,
             res1_rms = res1_area.std()
             res2_rms = res2_area.std()
             # if image is cube then average along freq axis
-            if nchan > 1:
+            if nchan1 > 1:
                 flux_rms1 = 0.0
-                flux_rms2 = 0.0
-                for frq_ax in range(nchan):
+                for frq_ax in range(nchan1):
                     # In case the first two axes are swapped
                     if res_data1.shape[0] == 1:
                         target_area1 = res_data1[0, frq_ax, :, :][imslice]
                     else:
                         target_area1 = res_data1[frq_ax, 0, :, :][imslice]
+                    # Sum of all the fluxes
+                    flux_rms1 += target_area1.std()
+                # Get the average std and mean along all frequency channels
+                res1_rms = flux_rms1/float(nchan1)
+            if nchan2 > 1:
+                flux_rms2 = 0.0
+                for frq_ax in range(nchan2):
+                    # In case the first two axes are swapped
                     if res_data2.shape[0] == 1:
                         target_area2 = res_data2[0, frq_ax, :, :][imslice]
                     else:
                         target_area2 = res_data2[frq_ax, 0, :, :][imslice]
                     # Sum of all the fluxes
-                    flux_rms1 += target_area1.std()
                     flux_rms2 += target_area2.std()
                 # Get the average std and mean along all frequency channels
-                res1_rms = flux_rms1/float(nchan)
-                res2_rms = flux_rms2/float(nchan)
+                res2_rms = flux_rms2/float(nchan2)
             # Get phase centre and determine phase centre distance
             RA0 = float(fits_info['centre'].split(',')[1].split('deg')[0])
             DEC0 = float(fits_info['centre'].split(',')[-1].split('deg')[0])
@@ -1891,9 +1902,12 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
         # Data structure for each residuals to compare
         results[res_label1] = []
         # Get the number of frequency channels
-        nchan = (res_data1.shape[1]
-                 if res_data1.shape[0] == 1
-                 else res_data1.shape[0])
+        nchan1 = (res_data1.shape[1]
+                  if res_data1.shape[0] == 1
+                  else res_data1.shape[0])
+        nchan2 = (res_data2.shape[1]
+                  if res_data2.shape[0] == 1
+                  else res_data2.shape[0])
         for model_source in model_sources:
             # Get phase centre Ra and Dec coordinates
             RA0 = model_lsm.ra0
@@ -1923,25 +1937,30 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
             res1_rms = res1_area.std()
             res2_rms = res2_area.std()
             # if image is cube then average along freq axis
-            if nchan > 1:
+            if nchan1 > 1:
                 flux_rms1 = 0.0
-                flux_rms2 = 0.0
-                for frq_ax in range(nchan):
+                for frq_ax in range(nchan1):
                     # In case the first two axes are swapped
                     if res_data1.shape[0] == 1:
                         target_area1 = res_data1[0, frq_ax, :, :][imslice]
                     else:
                         target_area1 = res_data1[frq_ax, 0, :, :][imslice]
+                    # Sum of all the fluxes
+                    flux_rms1 += target_area1.std()
+                # Get the average std and mean along all frequency channels
+                res1_rms = flux_rms1/float(nchan1)
+            if nchan2 > 1:
+                flux_rms2 = 0.0
+                for frq_ax in range(nchan2):
+                    # In case the first two axes are swapped
                     if res_data2.shape[0] == 1:
                         target_area2 = res_data2[0, frq_ax, :, :][imslice]
                     else:
                         target_area2 = res_data2[frq_ax, 0, :, :][imslice]
                     # Sum of all the fluxes
-                    flux_rms1 += target_area1.std()
                     flux_rms2 += target_area2.std()
                 # Get the average std and mean along all frequency channels
-                res1_rms = flux_rms1/float(nchan)
-                res2_rms = flux_rms2/float(nchan)
+                res2_rms = flux_rms2/float(nchan2)
             # Store all outputs in the results data structure
             results[res_label1].append([res1_rms * 1e0,
                                        res2_rms * 1e0,
