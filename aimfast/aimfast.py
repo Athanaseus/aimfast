@@ -1379,7 +1379,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                                                     stats_table2)),
                                          color_bar_plot))
         else:
-            LOGGER.warn('No plot created for {}'.format(model_pair[1]["path"]))
+            LOGGER.warn('No photometric plot created for {}'.format(model_pair[1]["path"]))
     if flux_plot_list:
         # Make the plots in a column layout
         flux_plots = column(flux_plot_list)
@@ -1606,7 +1606,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                                  column(stats_table)),
                                              color_bar_plot))
         else:
-            LOGGER.warn('No plot created for {}'.format(model_pair[1]["path"]))
+            LOGGER.warn('No plot astrometric created for {}'.format(model_pair[1]["path"]))
     if position_plot_list:
         # Make the plots in a column layout
         position_plots = column(position_plot_list)
