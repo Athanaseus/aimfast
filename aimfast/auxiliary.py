@@ -56,7 +56,7 @@ def rad2deg(x):
 
 def rad2arcsec(x):
     """Converts `x` from radians to arcseconds
- 
+
     Parameters
     ----------
     x : float
