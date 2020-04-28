@@ -281,6 +281,21 @@ def _get_ra_dec_range(area, phase_centre="J2000,0deg,-30deg"):
     dec_range = [dec - d_dec, dec + d_dec]
     return ra_range, dec_range
 
+def _angular_dist_pos_angle(src1, src2):
+    """Computes the angular distance between the two points on a sphere, and
+    the position angle (North through East) of the direction from 1 to 2.""";
+    # I lifted this somewhere, from Oleg's Tigger Coordinates
+    ra1, dec1 = src1.pos.ra, src1.pos.dec
+    ra2, dec2 = src2.pos.ra, src2.pos.dec
+    sind1,sind2 = np.sin(dec1),np.sin(dec2);
+    cosd1,cosd2 = np.cos(dec1),np.cos(dec2);
+    cosra,sinra = np.cos(ra1-ra2),np.sin(ra1-ra2);
+
+    adist = np.arccos(min(sind1*sind2 + cosd1*cosd2*cosra,1));
+    pa = np.arctan2(-cosd2*sinra,-cosd2*sind1*cosra+sind2*cosd1);
+    return adist #return angular distance only
+
+
 
 def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
     """Provides random pixel coordinates
@@ -823,7 +838,7 @@ def get_model(catalog):
 
 
 def get_detected_sources_properties(model_1, model_2, area_factor,
-                                    phase_centre=None, all_sources=False):
+                                    phase_centre=None, all_sources=False, closest_only=False):
     """Extracts the output simulation sources properties.
 
     Parameters
@@ -838,6 +853,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         Phase centre of catalog (if not already embeded)
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
+    closest_only: bool
+        Returns the closest source only as the matching source
 
     Returns
     -------
@@ -870,12 +887,25 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         # More than one source detected, thus we sum up all the detected sources
         # within a radius equal to the beam size in radians around the true target
         # coordinate
+
+        # litle tweak to use the closest source only
+        if closest_only:
+            if len(sources) > 1:
+                rdist = np.array([_angular_dist_pos_angle(model_source, source) for source in sources])
+                sources = [sources[np.argmin(rdist)]]
+
+
         I_out_err_list = []
         I_out_list = []
         for target in sources:
             I_out_list.append(target.flux.I)
             I_out_err_list.append(target.flux.I_err * target.flux.I_err)
+
+        # weighting with the flux error appears to be dangerous thing as these values are very small
+        # taking their reciprocal leads to very high weights
+
         I_out = sum([val / err for val, err in zip(I_out_list, I_out_err_list)])
+
         if I_out != 0.0:
             source = sources[0]
             try:
@@ -891,11 +921,20 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             if not all_sources:
                 if shape_out[0] > 2.0:
                     continue
-            I_out_err = sum([1.0 / I_out_error for I_out_error
-                            in I_out_err_list])
-            I_out_var_err = np.sqrt(1.0 / I_out_err)
-            I_out = I_out / I_out_err
-            I_out_err = I_out_var_err
+
+            if closest_only:
+                I_out_err = source.flux.I_err
+                I_out = source.flux.I  
+            else:
+
+                I_out_err = sum([1.0 / I_out_error for I_out_error
+                            in I_out_err_list])    
+
+                I_out_var_err = np.sqrt(1.0 / I_out_err)
+                I_out /= I_out_err
+                I_out_err = I_out_var_err
+
+
             RA0 = pybdsm_lsm.ra0
             DEC0 = pybdsm_lsm.dec0
             if phase_centre:
@@ -932,6 +971,9 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
             names[name] = source_name
+    
+
+
     sources1 = model_lsm.sources
     sources2 = pybdsm_lsm.sources
     targets_not_matching_a, targets_not_matching_b = targets_not_matching(sources1,
@@ -946,7 +988,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
 
 
 def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
-                   all_sources=False, prefix=None):
+                   all_sources=False, closest_only=False, prefix=None):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -961,6 +1003,9 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
         Phase centre of catalog (if not already embeded)
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
+    closest_only: bool
+        Returns the closest source only as the matching source
+
     prefix : str
         Prefix for output htmls
 
@@ -986,7 +1031,7 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
         props = get_detected_sources_properties('{}'.format(input_model["path"]),
                                                 '{}'.format(output_model["path"]),
                                                 tolerance, phase_centre,
-                                                all_sources)
+                                                all_sources, closest_only)
         for i in range(len(props[0])):
             flux_prop = list(props[0].items())
             results[heading]['flux'].append(flux_prop[i][-1])
@@ -1324,10 +1369,11 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
             table_title.align = "center"
             stats_table = column([table_title, dtab])
             # Table with no match data1
-            cols1 = ["Source", "Flux", "Flux err", "RA", "RA err", "DEC", "DEC err"]
+            _fu = FLUX_UNIT_SCALER[units][1]
+            cols1 = ["Source", "Flux [%s]"%_fu, "Flux err [%s]"%_fu, "RA", "RA err", "DEC", "DEC err"]
             stats1 = {"Source": [s[0] for s in no_match1],
-                      "Flux": [s[1] for s in no_match1],
-                      "Flux err": [s[3] for s in no_match1],
+                      "Flux [%s]"%_fu: [s[1] for s in no_match1],
+                      "Flux err [%s]"%_fu: [s[2] for s in no_match1],
                       "RA": [s[3] for s in no_match1],
                       "RA err": [s[4] for s in no_match1],
                       "DEC": [s[5] for s in no_match1],
@@ -1342,10 +1388,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
             table_title1.align = "center"
             stats_table1 = column([table_title1, dtab1])
             # Table with no match data1
-            cols2 = ["Source", "Flux", "Flux err", "RA", "RA err", "DEC", "DEC err"]
+            cols2 = ["Source", "Flux [%s]"%_fu, "Flux err [%s]"%_fu, "RA", "RA err", "DEC", "DEC err"]
             stats2 = {"Source": [s[0] for s in no_match2],
-                      "Flux": [s[1] for s in no_match2],
-                      "Flux err": [s[3] for s in no_match2],
+                      "Flux [%s]"%_fu: [s[1] for s in no_match2],
+                      "Flux err [%s]"%_fu: [s[2] for s in no_match2],
                       "RA": [s[3] for s in no_match2],
                       "RA err": [s[4] for s in no_match2],
                       "DEC": [s[5] for s in no_match2],
@@ -2040,6 +2086,8 @@ def get_argparser():
     argument('-as', '--all-source', dest='all', default=False, action='store_true',
              help='Compare all sources irrespective of shape, otherwise only '
                   'point-like sources are compared')
+    argument('-closest', '--closest', dest='closest_only', default=False, action='store_true',
+             help='Use the closest source only when cross matching sources')
     argument('--compare-models', dest='models', nargs=2, action='append',
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html model2.lsm.html')
@@ -2209,6 +2257,7 @@ def main():
                                          tolerance=args.tolerance,
                                          phase_centre=args.phase,
                                          all_sources=args.all,
+                                         closest_only=args.closest_only,
                                          prefix=args.htmlprefix)
 
     if args.noise:
@@ -2264,6 +2313,7 @@ def main():
                                      tolerance=args.tolerance,
                                      phase_centre=args.phase,
                                      all_sources=args.all,
+                                     closest_only=args.closest_only,
                                      prefix=args.htmlprefix)
 
     if args.online:
@@ -2299,6 +2349,7 @@ def main():
                                      tolerance=args.tolerance,
                                      phase_centre=args.phase,
                                      all_sources=args.all,
+                                     closest_only=args.closest_only,
                                      prefix=args.htmlprefix)
 
     if output_dict:
