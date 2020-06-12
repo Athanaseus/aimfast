@@ -281,20 +281,13 @@ def _get_ra_dec_range(area, phase_centre="J2000,0deg,-30deg"):
     dec_range = [dec - d_dec, dec + d_dec]
     return ra_range, dec_range
 
-def _angular_dist_pos_angle(src1, src2):
+
+def _source_angular_dist_pos_angle(src1, src2):
     """Computes the angular distance between the two points on a sphere, and
     the position angle (North through East) of the direction from 1 to 2.""";
-    # I lifted this somewhere, from Oleg's Tigger Coordinates
     ra1, dec1 = src1.pos.ra, src1.pos.dec
     ra2, dec2 = src2.pos.ra, src2.pos.dec
-    sind1,sind2 = np.sin(dec1),np.sin(dec2);
-    cosd1,cosd2 = np.cos(dec1),np.cos(dec2);
-    cosra,sinra = np.cos(ra1-ra2),np.sin(ra1-ra2);
-
-    adist = np.arccos(min(sind1*sind2 + cosd1*cosd2*cosra,1));
-    pa = np.arctan2(-cosd2*sinra,-cosd2*sind1*cosra+sind2*cosd1);
-    return adist #return angular distance only
-
+    return angular_dist_pos_angle(ra1, dec1, ra2, dec2)
 
 
 def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
@@ -888,12 +881,12 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         # within a radius equal to the beam size in radians around the true target
         # coordinate
 
-        # litle tweak to use the closest source only
+        # or use the closest source only
         if closest_only:
             if len(sources) > 1:
-                rdist = np.array([_angular_dist_pos_angle(model_source, source) for source in sources])
+                rdist = np.array([_source_angular_dist_pos_angle(model_source, source)
+                                  for source in sources])
                 sources = [sources[np.argmin(rdist)]]
-
 
         I_out_err_list = []
         I_out_list = []
@@ -2017,11 +2010,94 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
     return results
 
 
+def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
+    """Plot stats results if more that one residual images where assessed"""
+
+    with open(fidelity_results_file) as f:
+        data = json.load(f)
+    res_stats = dict()
+    dr_stats = dict()
+    for par, val in data.items():
+        if '.fits' not in par and 'models' not in val and type(val) is not list:
+            for p, v in val.items():
+                if type(v) is dict:
+                    dr_stats[p] = v
+                    val_copy = val.copy()
+                    val_copy.pop(p)
+            res_stats[par] = val_copy
+            res_stats[par]['NORM'] = res_stats[par]['NORM'][0]
+
+    res_stats = dict(sorted(res_stats.items()))
+    dr_stats = dict(sorted(dr_stats.items()))
+
+    im_keys = []
+    rms_values = []
+    stddev_values = []
+    mad_values = []
+    slidingdev_values = []
+    skew_values = []
+    kurt_values = []
+    norm_values = []
+    for res_stat in res_stats:
+        im_keys.append(res_stat.replace('-residual', ''))
+        rms_values.append(res_stats[res_stat]['RMS'])
+        stddev_values.append(res_stats[res_stat]['STDDev'])
+        mad_values.append(res_stats[res_stat]['MAD'])
+        slidingdev_values.append(res_stats[res_stat]['SLIDING_STDDev'])
+        skew_values.append(res_stats[res_stat]['SKEW'])
+        kurt_values.append(res_stats[res_stat]['KURT'])
+        norm_values.append(res_stats[res_stat]['NORM'])
+
+    width = 400
+    height = 300
+    multiplier = FLUX_UNIT_SCALER[units][0]
+
+    # Vriance plots
+    variance_plotter = figure(x_range=im_keys, x_axis_label="Image", y_axis_label="Flux density (µJy)",
+                              plot_width=width, plot_height=height, title='Residual Variance')
+    variance_plotter.line(im_keys, np.array(stddev_values)*multiplier, legend_label='std', color='blue')
+    variance_plotter.line(im_keys, np.array(mad_values)*multiplier, legend_label='mad', color='red')
+    variance_plotter.line(im_keys, np.array(slidingdev_values)*multiplier, legend_label='sliding', color='green')
+    variance_plotter.title.align = 'center'
+
+    # Moment 3 & 4 plots
+    mom34_plotter = figure(x_range=im_keys, x_axis_label="Image", y_axis_label="Value",
+                           plot_width=width, plot_height=height, title='Skewness & Kurtosis')
+    mom34_plotter.line(im_keys, skew_values, legend_label='Skewness', color='blue')
+    mom34_plotter.line(im_keys, kurt_values, legend_label='kurtosis', color='red')
+    mom34_plotter.title.align = 'center'
+
+    # Normality test plot
+    normalised = np.array(norm_values)/norm_values[0]
+    norm_plotter = figure(x_range=im_keys, x_axis_label="Image", y_axis_label="Value",
+                          plot_width=width, plot_height=height, title='Normality Tests')
+    norm_plotter.vbar(x=im_keys, top=normalised, width=0.9)
+    #norm_plotter.y_range.start = 0
+    norm_plotter.title.align = 'center'
+
+    # Dynamic Range plot
+    dr_keys = []
+    dr_values = []
+    for dr_stat in dr_stats:
+        dr_keys.append(dr_stat.replace('-model', ''))
+        dr_values.append(dr_stats[dr_stat]['DR'])
+    dr_plotter = figure(x_range=dr_keys, x_axis_label="Image", y_axis_label="Value",
+                        plot_width=width, plot_height=height, title='Dynamic Range')
+    dr_plotter.vbar(x=dr_keys, top=dr_values, width=0.9)
+    #dr_plotter.y_range.start = 0
+    dr_plotter.title.align = 'center'
+    outfile = '{}-stats-plot.html'.format(prefix or 'aimfast')
+    output_file(outfile)
+    save(column(row(variance_plotter, mom34_plotter),
+                    row(norm_plotter, dr_plotter)), title=outfile)
+
+
 def get_sf_params(configfile):
     import yaml
     with open(r'{}'.format(configfile)) as file:
         sf_parameters = yaml.load(file, Loader=yaml.FullLoader)
     return sf_parameters
+
 
 def source_finding(sf_params, sf=None):
     outfile = None
@@ -2122,6 +2198,8 @@ def get_argparser():
                   'data as JSON file')
     argument("--html-prefix", dest='htmlprefix',
              help='Prefix of output html files. Default: None.')
+    argument('-fdr', '--fidelity-results', dest='json',
+             help='aimfast fidelity results file (JSON format)')
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
     return parser
@@ -2138,6 +2216,8 @@ def main():
             source_finding(args.config)
         if args.generate:
             generate_default_config(args.generate)
+    elif args.json:
+       plot_aimfast_stats(args.json, prefix=args.htmlprefix)
     elif not args.residual and not args.restored and not args.model \
             and not args.models and not args.noise and not args.images \
             and not args.online:
