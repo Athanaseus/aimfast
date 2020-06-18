@@ -121,7 +121,7 @@ def dec2deg(dec_dms):
 
 
 def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
-                       centre_coord=['0.0', -30.0],
+                       centre_coord=[0.0, -30.0],
                        catalog_table='nvss_catalog_table.txt'):
     """Query an online catalog to compare with local catalog
 

@@ -808,7 +808,7 @@ def get_model(catalog):
     tfile.close()
     ext = os.path.splitext(catalog)[-1]
     if ext in ['.html', '.txt']:
-        if 'nvss' in catalog or 'sdss' in catalog:
+        if 'catalog_table' in catalog:
             data = Table.read(catalog, format='ascii')
             for i, src in enumerate(data):
                 model.sources.append(tigger_src_online(src, i))
@@ -827,6 +827,7 @@ def get_model(catalog):
         wcs = WCS(fits_file)
         centre = wcs.getCentreWCSCoords()
         model.ra0, model.dec0 = map(np.deg2rad, centre)
+        model.save(catalog[:-5]+".lsm.html")
     return model
 
 
@@ -2198,6 +2199,8 @@ def get_argparser():
                   'data as JSON file')
     argument("--html-prefix", dest='htmlprefix',
              help='Prefix of output html files. Default: None.')
+    argument("--online-catalog-name", dest='catalog_name', default='NVSS',
+             help='Prefix of output catalog file name')
     argument('-fdr', '--fidelity-results', dest='json',
              help='aimfast fidelity results file (JSON format)')
     argument("--outfile",
@@ -2401,18 +2404,19 @@ def main():
         generate_default_config(configfile)
         models = args.online
         sourcery = args.sourcery
+        catalog_name = '{}_catalog_table.txt'.format(args.catalog_name)
         if args.phase:
             pc_coord = args.phase.split(',')[1:]
             pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
         else:
-            raise ValueError(f"{R}Provide phase centre. e.g. -ptc 'J2000,-30deg,0deg'.{W}")
+            raise ValueError(f"{R}Provide phase centre. e.g. -ptc 'J2000,0deg,-30deg'.{W}")
         images_list = []
-        get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
+        get_online_catalog(catalog='NVSS', width='1.0d', thresh=2.0,
                            centre_coord=pc_coord,
-                           catalog_table='nvss_catalog_table.txt')
+                           catalog_table=catalog_name)
 
         for i, ims in enumerate(models):
-            image1 = ims
+            image1 = ims[0]
             if sourcery:
                 sf_params1 = get_sf_params(configfile)
                 sf_params1[sourcery]['filename'] = image1
@@ -2421,9 +2425,9 @@ def main():
 
             images_list.append(
                 [dict(label="{}-model_a_{}".format(args.label, i),
-                      path='nvss_catalog_table.txt'),
+                      path=image1),
                  dict(label="{}-model_b_{}".format(args.label, i),
-                      path=image1)])
+                      path=catalog_name)])
 
         output_dict = compare_models(images_list,
                                      tolerance=args.tolerance,
