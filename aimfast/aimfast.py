@@ -749,8 +749,8 @@ def get_model(catalog):
         """Get ascii catalog source as a tigger source """
 
         name = "SRC%d" % idx
-        flux = ModelClasses.Polarization(float(src["S1.4"]), 0, 0, 0,
-                                         I_err=float(src["e_S1.4"]))
+        flux = ModelClasses.Polarization(float(src["S1.4"]/1000.), 0, 0, 0,
+                                         I_err=float(src["e_S1.4"]/1000.))
         ra, ra_err = map(np.deg2rad, (float(ra2deg(src["RAJ2000"])),
                                       float(src["e_RAJ2000"])))
         dec, dec_err = map(np.deg2rad, (float(dec2deg(src["DEJ2000"])),
@@ -767,8 +767,8 @@ def get_model(catalog):
         source = SkyModel.Source(name, pos, flux, shape=shape)
         # Adding source peak flux (error) as extra flux attributes for sources,
         # and to avoid null values for point sources I_peak = src["Total_flux"]
-        source.setAttribute("I_peak", float(src["S1.4"]))
-        source.setAttribute("I_peak_err", float(src["e_S1.4"]))
+        source.setAttribute("I_peak", float(src["S1.4"]/1000.))
+        source.setAttribute("I_peak_err", float(src["e_S1.4"]/1000.))
         return source
 
     def tigger_src_fits(src, idx):
@@ -932,8 +932,15 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             RA0 = pybdsm_lsm.ra0
             DEC0 = pybdsm_lsm.dec0
             if phase_centre:
-                RA0 = np.deg2rad(float(phase_centre.split(',')[1].split('deg')[0]))
-                DEC0 = np.deg2rad(float(phase_centre.split(',')[-1].split('deg')[0]))
+                #RA0 = np.deg2rad(float(phase_centre.split(',')[1].split('deg')[0]))
+                #DEC0 = np.deg2rad(float(phase_centre.split(',')[-1].split('deg')[0]))
+                
+                # print (phase_centre.split(','), np.deg2rad(phase_centre.split(',')[0]))
+                
+                RA0 = np.deg2rad(ra2deg(phase_centre.split(',')[0]))
+                DEC0 = np.deg2rad(dec2deg(phase_centre.split(',')[-1]))
+
+            
             ra = source.pos.ra
             dec = source.pos.dec
             ra_err = source.pos.ra_err
@@ -2406,10 +2413,10 @@ def main():
         sourcery = args.sourcery
         catalog_name = '{}_catalog_table.txt'.format(args.catalog_name)
         if args.phase:
-            pc_coord = args.phase.split(',')[1:]
-            pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
+            pc_coord = args.phase.split(',')#[1:]
+            # pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
         else:
-            raise ValueError(f"{R}Provide phase centre. e.g. -ptc 'J2000,0deg,-30deg'.{W}")
+            raise ValueError(f"{R}Provide phase centre. e.g. -ptc '0:00:00,-00:00:00'.{W}")
         images_list = []
         get_online_catalog(catalog='NVSS', width='1.0d', thresh=2.0,
                            centre_coord=pc_coord,
