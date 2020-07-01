@@ -43,6 +43,10 @@ from aimfast.auxiliary import aegean, bdsf, get_online_catalog
 from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec, dec2deg, ra2deg, rad2deg
 
 
+# Get version
+from pkg_resources import get_distribution
+_version = get_distribution('aimfast').version
+
 # Unit multipleirs for plotting
 FLUX_UNIT_SCALER = {
                     'jansky': [1e0, 'Jy'],
@@ -64,6 +68,14 @@ BG_COLOR = 'rgb(229,229,229)'
 # Highlighters
 R = '\033[31m'  # red
 W = '\033[0m'   # white (normal)
+HEADER = '\033[95m'
+OKBLUE = '\033[94m'
+OKGREEN = '\033[92m'
+WARNING = '\033[93m'
+FAIL = '\033[91m'
+ENDC = '\033[0m'
+BOLD = '\033[1m'
+UNDERLINE = '\033[4m'
 
 def create_logger():
     """Create a console logger"""
@@ -166,12 +178,20 @@ def fitsInfo(fitsname=None):
                                       str(hdr['CRVAL2']) + hdr['CUNIT2'])
     except:
         centre = 'J2000.0,0.0deg,0.0deg'
+    try:
+        freq0=None
+        for i in range(1, hdr['NAXIS']+1):
+            if hdr['CTYPE{0:d}'.format(i)].startswith('FREQ'):
+                freq0 = hdr['CRVAL{0:d}'.format(i)]
+    except:
+        freq0=None
+
     skyArea = (numPix * ddec) ** 2
     fitsinfo = {'wcs': wcs, 'ra': ra, 'dec': dec,
                 'dra': dra, 'ddec': ddec, 'raPix': raPix,
                 'decPix': decPix, 'b_size': beam_size,
                 'numPix': numPix, 'centre': centre,
-                'skyArea': skyArea}
+                'skyArea': skyArea, 'freq0': freq0}
     return fitsinfo
 
 
@@ -771,7 +791,7 @@ def get_model(catalog):
         source.setAttribute("I_peak_err", float(src["e_S1.4"]/1000.))
         return source
 
-    def tigger_src_fits(src, idx):
+    def tigger_src_fits(src, idx, freq0=None):
         """Get fits catalog source as a tigger source """
 
         name = "SRC%d" % idx
@@ -783,6 +803,8 @@ def get_model(catalog):
         ex, ex_err = map(np.deg2rad, (float(src["DC_Maj"]), float(src["E_DC_Maj"])))
         ey, ey_err = map(np.deg2rad, (float(src["DC_Min"]), float(src["E_DC_Min"])))
         pa, pa_err = map(np.deg2rad, (float(src["PA"]), float(src["E_PA"])))
+        # Try to get spectral index
+
         if ex and ey:
             shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
                                           ey_err=ey_err, pa_err=pa_err)
@@ -798,6 +820,13 @@ def get_model(catalog):
         else:
             source.setAttribute("I_peak", src["Total_flux"])
             source.setAttribute("I_peak_err", src["E_Total_flux"])
+        if freq0:
+            try:
+                spi, spi_err = (src['Spec_Indx'], src['E_Spec_Indx'])
+                source.spectrum = ModelClasses.SpectralIndex(spi, freq0)
+                source.setAttribute('spi_error', spi_err)
+            except:
+                pass
         return source
 
     tfile = tempfile.NamedTemporaryFile(suffix='.txt')
@@ -821,9 +850,11 @@ def get_model(catalog):
             model.sources.append(tigger_src_ascii(src, i))
     if ext in ['.fits']:
         data = Table.read(catalog, format='fits')
-        for i, src in enumerate(data):
-            model.sources.append(tigger_src_fits(src, i))
         fits_file = catalog.replace('-pybdsf', '')
+        fitsinfo = fitsInfo(fits_file)
+        freq0 = fitsinfo['freq0']
+        for i, src in enumerate(data):
+            model.sources.append(tigger_src_fits(src, i, freq0))
         wcs = WCS(fits_file)
         centre = wcs.getCentreWCSCoords()
         model.ra0, model.dec0 = map(np.deg2rad, centre)
@@ -2113,16 +2144,16 @@ def source_finding(sf_params, sf=None):
     pybd_sf = sf_params.pop('pybdsf')
     enable_aegean = aegean_sf.pop('enable')
     enable_pybdsf = pybd_sf.pop('enable')
-    if enable_aegean or sf in ['aegean']:
-        filename = aegean_sf['filename']
-        LOGGER.info(f"Running aegean source finder on image: {filename}")
-        outfile = aegean(filename, aegean_sf, LOGGER)
     if enable_pybdsf or sf in ['pybdsf']:
         filename = pybd_sf['filename']
         LOGGER.info(f"Running pybdsf source finder on image: {filename}")
         outfile = bdsf(filename, pybd_sf, LOGGER)
-    if not enable_aegean and not enable_pybdsf and not sf:
-        LOGGER.error("No source finder selected.")
+    elif enable_aegean or sf in ['aegean']:
+        filename = aegean_sf['filename']
+        LOGGER.info(f"Running aegean source finder on image: {filename}")
+        outfile = aegean(filename, aegean_sf, LOGGER)
+    else:
+        LOGGER.warn(f"{WARNING}No source finder selected.{ENDC}")
     return outfile
 
 
@@ -2142,6 +2173,8 @@ def get_argparser():
     sf.add_argument('-gc', '--generate-config', dest='generate',
                     help='Genrate config file to run source finder of choice')
     argument = partial(parser.add_argument)
+    argument('-v', "--version", action='version',
+             version='{0:s} version {1:s}'.format(parser.prog, _version))
     argument('-c', '--config', dest='config',
                     help='Config file to run source finder of choice (YAML format)')
     argument('--tigger-model', dest='model',
@@ -2187,7 +2220,7 @@ def get_argparser():
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals residual1.fits residual2.fits')
     argument('-sf', '--source-finder', dest='sourcery',
-             choices=('aegean', 'pybdsf'),
+             choices=('aegean', 'pybdsf'), default='pybdsf',
              help='Source finder to run if comparing restored images')
     argument('-dp', '--data-points', dest='points',
              help='Data points to sample the residual/noise image')
@@ -2218,12 +2251,13 @@ def get_argparser():
 def main():
     """Main function."""
     LOGGER.info("Welcome to AIMfast")
+    LOGGER.info(f"Version: {_version}")
     output_dict = dict()
     parser = get_argparser()
     args = parser.parse_args()
     if args.subcommand:
         if args.config:
-            source_finding(args.config)
+            source_finding(get_sf_params(args.config))
         if args.generate:
             generate_default_config(args.generate)
     elif args.json:
@@ -2231,8 +2265,8 @@ def main():
     elif not args.residual and not args.restored and not args.model \
             and not args.models and not args.noise and not args.images \
             and not args.online:
-        LOGGER.error(f"{R}Please provide lsm.html/fits file name(s).{W}")
-        LOGGER.error(f"{R}Or aimfast -h for arguments.{W}")
+        LOGGER.warn(f"{R}No arguments file arguments provide.{W}")
+        LOGGER.warn(f"{R}Or aimfast -h for arguments.{W}")
 
     if args.label:
         residual_label = "{0:s}-residual".format(args.label)

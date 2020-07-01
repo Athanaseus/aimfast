@@ -7,7 +7,7 @@ import numpy as np
 try:
     import bdsf as bdsm
 except (ModuleNotFoundError, ImportError):
-    pass
+    print("Source finding module is not installed.")
 
 from astropy.io import ascii
 from astropy import units as u
