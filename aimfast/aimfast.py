@@ -62,7 +62,6 @@ POSITION_UNIT_SCALER = {
                         'arcsec': [3600.0, u'``'],
                        }
 
-
 # Backgound color for plots
 BG_COLOR = 'rgb(229,229,229)'
 # Highlighters
@@ -765,7 +764,7 @@ def get_model(catalog):
             source.setAttribute("I_peak_err", float(src["err_int_flux"]))
         return source
 
-    def tigger_src_online(src, idx):
+    def tigger_src_nvss(src, idx):
         """Get ascii catalog source as a tigger source """
 
         name = "SRC%d" % idx
@@ -789,6 +788,32 @@ def get_model(catalog):
         # and to avoid null values for point sources I_peak = src["Total_flux"]
         source.setAttribute("I_peak", float(src["S1.4"]/1000.))
         source.setAttribute("I_peak_err", float(src["e_S1.4"]/1000.))
+        return source
+
+    def tigger_src_sumss(src, idx):
+        """Get ascii catalog source as a tigger source """
+
+        name = "SRC%d" % idx
+        flux = ModelClasses.Polarization(float(src["St"]/1000.), 0, 0, 0,
+                                         I_err=float(src["e_St1.4"]/1000.))
+        ra, ra_err = map(np.deg2rad, (float(ra2deg(src["RAJ2000"])),
+                                      float(src["e_RAJ2000"])))
+        dec, dec_err = map(np.deg2rad, (float(dec2deg(src["DEJ2000"])),
+                                        float(src["e_DEJ2000"])))
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+        ex, ex_err = map(np.deg2rad, (float(src['MajAxis']), float(0.00)))
+        ey, ey_err = map(np.deg2rad, (float(src['MinAxis']), float(0.00)))
+        pa, pa_err = map(np.deg2rad, (float(src['PA']), float(0.00)))
+        if ex and ey:
+            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
+                                          ey_err=ey_err, pa_err=pa_err)
+        else:
+            shape = None
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        # Adding source peak flux (error) as extra flux attributes for sources,
+        # and to avoid null values for point sources I_peak = src["Total_flux"]
+        source.setAttribute("I_peak", float(src["Sp"]/1000.))
+        source.setAttribute("I_peak_err", float(src["e_Sp"]/1000.))
         return source
 
     def tigger_src_fits(src, idx, freq0=None):
@@ -840,7 +865,12 @@ def get_model(catalog):
         if 'catalog_table' in catalog:
             data = Table.read(catalog, format='ascii')
             for i, src in enumerate(data):
-                model.sources.append(tigger_src_online(src, i))
+                # Check which online catalog the source belongs to
+                # Prefix is in the name by default when created
+                if 'nvss' in catalog:
+                    model.sources.append(tigger_src_nvss(src, i))
+                if 'sumss' in catalog:
+                    model.sources.append(tigger_src_nvss(src, i))
             model.save(catalog[:-4]+".lsm.html")
         else:
             model = Tigger.load(catalog)
@@ -2164,7 +2194,7 @@ def get_argparser():
                      "- The four (4) moments of a residual image \n"
                      "- The Dynamic range in restored image \n"
                      "- Comparing the fits images by running source finder \n"
-                     "- Comparing the tigger models and online catalogs (NVSS, SDSS) \n"
+                     "- Comparing the tigger models and online catalogs (NVSS, SUMSS) \n"
                      "- Comparing the on source/random residuals to noise"))
     subparser = parser.add_subparsers(dest='subcommand')
     sf = subparser.add_parser('source-finder')
@@ -2239,8 +2269,11 @@ def get_argparser():
                   'data as JSON file')
     argument("--html-prefix", dest='htmlprefix',
              help='Prefix of output html files. Default: None.')
-    argument("--online-catalog-name", dest='catalog_name', default='NVSS',
+    argument("--online-catalog-name", dest='catalog_name',
              help='Prefix of output catalog file name')
+    argument('-oc', '--online-catalog', dest='online_catalog',
+             choices=('sumss', 'nvss'), default='nvss',
+             help='Online catalog to compare local image/model.')
     argument('-fdr', '--fidelity-results', dest='json',
              help='aimfast fidelity results file (JSON format)')
     argument("--outfile",
@@ -2445,14 +2478,17 @@ def main():
         generate_default_config(configfile)
         models = args.online
         sourcery = args.sourcery
-        catalog_name = '{}_catalog_table.txt'.format(args.catalog_name)
+        catalog_prefix = args.catalog_name or 'default'
+        online_catalog = args.online_catalog
+        catalog_name = f"{catalog_prefix}_{online_catalog}_catalog_table.txt"
         if args.phase:
             pc_coord = args.phase.split(',')#[1:]
             # pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
         else:
             raise ValueError(f"{R}Provide phase centre. e.g. -ptc '0:00:00,-00:00:00'.{W}")
         images_list = []
-        get_online_catalog(catalog='NVSS', width='1.0d', thresh=2.0,
+        get_online_catalog(catalog=online_catalog.upper(),
+                           width='1.0d', thresh=2.0,
                            centre_coord=pc_coord,
                            catalog_table=catalog_name)
 
