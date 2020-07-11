@@ -4,11 +4,6 @@ import subprocess
 
 import numpy as np
 
-try:
-    import bdsf as bdsm
-except (ModuleNotFoundError, ImportError):
-    print("Source finding module is not installed.")
-
 from astropy.io import ascii
 from astropy import units as u
 from astropy.table import Table
@@ -108,6 +103,11 @@ def dec2deg(dec_dms):
         conv_units.radeg: dec in degrees
 
     """
+    if ':' not in dec_dms:
+        # In the case dec is specified as -30.12.40.2 (Not sure why).
+        dec_dms = dec_dms.split('.')
+        dec_dms = ':'.join(dec_dms[:3])
+        dec_dms += f'.{dec_dms[-1]}'
     dec = dec_dms.split(':')
     dd = abs(float(dec[0]))
     mm = float(dec[1]) / 60
@@ -191,6 +191,14 @@ def aegean(image, kwargs, log):
 
 
 def bdsf(image, kwargs, log):
+
+    try:
+        import bdsf as bdsm
+    except (ModuleNotFoundError, ImportError):
+        raise ModuleNotFoundError("Source finding module is not "
+                                  " installed. Install with "
+                                  "`pip install aimfast[bdsf]`")
+
     img_opts = {}
     write_opts = {'outfile': None}
     freq0 = None

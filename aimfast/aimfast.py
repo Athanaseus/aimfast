@@ -369,13 +369,13 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         Dictionary of stats properties.
         e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'RMS': 0.1,
               'SKEW': 0.2, 'KURT': 0.3, 'MAD': 0.4,
-              'SLIDING_STDDev': 0.5}.
+              SLIDING_STDDev': 0.5, 'MAX': 0.6}.
 
     Notes
     -----
     If normality_test=True, dictionary of stats props becomes \
     e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, \
-          'MAD': 0.4, 'RMS': 0.5, 'SLIDING_STDDev': 0.6,
+          'MAD': 0.4, 'RMS': 0.5, 'SLIDING_STDDev': 0.6, 'MAX': 0.7, \
           'NORM': (123.3,0.012)} \
     whereby the first element is the statistics (or average if data_range specified) \
     of the datasets and second element is the p-value.
@@ -418,6 +418,10 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         data = residual_data
     residual_data = data
 
+    # Get the max value
+    LOGGER.info("Computing max ...")
+    res_props['MAX'] = float("{0:.6}".format(residual_data.max()))
+    LOGGER.info("MAX = {}".format(res_props['MAX']))
     # Get the mean value
     LOGGER.info("Computing mean ...")
     res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
@@ -854,6 +858,32 @@ def get_model(catalog):
                 pass
         return source
 
+    def tigger_src_wsclean(src, idx):
+        """Get ascii catalog source as a tigger source """
+
+        name = src['col1']
+        flux = ModelClasses.Polarization(float(src["col5"]), 0, 0, 0,
+                                         I_err=float(0.00))
+        ra, ra_err = map(np.deg2rad, (float(ra2deg(src["col3"])),
+                                      float(0.00)))
+        dec, dec_err = map(np.deg2rad, (float(dec2deg(src["col4"])),
+                                        float(0.00)))
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+        ex, ex_err = map(np.deg2rad, (float(src["col9"]), float(0.00)))
+        ey, ey_err = map(np.deg2rad, (float(src["col10"]), float(0.00)))
+        pa, pa_err = map(np.deg2rad, (float(0.00), float(0.00)))
+        if ex and ey:
+            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
+                                          ey_err=ey_err, pa_err=pa_err)
+        else:
+            shape = None
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        # Adding source peak flux (error) as extra flux attributes for sources,
+        # and to avoid null values for point sources I_peak = src["Total_flux"]
+        source.setAttribute("I_peak", float(src['col5']))
+        source.setAttribute("I_peak_err", float(0.00))
+        return source
+
     tfile = tempfile.NamedTemporaryFile(suffix='.txt')
     tfile.flush()
     with open(tfile.name, "w") as stdw:
@@ -872,12 +902,19 @@ def get_model(catalog):
                 if 'sumss' in catalog:
                     model.sources.append(tigger_src_nvss(src, i))
             model.save(catalog[:-4]+".lsm.html")
+        elif 'sources.txt' in catalog:
+            data = Table.read(catalog, format='ascii')
+            for i, src in enumerate(data):
+                if i:
+                    model.sources.append(tigger_src_wsclean(src, i))
+            model.save(catalog[:-4]+".lsm.html")
         else:
             model = Tigger.load(catalog)
     if ext in ['.tab', '.csv']:
         data = Table.read(catalog, format='ascii')
         for i, src in enumerate(data):
             model.sources.append(tigger_src_ascii(src, i))
+        model.save(catalog[:-4]+".lsm.html")
     if ext in ['.fits']:
         data = Table.read(catalog, format='fits')
         fits_file = catalog.replace('-pybdsf', '')
@@ -929,6 +966,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
     # {"source_name: [shape_out=(maj, min, angle), shape_out_err=, shape_in=,
     #                 scale_out, scale_out_err, I_in, source_name]
     targets_scale = dict()         # recovered sources scale
+    deci = 3  # round off to this decimal places
     names = dict()
     for model_source in model_sources:
         I_out = 0.0
@@ -946,7 +984,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         # or use the closest source only
         if closest_only:
             if len(sources) > 1:
-                rdist = np.array([_source_angular_dist_pos_angle(model_source, source)
+                rdist = np.array([_source_angular_dist_pos_angle(model_source, source)[0]
                                   for source in sources])
                 sources = [sources[np.argmin(rdist)]]
 
@@ -959,9 +997,9 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         # weighting with the flux error appears to be dangerous thing as these values are very small
         # taking their reciprocal leads to very high weights
 
-        I_out = sum([val / err for val, err in zip(I_out_list, I_out_err_list)])
+        #I_out = sum([val / err for val, err in zip(I_out_list, I_out_err_list)])
 
-        if I_out != 0.0:
+        if sources[0].flux.I > 0.0:
             source = sources[0]
             try:
                 shape_in = model_source.shape.getShape()
@@ -1007,7 +1045,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             ra_err = source.pos.ra_err
             dec_err = source.pos.dec_err
             source_name = source.name
-            targets_flux[name] = [I_out, I_out_err, I_in, source_name]
+            targets_flux[name] = [I_out, I_out_err, I_in,
+                                  (name, source_name)]
             if ra > np.pi:
                 ra -= 2.0*np.pi
             if RA > np.pi:
@@ -1027,7 +1066,9 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                                       delta_phase_centre_arc_sec, I_in,
                                       rad2arcsec(ra_err),
                                       rad2arcsec(dec_err),
-                                      source_name]
+                                      (round(rad2deg(RA), deci),
+                                       round(rad2deg(DEC), deci)),
+                                      (name, source_name)]
             src_scale = get_src_scale(source.shape)
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
@@ -1157,7 +1198,7 @@ def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
     units = flux_units
     targets_not_matching_a = dict()
     targets_not_matching_b = dict()
-    for s1, s2 in zip(sources1, sources2):
+    for s1 in sources1:
         if s1.name not in matched_names.keys():
             props1 = [s1.name,
                       round(s1.flux.I*FLUX_UNIT_SCALER[units][0], deci),
@@ -1170,6 +1211,7 @@ def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
                       f'{rad2deg(s1.pos.dec_err):.{deci}e}'
                           if s1.pos.dec_err else None]
             targets_not_matching_a[s1.name] = props1
+    for s2 in sources2:
         if s2.name not in matched_names.values():
             props2 = [s2.name,
                       round(s2.flux.I*FLUX_UNIT_SCALER[units][0], deci),
@@ -1321,6 +1363,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         flux_in_data = []
         flux_out_data = []
         source_scale = []
+        positions_in_out = []
         phase_centre_dist = []
         flux_out_err_data = []
         no_match1 = results[heading]['no_match1']
@@ -1331,6 +1374,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
             flux_in_data.append(results[heading]['flux'][n][2])
             name_labels.append(results[heading]['flux'][n][3])
             phase_centre_dist.append(results[heading]['position'][n][3])
+            positions_in_out.append(results[heading]['position'][n][7])
             source_scale.append(results[heading]['shape'][n][3])
         if len(flux_in_data) > 1:
             # Compute some fit stats of the two models being compared
@@ -1344,8 +1388,11 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
-                        data=dict(x=x, y=y, z=z, label=name_labels))
-            text = model_pair[1]["path"].split("/")[-1].split('.')[0]
+                        data=dict(flux_in=x, flux_out=y,
+                                  phase_centre_dist=z,
+                                  ra_dec=positions_in_out,
+                                  label=name_labels))
+            text = model_pair[0]["path"].split("/")[-1].split('.')[0]
             # Create a plot object
             plot_flux = figure(title=text,
                                x_axis_label='Input flux ({:s})'.format(
@@ -1403,12 +1450,12 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                                  legend_label="Fit",
                                  color="blue")
             # Create a plot object for the data points
-            data = plot_flux.circle('x', 'y',
+            data = plot_flux.circle('flux_in', 'flux_out',
                                     name='data',
                                     legend_label="Data",
                                     source=source,
                                     line_color=None,
-                                    fill_color={"field": "z",
+                                    fill_color={"field": "phase_centre_dist",
                                                 "transform": mapper})
             # Table with stats data
             deci = 3  # Round off to this decimal places
@@ -1471,8 +1518,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
             hover = plot_flux.select(dict(type=HoverTool))
             hover.names = ['data']
             hover.tooltips = OrderedDict([
-                ("(Input,Output)", "(@x,@y)"),
-                ("source", "@label")])
+                ("(Input,Output)", "(@flux_in,@flux_out)"),
+                ("source", "(@label)"),
+                ("(RA,DEC)", "(@ra_dec)"),
+                ("Phase_centre_distance", "@phase_centre_dist")])
             # Legend position and title align
             plot_flux.legend.location = "top_left"
             plot_flux.title.align = "center"
@@ -1531,6 +1580,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         flux_in_data = []
         flux_out_data = []
         delta_pos_data = []
+        position_in_out = []
         heading = model_pair[0]['label']
         overlays = results[heading]['overlay']
         tolerance = results[heading]['tolerance']
@@ -1543,7 +1593,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             flux_in_data.append(results[heading]['position'][n][4])
             RA_err.append(results[heading]['position'][n][5])
             DEC_err.append(results[heading]['position'][n][6])
-            source_labels.append(results[heading]['position'][n][7])
+            position_in_out.append(results[heading]['position'][n][7])
+            source_labels.append(results[heading]['position'][n][8])
         # Compute some stats of the two models being compared
         if len(flux_in_data) > 1:
             RA_mean = np.mean(RA_offset)
@@ -1565,13 +1616,18 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             y_dec = np.array(DEC_offset)
             # TODO: Use flux as a radius dimension
             flux_in = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0])
+            flux_in_mjy = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0]
             phase_centre_distance = np.array(DELTA_PHASE0)  # For color
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
-                        data=dict(x=x_ra, y=y_dec, z=phase_centre_distance,
-                                  f=flux_in, label=source_labels))
-            text = model_pair[1]["path"].split("/")[-1].split('.')[0]
+                        data=dict(ra_offset=x_ra,
+                                  dec_offset=y_dec,
+                                  ra_dec=position_in_out,
+                                  phase_centre_dist=phase_centre_distance,
+                                  flux_in=flux_in_mjy,
+                                  label=source_labels))
+            text = model_pair[0]["path"].split("/")[-1].split('.')[0]
             # Create a plot object
             plot_position = figure(title=text,
                                    x_axis_label='RA offset ({:s})'.format(
@@ -1594,38 +1650,40 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             s2_labels = [src[0] for src in overlays if src[-1] == 2]
             s2_flux = [src[1] for src in overlays if src[-1] == 2]
             overlay_source = ColumnDataSource(
-                        data=dict(x1=s1_ra_deg, y1=s1_dec_deg,
-                                  x2=s2_ra_deg, y2=s2_dec_deg,
-                                  s1_label=s1_labels,
-                                  s2_label=s2_labels,
-                                  s1_flux=s1_flux,
-                                  s2_flux=s2_flux))
+                        data=dict(ra1=s1_ra_deg, dec1=s1_dec_deg,
+                                  ra2=s2_ra_deg, dec2=s2_dec_deg,
+                                  ra_offset=x_ra,
+                                  dec_offset=y_dec,
+                                  label1=s1_labels,
+                                  label2=s2_labels,
+                                  flux1=s1_flux,
+                                  flux2=s2_flux))
             plot_overlay = figure(title="Overlay Plot of the catalogs",
                                   x_axis_label='RA ({:s})'.format(
                                       POSITION_UNIT_SCALER['deg'][1]),
                                   y_axis_label='DEC ({:s})'.format(
                                       POSITION_UNIT_SCALER['deg'][1]),
                                   match_aspect=True,
-                                  tools=TOOLS)
-            plot_overlay.ellipse('x1', 'y1',
-                                 name='tolerance',
+                                  tools=("crosshair,pan,wheel_zoom,"
+                                         "box_zoom,reset,save"))
+            plot_overlay_1 = plot_overlay.circle('ra1', 'dec1',
+                                                 name='model1',
+                                                 legend_label='Model1',
+                                                 source=overlay_source,
+                                                 line_color=None,
+                                                 color='blue')
+            plot_overlay_2 = plot_overlay.circle('ra2', 'dec2',
+                                                 name='model2',
+                                                 legend_label='Model2',
+                                                 source=overlay_source,
+                                                 line_color=None,
+                                                 color='red')
+            plot_overlay.ellipse('ra1', 'dec1',
                                  source=overlay_source,
                                  width=tolerance/3600.0,
                                  height=tolerance/3600.0,
                                  line_color=None,
                                  color='#CAB2D6')
-            m1 = plot_overlay.circle('x1', 'y1',
-                                 name='model1',
-                                 legend_label='Model1',
-                                 source=overlay_source,
-                                 line_color=None,
-                                 color='blue')
-            m2 = plot_overlay.circle('x2', 'y2',
-                                 name='model2',
-                                 legend_label='Model2',
-                                 source=overlay_source,
-                                 line_color=None,
-                                 color='red')
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
@@ -1667,13 +1725,13 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             sigma_plot = plot_position.line(np.array(x1), np.array(y1),
                                             legend_label='Sigma')
             # Create position data points plot object
-            plot_position.circle('x', 'y',
+            plot_position.circle('ra_offset', 'dec_offset',
                                  name='data',
                                  source=source,
                                  line_color=None,
                                  #size='f',
                                  legend_label='Data',
-                                 fill_color={"field": "z",
+                                 fill_color={"field": "phase_centre_dist",
                                              "transform": mapper})
             # Table with stats data
             deci = 2  # round off to this decimal places
@@ -1699,9 +1757,27 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             hover = plot_position.select(dict(type=HoverTool))
             hover.names = ['data']
             hover.tooltips = OrderedDict([
-                ("source", "@label"),
-                ("Flux_in (mJy)", "@f"),
-                ("(RA_offset,DEC_offset)", "(@x,@y)")])
+                ("source", "(@label)"),
+                ("Flux_in (mJy)", "@flux_in"),
+                ("(RA,DEC)", "(@ra_dec)"),
+                ("(RA_offset,DEC_offset)",
+                 "(@ra_offset,@dec_offset)")])
+            plot_overlay.add_tools(
+                HoverTool(renderers=[plot_overlay_1],
+                          tooltips=OrderedDict([
+                              ("source", "@label1"),
+                              ("Flux (mJy)", "@flux1"),
+                              ("(RA,DEC)", "(@ra1,@dec1)"),
+                              ("(RA_offset,DEC_offset)",
+                               "(@ra_offset,@dec_offset)")])))
+            plot_overlay.add_tools(
+                HoverTool(renderers=[plot_overlay_2],
+                          tooltips=OrderedDict([
+                              ("source", "@label2"),
+                              ("Flux (mJy)", "@flux2"),
+                              ("(RA,DEC)", "(@ra2,@dec2)"),
+                              ("(RA_offset,DEC_offset)",
+                               "(@ra_offset,@dec_offset)")])))
             # Legend position and title align
             plot_position.legend.location = "top_left"
             plot_position.legend.click_policy = "hide"
@@ -2260,9 +2336,9 @@ def get_argparser():
              help='Get stats of channels with pixel flux above thresh in Jy/Beam')
     argument('-chans', '--channels', dest='channels',
              help='Get stats of specified channels e.g. "10~20;100~1000"')
-    argument('-ws', '--window-size', dest='window', default=20,
+    argument('-ws', '--window-size', dest='window', default=100,
              help='Window size to compute rms')
-    argument('-ss', '--step-size', dest='step', default=1,
+    argument('-ss', '--step-size', dest='step', default=20,
              help='Step size of sliding window')
     argument("--label",
              help='Use this label instead of the FITS image path when saving '
@@ -2397,7 +2473,7 @@ def main():
 
     if args.models:
         models = args.models
-        LOGGER.info(f"Number of model pairs to compare: {len(models)}")
+        LOGGER.info(f"Number of model pair(s) to compare: {len(models)}")
         if len(models) < 1:
             LOGGER.error(f"{R}Can only compare two models at a time.{W}")
         else:
