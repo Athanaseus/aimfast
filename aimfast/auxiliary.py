@@ -49,6 +49,24 @@ def rad2deg(x):
     return result
 
 
+def deg2rad(x):
+    """Converts 'x' from degrees to radians
+
+    Parameters
+    ----------
+    x : float
+        Angle in degree
+
+    Returns
+    -------
+    result : float
+        Angle in radians
+
+    """
+    result = float(x) * (np.pi/ 180)
+    return result
+
+
 def rad2arcsec(x):
     """Converts `x` from radians to arcseconds
 

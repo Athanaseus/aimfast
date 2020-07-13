@@ -40,7 +40,8 @@ from Tigger.Coordinates import angular_dist_pos_angle
 from sklearn.metrics import mean_squared_error, r2_score
 
 from aimfast.auxiliary import aegean, bdsf, get_online_catalog
-from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec, dec2deg, ra2deg, rad2deg
+from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec
+from aimfast.auxiliary import dec2deg, ra2deg, rad2deg, deg2rad
 
 
 # Get version
@@ -736,7 +737,7 @@ def get_src_scale(source_shape):
     return scale_out_arc_sec, scale_out_err_arc_sec
 
 
-def get_model(catalog):
+def get_model(catalog, phase_centre=[]):
     """Get model model object from file catalog"""
 
     def tigger_src_ascii(src, idx):
@@ -869,8 +870,14 @@ def get_model(catalog):
         dec, dec_err = map(np.deg2rad, (float(dec2deg(src["col4"])),
                                         float(0.00)))
         pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
-        ex, ex_err = map(np.deg2rad, (float(src["col9"]), float(0.00)))
-        ey, ey_err = map(np.deg2rad, (float(src["col10"]), float(0.00)))
+        ex, ex_err = map(np.deg2rad, (float(src["col9"])
+                                      if type(src["col9"]) is not
+                                      np.ma.core.MaskedConstant else
+                                      0.00, float(0.00)))
+        ey, ey_err = map(np.deg2rad, (float(src["col10"])
+                                      if type(src["col10"]) is not
+                                      np.ma.core.MaskedConstant else
+                                      0.00, float(0.00)))
         pa, pa_err = map(np.deg2rad, (float(0.00), float(0.00)))
         if ex and ey:
             shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
@@ -901,12 +908,18 @@ def get_model(catalog):
                     model.sources.append(tigger_src_nvss(src, i))
                 if 'sumss' in catalog:
                     model.sources.append(tigger_src_nvss(src, i))
+            if phase_centre:
+                model.ra0 = deg2rad(ra2deg(phase_centre[0]))
+                model.dec0 = deg2rad(ra2deg(phase_centre[1]))
             model.save(catalog[:-4]+".lsm.html")
         elif 'sources.txt' in catalog:
             data = Table.read(catalog, format='ascii')
             for i, src in enumerate(data):
                 if i:
                     model.sources.append(tigger_src_wsclean(src, i))
+            if phase_centre:
+                model.ra0 = deg2rad(ra2deg(phase_centre[0]))
+                model.dec0 = deg2rad(ra2deg(phase_centre[1]))
             model.save(catalog[:-4]+".lsm.html")
         else:
             model = Tigger.load(catalog)
@@ -941,8 +954,9 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         Tigger formatted or txt model 2 file.
     area_factor : float
         Area factor to multiply the psf size around source.
-    phase_centre : str
+    phase_centre : list
         Phase centre of catalog (if not already embeded)
+        e.g. ['0:0:0.0,-30:0:0.0']
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
     closest_only: bool
@@ -954,8 +968,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         Tuple of target flux, morphology and astrometry information
 
     """
-    model_lsm = get_model(model_1)
-    pybdsm_lsm = get_model(model_2)
+    model_lsm = get_model(model_1, phase_centre)
+    pybdsm_lsm = get_model(model_2, phase_centre)
     # Sources from the input model
     model_sources = model_lsm.sources
     # {"source_name": [I_out, I_out_err, I_in, source_name]}
@@ -977,6 +991,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         I_in = model_source.flux.I
         tolerance = area_factor * (np.pi / (3600.0 * 180))
         sources = pybdsm_lsm.getSourcesNear(RA, DEC, tolerance)
+        if not sources:
+            continue
         # More than one source detected, thus we sum up all the detected sources
         # within a radius equal to the beam size in radians around the true target
         # coordinate
@@ -1027,18 +1043,11 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                 I_out /= I_out_err
                 I_out_err = I_out_var_err
 
-
             RA0 = pybdsm_lsm.ra0
             DEC0 = pybdsm_lsm.dec0
             if phase_centre:
-                #RA0 = np.deg2rad(float(phase_centre.split(',')[1].split('deg')[0]))
-                #DEC0 = np.deg2rad(float(phase_centre.split(',')[-1].split('deg')[0]))
-                
-                # print (phase_centre.split(','), np.deg2rad(phase_centre.split(',')[0]))
-                
-                RA0 = np.deg2rad(ra2deg(phase_centre.split(',')[0]))
-                DEC0 = np.deg2rad(dec2deg(phase_centre.split(',')[-1]))
-
+                RA0 = np.deg2rad(ra2deg(phase_centre[0]))
+                DEC0 = np.deg2rad(dec2deg(phase_centre[1]))
             
             ra = source.pos.ra
             dec = source.pos.dec
@@ -1104,6 +1113,7 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
         Output html plot from which a png can be obtained.
     phase_centre : str
         Phase centre of catalog (if not already embeded)
+        e.g. '0:0:0.-30:0:0.0
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
     closest_only: bool
@@ -2331,7 +2341,7 @@ def get_argparser():
     argument('-dp', '--data-points', dest='points',
              help='Data points to sample the residual/noise image')
     argument('-ptc', '--phase-centre', dest='phase',
-             help='Phase tracking centre of the catalogs e.g. "J2000.0,0.0deg,-30.0"')
+             help='Phase tracking centre of the catalogs e.g. "0:0:00,-30:0:0.0"')
     argument('-thresh', '--threshold', dest='thresh',
              help='Get stats of channels with pixel flux above thresh in Jy/Beam')
     argument('-chans', '--channels', dest='channels',
@@ -2472,6 +2482,7 @@ def main():
             'DR_local_rms'        : DR['local_rms']}
 
     if args.models:
+        pc_coord = args.phase.split(',') if args.phase else None
         models = args.models
         LOGGER.info(f"Number of model pair(s) to compare: {len(models)}")
         if len(models) < 1:
@@ -2488,7 +2499,7 @@ def main():
                 )
             output_dict = compare_models(models_list,
                                          tolerance=args.tolerance,
-                                         phase_centre=args.phase,
+                                         phase_centre=pc_coord,
                                          all_sources=args.all,
                                          closest_only=args.closest_only,
                                          prefix=args.htmlprefix)
@@ -2522,6 +2533,7 @@ def main():
                     points=int(args.points) if args.points else 100)
 
     if args.images:
+        pc_coord = args.phase.split(',') if args.phase else None
         configfile = args.config
         if not configfile:
             configfile = 'default_sf_config.yml'
@@ -2544,7 +2556,7 @@ def main():
                       path=out2)])
         output_dict = compare_models(images_list,
                                      tolerance=args.tolerance,
-                                     phase_centre=args.phase,
+                                     phase_centre=pc_coord,
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix)
@@ -2558,13 +2570,12 @@ def main():
         online_catalog = args.online_catalog
         catalog_name = f"{catalog_prefix}_{online_catalog}_catalog_table.txt"
         if args.phase:
-            pc_coord = args.phase.split(',')#[1:]
-            # pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
+            pc_coord = args.phase.split(',')
         else:
             raise ValueError(f"{R}Provide phase centre. e.g. -ptc '0:00:00,-00:00:00'.{W}")
         images_list = []
         get_online_catalog(catalog=online_catalog.upper(),
-                           width='1.0d', thresh=2.0,
+                           width='1.0d', thresh=1.0,
                            centre_coord=pc_coord,
                            catalog_table=catalog_name)
 
