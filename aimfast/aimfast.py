@@ -77,6 +77,9 @@ ENDC = '\033[0m'
 BOLD = '\033[1m'
 UNDERLINE = '\033[4m'
 
+# Decimal places
+DECIMALS = 2
+
 def create_logger():
     """Create a console logger"""
     log = logging.getLogger(__name__)
@@ -989,15 +992,14 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         RA = model_source.pos.ra
         DEC = model_source.pos.dec
         I_in = model_source.flux.I
+        I_in_err = model_source.flux.I_err
         tolerance = area_factor * (np.pi / (3600.0 * 180))
         sources = pybdsm_lsm.getSourcesNear(RA, DEC, tolerance)
         if not sources:
             continue
-        # More than one source detected, thus we sum up all the detected sources
-        # within a radius equal to the beam size in radians around the true target
-        # coordinate
-
-        # or use the closest source only
+        # More than one source detected, thus we sum up all the detected sources with
+        # a radius equal to the beam size in radians around the true target coordinate
+        # Or use the closest source only
         if closest_only:
             if len(sources) > 1:
                 rdist = np.array([_source_angular_dist_pos_angle(model_source, source)[0]
@@ -1010,10 +1012,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             I_out_list.append(target.flux.I)
             I_out_err_list.append(target.flux.I_err * target.flux.I_err)
 
-        # weighting with the flux error appears to be dangerous thing as these values are very small
-        # taking their reciprocal leads to very high weights
 
-        #I_out = sum([val / err for val, err in zip(I_out_list, I_out_err_list)])
 
         if sources[0].flux.I > 0.0:
             source = sources[0]
@@ -1032,16 +1031,33 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                     continue
 
             if closest_only:
-                I_out_err = source.flux.I_err
                 I_out = source.flux.I  
+                I_out_err = source.flux.I_err
             else:
-
-                I_out_err = sum([1.0 / I_out_error for I_out_error
-                            in I_out_err_list])    
-
-                I_out_var_err = np.sqrt(1.0 / I_out_err)
-                I_out /= I_out_err
-                I_out_err = I_out_var_err
+                # weighting with the flux error appears to be dangerous thing as
+                # these values are very small taking their reciprocal
+                # leads to very high weights
+                # Also if the model has no errors this will raise
+                # a div by zero exception (ZeroDivisionError)
+                try:
+                    I_out = sum([val / err for val, err in zip(I_out_list, I_out_err_list)])
+                    I_out_err = sum([1.0 / I_out_error for I_out_error
+                                     in I_out_err_list])
+                    I_out_var_err = np.sqrt(1.0 / I_out_err)
+                    I_out /= I_out_err
+                    I_out_err = I_out_var_err
+                except ZeroDivisionError:
+                    if len(sources) > 1:
+                        LOGGER.warn('Since more than one source is detected at the matched position, '
+                                    'Only the closest to the matched position will be considered.'
+                                    'NB: This is because model2 does not have photometric errors.'
+                                    'otherwise a weighted average source would be returned')
+                        rdist = np.array([_source_angular_dist_pos_angle(model_source, source)[0]
+                                         for source in sources])
+                        sources = [sources[np.argmin(rdist)]]
+                    source = sources[0]
+                    I_out = source.flux.I
+                    I_out_err = source.flux.I_err
 
             RA0 = pybdsm_lsm.ra0
             DEC0 = pybdsm_lsm.dec0
@@ -1054,7 +1070,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             ra_err = source.pos.ra_err
             dec_err = source.pos.dec_err
             source_name = source.name
-            targets_flux[name] = [I_out, I_out_err, I_in,
+            targets_flux[name] = [I_out, I_out_err,
+                                  I_in, I_in_err,
                                   (name, source_name)]
             if ra > np.pi:
                 ra -= 2.0*np.pi
@@ -1374,15 +1391,17 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         flux_out_data = []
         source_scale = []
         positions_in_out = []
-        phase_centre_dist = []
+        flux_in_err_data = []
         flux_out_err_data = []
+        phase_centre_dist = []
         no_match1 = results[heading]['no_match1']
         no_match2 = results[heading]['no_match2']
         for n in range(len(results[heading]['flux'])):
             flux_out_data.append(results[heading]['flux'][n][0])
             flux_out_err_data.append(results[heading]['flux'][n][1])
             flux_in_data.append(results[heading]['flux'][n][2])
-            name_labels.append(results[heading]['flux'][n][3])
+            flux_in_err_data.append(results[heading]['flux'][n][3])
+            name_labels.append(results[heading]['flux'][n][4])
             phase_centre_dist.append(results[heading]['position'][n][3])
             positions_in_out.append(results[heading]['position'][n][7])
             source_scale.append(results[heading]['shape'][n][3])
@@ -1428,13 +1447,14 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                                     toolbar_location=None,
                                     outline_line_color=None,
                                     min_border=0)
-            # Get errors from the output fluxes
+            # Get errors from the input/output fluxes
             err_xs = []
             err_ys = []
-            for x, y, yerr in zip(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0],
+            for x, y, xerr, yerr in zip(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0],
                                   np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0],
+                                  np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
                                   np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0]):
-                err_xs.append((x, x))  # TODO: Also if the main model has error plot them (+)
+                err_xs.append((x - xerr, x + xerr))
                 err_ys.append((y - yerr, y + yerr))
             # Create a plot object for errors
             errors = plot_flux.multi_line(err_xs, err_ys,
@@ -2350,6 +2370,8 @@ def get_argparser():
              help='Window size to compute rms')
     argument('-ss', '--step-size', dest='step', default=20,
              help='Step size of sliding window')
+    argument('-deci', '--decimal-places', dest='deci', default=2,
+             help='Number of decimal places to round off all results')
     argument("--label",
              help='Use this label instead of the FITS image path when saving '
                   'data as JSON file')
@@ -2374,6 +2396,7 @@ def main():
     output_dict = dict()
     parser = get_argparser()
     args = parser.parse_args()
+    DECIMALS = args.deci
     if args.subcommand:
         if args.config:
             source_finding(get_sf_params(args.config))
