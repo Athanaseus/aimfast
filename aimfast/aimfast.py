@@ -910,7 +910,7 @@ def get_model(catalog, phase_centre=[]):
                 if 'nvss' in catalog:
                     model.sources.append(tigger_src_nvss(src, i))
                 if 'sumss' in catalog:
-                    model.sources.append(tigger_src_nvss(src, i))
+                    model.sources.append(tigger_src_sumss(src, i))
             if phase_centre:
                 model.ra0 = deg2rad(ra2deg(phase_centre[0]))
                 model.dec0 = deg2rad(ra2deg(phase_centre[1]))
@@ -2604,7 +2604,7 @@ def main():
 
         for i, ims in enumerate(models):
             image1 = ims[0]
-            if sourcery:
+            if '.fits' in image1:
                 sf_params1 = get_sf_params(configfile)
                 sf_params1[sourcery]['filename'] = image1
                 out1 = source_finding(sf_params1, sourcery)
@@ -2618,7 +2618,7 @@ def main():
 
         output_dict = compare_models(images_list,
                                      tolerance=args.tolerance,
-                                     phase_centre=args.phase,
+                                     phase_centre=pc_coord,
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix)
