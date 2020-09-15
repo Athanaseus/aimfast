@@ -4,6 +4,7 @@
 =======
 aimfast
 =======
+
 An Astronomical Image Fidelity Assessment Tool
 
 ============
@@ -14,8 +15,8 @@ Image fidelity is a measure of the accuracy of the reconstructed sky brightness
 distribution. A related metric, dynamic range, is a measure of the degree to
 which imaging artifacts around strong sources are suppressed, which in turn
 implies a higher fidelity of the on-source reconstruction. Moreover, the choice
-of image reconstruction algorithm also affects the correctness of the on-source
-brightness distribution.
+of image reconstruction algorithm and source finder also affects the estimate
+on-source brightness distribution.
 
 =================
 Fidelity Matrices
@@ -128,19 +129,19 @@ This package is available on *PYPI*, allowing
 Command line usage
 ------------------
 
-Get the four (4) statistical moments of the residual image
+Get the statistics of the residual image
 
 .. code-block:: bash
 
     $ aimfast --residual-image cube.residual.fits
 
-Get combination of the four (4) moments and dynamic range in one step where argument -af is the multiplying factor of the peak source area:
+Get the residual image stats and dynamic range in one step where argument -af is a factor to multiply the beam area to get target peak area:
 
 .. code-block:: bash
 
     $ aimfast --residual-image cube.residual.fits --restored-image cube.image.fits -af 5
 
-or using sky model file (tigger lsm.html or text file):
+or using sky model file (e.g. tigger lsm.html):
 
 .. code-block:: bash
 
@@ -153,8 +154,10 @@ appended to the same json file.
 .. code-block:: bash
 
     $ cat fidelity_results.json
-    $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05, "MEAN": 4.747e-07, "MAD": 5e-05},
-           "cube.image.fits": {"DR": 35.39, "deepest_negative": 10.48, "local_rms": 30.09, "global_rms": 35.39}}
+    $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05,
+                              "MEAN": 4.747e-07, "MAD": 5e-05},
+           "cube.image.fits": {"DR": 35.39, "deepest_negative": 10.48,
+                               "local_rms": 30.09, "global_rms": 35.39}}
 
 Additionally, normality testing of the residual image can be performed using the D’Agostino (normaltest) and
 Shapiro-Wilk (shapiro) analysis, which returns a tuple result, e.g {'NORM': (123.3, 0.1)}, with the
@@ -176,7 +179,7 @@ where --area-factor is the number to multiply the beam size to get area and -dp 
 
     $ aimfast --compare-residuals residual1.fits residual2.fits --tigger-model model.lsm.html
 
-where --tigger-model is the name of the tigger model lsm.html file to locate exact source residuals.
+where --tigger-model is the name of the model or catalog file to locate exact source residuals.
 For random or on source residual noise comparisons, the plot on the left shows the residuals on image 1 and image 2 overlayed and the plot on the right shows the ratios. The colorbar shows the distance of the sources from the phase centre.
 
    .. figure:: https://user-images.githubusercontent.com/16665629/49431465-3fb90a00-f7b6-11e8-929a-c80633b6fe73.png
@@ -194,13 +197,13 @@ It returns an interactive html correlation plots, from which a `.png` file can b
 
     $ aimfast --compare-models model1.lsm.html model2.lsm.html -tol 5
 
-where -tol is the tolerance to cross-match sources in arcsec. Moreover -as flag can be used to compare all source irrespective of shape (otherwise only point-like source with maj<2" are used). Access to (sumss, nvss,) online catalogs also provided, to allow comparison of local catalogs to remote catalogs.
+where -tol is the tolerance to cross-match sources in arcsec. Moreover -as flag can be used to compare all source irrespective of shape (otherwise only point-like source with maj<2" are used). Access to (sumss, nvss,) online catalogs is also provided, to allow comparison of local catalogs to remote catalogs.
 
 .. code-block:: bash
 
     $ aimfast --compare-online model1.lsm.html --online-catalog nvss -tol 5
 
-In the case where fits images are compared, aimfast can pre-install sources finder of choice (pybdsf, aegean) to generate a catalog which are in turn compared:
+In the case where fits images are compared, aimfast can pre-install source finder of choice (pybdsf, aegean,) to generate a catalogs which are in turn compared:
 
 .. code-block:: bash
 
@@ -221,7 +224,7 @@ For Flux density, the more the data points rest on the y=x (or I_out=I_in), the 
     :alt: alternate text
     :figclass: align-center
 
-    Figure 4. Input-Output Flux (txt/lsm.html) model comparison
+    Figure 4. Input-Output Flux model comparison
 
 For astrometry, the more sources lie on the y=0 (Delta-position axis) in the left plot and the more points with 1 sigma (blue circle) the more accurate the output source positions.
 
@@ -231,4 +234,12 @@ For astrometry, the more sources lie on the y=0 (Delta-position axis) in the lef
     :alt: alternate text
     :figclass: align-center
 
-    Figure 5. Input-Output Astrometry (txt/lsm.html) model comparison
+    Figure 5. Input-Output Astrometry model comparison
+
+Lastly, if you want to run any of the available source finders, generate the config file and edit then run:
+
+.. code-block:: bash
+
+    $ aimfast -gd my-source-finder.yml
+    $ aimfast source-finder -c my-source-finder.yml -sf pybdsf
+
