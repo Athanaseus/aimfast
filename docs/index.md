@@ -1,4 +1,4 @@
-## Welcome to AIMfast Page
+## AIMfast
 
 An Astronomical Image Fidelity Assessment Tool
 
