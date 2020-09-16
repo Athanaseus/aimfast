@@ -214,7 +214,7 @@ After the first run attempt one of the outputs is source_finder.yml file, which 
 .. code-block:: bash
 
     $ aimfast -gd my-source-finder.yml
-    $ aimfast --compare-images image1.fits image2.fits --source-finder pybdsf --config my-source-finder.yml -tol 5
+    $ aimfast --compare-images image1.fits image2.fits --config my-source-finder.yml -sf pybdsf -tol 5
 
 For Flux density, the more the data points rest on the y=x (or I_out=I_in), the more correlated the two models are.
 

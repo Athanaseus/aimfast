@@ -5,3 +5,4 @@ aimfast
    :maxdepth: 4
 
    aimfast
+   auxillary
