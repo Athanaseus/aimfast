@@ -1,4 +1,4 @@
-## Welcome to GitHub Pages
+## Welcome to AIMfast Page
 
 You can use the [editor on GitHub](https://github.com/Athanaseus/aimfast/edit/master/docs/index.md) to maintain and preview the content for your website in Markdown files.
 
