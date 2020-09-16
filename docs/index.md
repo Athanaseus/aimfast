@@ -1,9 +1,9 @@
 ## Welcome to AIMfast Page
 
-  An Astronomical Image Fidelity Assessment Tool
+An Astronomical Image Fidelity Assessment Tool
   
-  ============
-  Introduction
+Introduction
+============
 
 Image fidelity is a measure of the accuracy of the reconstructed sky
 brightness distribution. A related metric, dynamic range, is a measure
