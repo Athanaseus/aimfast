@@ -292,10 +292,10 @@ def noise_sigma(noise_image):
     return noise_std
 
 
-def _get_ra_dec_range(area, phase_centre=["0:0:0" ,"-30:0:0"]):
+def _get_ra_dec_range(area, phase_centre):
     """Get RA and DEC range from area of observations and phase centre"""
-    ra = ra2deg(phase_centre[0])
-    dec =  dec2deg(phase_centre[1])
+    ra = phase_centre[0]
+    dec =  phase_centre[1]
     d_ra = np.sqrt(area) / 2.0
     d_dec = np.sqrt(area) / 2.0
     ra_range = [ra - d_ra, ra + d_ra]
@@ -320,11 +320,10 @@ def _get_phase_centre(model):
     DEC = [rad2deg(src.pos.dec) for src in model_sources]
     xc = np.sum(RA)/len(RA)
     yc = np.sum(DEC)/len(DEC)
-    print(xc,yc)
     return (xc ,yc)
 
 
-def _get_random_pixel_coord(num, sky_area, phase_centre=["0:0:0", "-30:0:0"]):
+def _get_random_pixel_coord(num, sky_area, phase_centre=[0.0, -30.0]):
     """Provides random pixel coordinates
 
     Parameters
@@ -334,6 +333,8 @@ def _get_random_pixel_coord(num, sky_area, phase_centre=["0:0:0", "-30:0:0"]):
     sky: float
         Sky area to extract random points
         Phase tracking centre of the telescope during observation [ra0,dec0]
+    phase_centre: list
+        Phase centre in degrees
 
     Returns
     -------
@@ -2045,7 +2046,7 @@ def _random_residual_results(res_noise_images, data_points=None,
             imslice = get_box(fits_info["wcs"], (RA, DEC), width)
             # Get noise rms in the box around the point coordinate
             res1_area = res_data1[0, 0, :, :][imslice]
-            res2_area = res_data1[0, 0, :, :][imslice]
+            res2_area = res_data2[0, 0, :, :][imslice]
             # Ignore empty arrays due to points at the edge
             if not res1_area.size or not res2_area.size:
                 continue
