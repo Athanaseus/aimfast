@@ -100,7 +100,7 @@ def generate_default_config(configfile):
     LOGGER.info(f"Getting parameter file: {configfile}")
     aim_path = os.path.dirname(os.path.dirname(os.path.abspath(aimfast.__file__)))
     copyfile(f"{aim_path}/aimfast/source_finder.yml", configfile)
- 
+
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
     "Extracts data from the json data file"
@@ -886,7 +886,7 @@ def get_model(catalog):
         data = Table.read(catalog, format='ascii')
         for i, src in enumerate(data):
             model.sources.append(tigger_src_ascii(src, i))
-        centre = fitsinfo['centre'] or _get_phase_centre(model)
+        centre = fitsInfo['centre'] or _get_phase_centre(model)
         model.ra0, model.dec0 = map(np.deg2rad, centre)
         model.save(catalog[:-4]+".lsm.html")
     if ext in ['.fits']:
@@ -984,7 +984,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                     continue
 
             if closest_only:
-                I_out = source.flux.I  
+                I_out = source.flux.I
                 I_out_err = source.flux.I_err
                 ra = source.pos.ra
                 dec = source.pos.dec
@@ -1021,7 +1021,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                 except ZeroDivisionError:
                     if len(model2_sources) > 1:
                         LOGGER.warn('Position ({}, {}): Since more than one source is detected'
-                                    ' at the matched position,' 
+                                    ' at the matched position,'
                                     'only the closest to the matched position will be considered.'
                                     'NB: This is because model2 does not have photometric errors.'
                                     'otherwise a weighted average source would be returned'.format(
@@ -1069,7 +1069,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
             names[name] = source_name
-    
+
 
 
     sources1 = model_lsm1.sources
@@ -1085,7 +1085,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             sources_overlay)
 
 
-def compare_models(models, tolerance=0.2, plot=True, all_sources=False, 
+def compare_models(models, tolerance=0.2, plot=True, all_sources=False,
                    closest_only=False, prefix=None, flux_plot='log'):
     """Plot model1 source properties against that of model2
 
@@ -1326,7 +1326,7 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
 
 
-def _source_flux_plotter(results, all_models, inline=False, units='milli', 
+def _source_flux_plotter(results, all_models, inline=False, units='milli',
                          prefix=None, plot_type='log'):
     """Plot flux results and save output as html file.
 
@@ -1381,7 +1381,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             err_ys1 = []
             err_xs2 = []
             err_ys2 = []
-            # Format data points value to a readable units 
+            # Format data points value to a readable units
             # and select type of comparison plot
             if plot_type == 'inout':
                 x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
@@ -1851,7 +1851,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         # Save the plot (html)
         save(position_plots, title=outfile)
         LOGGER.info('Saving astrometry comparisons in {}'.format(outfile))
- 
+
 
 def _residual_plotter(res_noise_images, points=None, results=None,
                       inline=False, prefix=None):
