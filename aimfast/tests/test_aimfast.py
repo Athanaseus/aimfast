@@ -54,7 +54,7 @@ class TestClass(object):
                     'wcs': astWCS.WCS}
         for param, value in expected.items():
             val = output_value[param]
-            if param is 'wcs':
+            if param == 'wcs':
                 assert isinstance(val, value)
             else:
                 assert val == value
@@ -79,9 +79,9 @@ class TestClass(object):
                           'SKEW': 0.186153,
                           'KURT': 2.870047,
                           'RMS': 3.1e-05,
-                          'MAD': 3.2e-05,
+                          'MAD': 2.2e-05,
+                          'MAX': 9.98428e-05,
                           'STDDev': 3.1e-05,
-                          'SLIDING_STDDev': 3e-06,
                           'MEAN': 1.21497e-06}
         test(expected_value, output_value, normality=True)
 
@@ -92,9 +92,9 @@ class TestClass(object):
         expected_value = {'SKEW': 0.186153,
                           'KURT': 2.870047,
                           'RMS': 2.6e-05,
-                          'MAD': 3.2e-05,
+                          'MAD': 2.2e-05,
+                          'MAX': 3.98551e-05,
                           'STDDev': 2.5e-05,
-                          'SLIDING_STDDev': 3e-06,
                           'MEAN': -5.57698e-06}
         test(expected_value, output_value)
 
@@ -105,9 +105,9 @@ class TestClass(object):
         expected_value = {'SKEW': 0.287936,
                           'KURT': 2.891433,
                           'RMS': 3.2e-05,
-                          'MAD': 3.3e-05,
+                          'MAD': 2.2e-05,
+                          'MAX': 9.98428e-05,
                           'STDDev': 3.2e-05,
-                          'SLIDING_STDDev': 3e-06,
                           'MEAN': -9.18495e-07}
         test(expected_value, output_value)
 
@@ -118,9 +118,9 @@ class TestClass(object):
         expected_value = {'SKEW': 0.186153,
                           'KURT': 2.870047,
                           'RMS': 3.1e-05,
-                          'MAD': 3.2e-05,
+                          'MAD': 2.2e-05,
+                          'MAX': 9.98428e-05,
                           'STDDev': 3.1e-05,
-                          'SLIDING_STDDev': 3e-06,
                           'MEAN': 1.21497e-06}
         test(expected_value, output_value)
 
