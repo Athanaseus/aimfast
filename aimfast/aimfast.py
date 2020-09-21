@@ -1023,9 +1023,6 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                     _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
                     _b = np.sum([src.flux.I for src in model2_sources])
                     dec_err = np.abs(dec) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
-                    import IPython; IPython.embed()
-                    print(ra, dec, ra_err, dec_err)
-                    print(_a/_b)
                 except ZeroDivisionError:
                     if len(model2_sources) > 1:
                         LOGGER.warn('Position ({}, {}): Since more than one source is detected'
