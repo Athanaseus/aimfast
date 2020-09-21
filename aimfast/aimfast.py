@@ -1009,31 +1009,21 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                     dec = (np.sum([src.pos.dec * src.flux.I for src in model2_sources]) /
                           np.sum([src.flux.I for src in model2_sources]))
                    # Get position weighted error
-                    _err_a = np.sum([np.sqrt((src.flux.I*src.pos.ra_err)**2 +
-                                             (src.flux.I_err*src.pos.ra)**2)
-                                     for src in model2_sources])
+                    _err_a = np.sqrt(np.sum([np.sqrt((src.flux.I_err/src.flux.I)**2 +
+                                             (src.pos.ra_err/src.pos.ra)**2)*np.abs(src.flux.I*src.pos.ra)
+                                     for src in model2_sources]))
                     _a = np.sum([src.flux.I*src.pos.ra for src in model2_sources])
                     _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
                     _b = np.sum([src.flux.I for src in model2_sources])
-                    ra_err = ra * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
-                    _err_a = np.sum([np.sqrt((src.flux.I*src.pos.dec_err)**2 +
-                                             (src.flux.I_err*src.pos.dec)**2)
-                                     for src in model2_sources])
+                    ra_err = np.abs(ra) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
+                    _err_a = np.sqrt(np.sum([np.sqrt((src.flux.I_err/src.flux.I)**2 +
+                                             (src.pos.ra_err/src.pos.dec)**2)*abs(src.flux.I*src.pos.dec)
+                                     for src in model2_sources]))
                     _a = np.sum([src.flux.I*src.pos.dec for src in model2_sources])
                     _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
                     _b = np.sum([src.flux.I for src in model2_sources])
-                    dec_err = dec * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
-
- #                    ra_err = ra * (np.sqrt(np.sum([np.sqrt(((src.flux.I_err * src.flux.I)**2 +
- #                                            (src.pos.ra_err * src.pos.ra)**2)**2)
- #                                             for src in model2_sources])) +
- #                             np.sqrt(np.sum([(src.flux.I_err)**2
- #                                              for src in model2_sources])))
- #                   dec_err = (np.sqrt(np.sum([np.sqrt(((src.flux.I_err * src.flux.I)**2 +
- #                                               (src.pos.dec_err * src.pos.dec)**2)**2)
- #                                               for src in model2_sources])) +
- #                              np.sqrt(np.sum([(src.flux.I_err)**2
- #                                               for src in model2_sources])))
+                    dec_err = np.abs(dec) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
+                    import IPython; IPython.embed()
                     print(ra, dec, ra_err, dec_err)
                     print(_a/_b)
                 except ZeroDivisionError:
