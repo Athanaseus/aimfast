@@ -1008,17 +1008,34 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                           np.sum([src.flux.I for src in model2_sources]))
                     dec = (np.sum([src.pos.dec * src.flux.I for src in model2_sources]) /
                           np.sum([src.flux.I for src in model2_sources]))
-                    ra_err = (np.sqrt(np.sum([((src.flux.I_err / src.flux.I)**2 +
-                                             (src.pos.ra_err / src.pos.ra)**2)**2
-                                              for src in model2_sources])) +
-                              np.sqrt(np.sum([(src.flux.I_err / src.flux.I)**2
-                                               for src in model2_sources])))
-                    dec_err = (np.sqrt(np.sum([((src.flux.I_err / src.flux.I)**2 +
-                                                (src.pos.dec_err / src.pos.dec)**2)**2
-                                                for src in model2_sources])) +
-                               np.sqrt(np.sum([(src.flux.I_err / src.flux.I)**2
-                                                for src in model2_sources])))
+                   # Get position weighted error
+                    _err_a = np.sum([np.sqrt((src.flux.I*src.pos.ra_err)**2 +
+                                             (src.flux.I_err*src.pos.ra)**2)
+                                     for src in model2_sources])
+                    _a = np.sum([src.flux.I*src.pos.ra for src in model2_sources])
+                    _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
+                    _b = np.sum([src.flux.I for src in model2_sources])
+                    ra_err = ra * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
+                    _err_a = np.sum([np.sqrt((src.flux.I*src.pos.dec_err)**2 +
+                                             (src.flux.I_err*src.pos.dec)**2)
+                                     for src in model2_sources])
+                    _a = np.sum([src.flux.I*src.pos.dec for src in model2_sources])
+                    _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
+                    _b = np.sum([src.flux.I for src in model2_sources])
+                    dec_err = dec * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
+
+ #                    ra_err = ra * (np.sqrt(np.sum([np.sqrt(((src.flux.I_err * src.flux.I)**2 +
+ #                                            (src.pos.ra_err * src.pos.ra)**2)**2)
+ #                                             for src in model2_sources])) +
+ #                             np.sqrt(np.sum([(src.flux.I_err)**2
+ #                                              for src in model2_sources])))
+ #                   dec_err = (np.sqrt(np.sum([np.sqrt(((src.flux.I_err * src.flux.I)**2 +
+ #                                               (src.pos.dec_err * src.pos.dec)**2)**2)
+ #                                               for src in model2_sources])) +
+ #                              np.sqrt(np.sum([(src.flux.I_err)**2
+ #                                               for src in model2_sources])))
                     print(ra, dec, ra_err, dec_err)
+                    print(_a/_b)
                 except ZeroDivisionError:
                     if len(model2_sources) > 1:
                         LOGGER.warn('Position ({}, {}): Since more than one source is detected'
@@ -1668,6 +1685,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             # Format data list into numpy arrays
             x_ra = np.array(RA_offset)
             y_dec = np.array(DEC_offset)
+            x_ra_err = np.array(RA_err)
+            y_dec_err = np.array(DEC_err)
             # TODO: Use flux as a radius dimension
             flux_in = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0])
             flux_in_mjy = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0]
@@ -1676,7 +1695,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
                         data=dict(ra_offset=x_ra,
+                                  ra_err=x_ra_err,
                                   dec_offset=y_dec,
+                                  dec_err=y_dec_err,
                                   ra_dec=position_in_out,
                                   phase_centre_dist=phase_centre_distance,
                                   flux_in=flux_in_mjy,
@@ -1708,6 +1729,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                   ra2=s2_ra_deg, dec2=s2_dec_deg,
                                   ra_offset=x_ra,
                                   dec_offset=y_dec,
+                                  ra_err=x_ra_err,
+                                  dec_err=y_dec_err,
                                   label1=s1_labels,
                                   label2=s2_labels,
                                   flux1=s1_flux,
@@ -1784,7 +1807,6 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                  name='data',
                                  source=source,
                                  line_color=None,
-                                 #size='f',
                                  legend_label='Data',
                                  fill_color={"field": "phase_centre_dist",
                                              "transform": mapper})
@@ -1815,6 +1837,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                 ("source", "(@label)"),
                 ("Flux_in (mJy)", "@flux_in"),
                 ("(RA,DEC)", "(@ra_dec)"),
+                ("(RA_err,DEC_err)",
+                 "(@ra_err,@dec_err)"),
                 ("(RA_offset,DEC_offset)",
                  "(@ra_offset,@dec_offset)")])
             plot_overlay.add_tools(
@@ -1823,6 +1847,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                               ("source", "@label1"),
                               ("Flux (mJy)", "@flux1"),
                               ("(RA,DEC)", "(@ra1,@dec1)"),
+                              ("(RA_err,DEC_err)",
+                               "(@ra_err,@dec_err)"),
                               ("(RA_offset,DEC_offset)",
                                "(@ra_offset,@dec_offset)")])))
             plot_overlay.add_tools(
@@ -1831,6 +1857,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                               ("source", "@label2"),
                               ("Flux (mJy)", "@flux2"),
                               ("(RA,DEC)", "(@ra2,@dec2)"),
+                              ("(RA_err,DEC_err)",
+                               "(@ra_err,@dec_err)"),
                               ("(RA_offset,DEC_offset)",
                                "(@ra_offset,@dec_offset)")])))
             # Legend position and title align

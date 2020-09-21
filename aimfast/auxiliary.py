@@ -274,6 +274,7 @@ def bdsf(image, kwargs, log):
     image = img_opts.pop('filename')
     filename = os.path.basename(image)
     outfile = write_opts.pop('outfile') or '{}-pybdsf.fits'.format(image[:-5])
+    print(outfile)
     img = bdsm.process_image(image, **img_opts, ncores=ncores)
     img.write_catalog(outfile=outfile, **write_opts)
     return outfile
