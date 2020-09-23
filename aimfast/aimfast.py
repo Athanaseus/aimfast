@@ -41,7 +41,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 
 from aimfast.auxiliary import aegean, bdsf, get_online_catalog
 from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec
-from aimfast.auxiliary import dec2deg, ra2deg, rad2deg, deg2rad
+from aimfast.auxiliary import dec2deg, ra2deg, rad2deg, deg2rad, unwrap
 
 
 # Get version
@@ -1230,8 +1230,8 @@ def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
             props1 = [s1.name,
                       round(s1.flux.I*FLUX_UNIT_SCALER[units][0], deci),
                       round(s1.flux.I_err*FLUX_UNIT_SCALER[units][0], deci)
-                          if s1.flux.I_err else None,
-                      round(rad2deg(s1.pos.ra), deci),
+                            if s1.flux.I_err else None,
+                      unwrap(round(rad2deg(s1.pos.ra), deci)),
                       f'{rad2deg(s1.pos.ra_err):.{deci}e}'
                           if s1.pos.ra_err else None,
                       round(rad2deg(s1.pos.dec), deci),
@@ -1243,13 +1243,13 @@ def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
             props2 = [s2.name,
                       round(s2.flux.I*FLUX_UNIT_SCALER[units][0], deci),
                       round(s2.flux.I_err*FLUX_UNIT_SCALER[units][0], deci)
-                          if s2.flux.I_err else None,
-                      round(rad2deg(s2.pos.ra), deci),
+                            if s2.flux.I_err else None,
+                      unwrap(round(rad2deg(s2.pos.ra), deci)),
                       f'{rad2deg(s2.pos.ra_err):.{deci}e}'
                           if s2.pos.ra_err else None,
                       round(rad2deg(s2.pos.dec), deci),
                       f'{rad2deg(s2.pos.dec_err):.{deci}e}'
-                          if s1.pos.dec_err else None]
+                          if s2.pos.dec_err else None]
             targets_not_matching_b[s2.name] = props2
     return targets_not_matching_a, targets_not_matching_b
 
@@ -1668,13 +1668,13 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             plot_position.title.text_font_size = '16pt'
             # Create an image overlay
             s1_ra_rad = np.unwrap([src[3] for src in overlays if src[-1] == 1])
-            s1_ra_deg = [rad2deg(s_ra) for s_ra in s1_ra_rad]
+            s1_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s1_ra_rad]
             s1_dec_rad = [src[5] for src in overlays if src[-1] == 1]
             s1_dec_deg = [rad2deg(s_dec) for s_dec in s1_dec_rad]
             s1_labels = [src[0] for src in overlays if src[-1] == 1]
             s1_flux = [src[1] for src in overlays if src[-1] == 1]
             s2_ra_rad = np.unwrap([src[3] for src in overlays if src[-1] == 2])
-            s2_ra_deg = [rad2deg(s_ra) for s_ra in s2_ra_rad]
+            s2_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s2_ra_rad]
             s2_dec_rad = [src[5] for src in overlays if src[-1] == 2]
             s2_dec_deg = [rad2deg(s_dec) for s_dec in s2_dec_rad]
             s2_labels = [src[0] for src in overlays if src[-1] == 2]
