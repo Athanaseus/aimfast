@@ -1009,20 +1009,22 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                     dec = (np.sum([src.pos.dec * src.flux.I for src in model2_sources]) /
                           np.sum([src.flux.I for src in model2_sources]))
                    # Get position weighted error
-                    _err_a = np.sqrt(np.sum([np.sqrt((src.flux.I_err/src.flux.I)**2 +
-                                             (src.pos.ra_err/src.pos.ra)**2)*np.abs(src.flux.I*src.pos.ra)
-                                     for src in model2_sources]))
-                    _a = np.sum([src.flux.I*src.pos.ra for src in model2_sources])
-                    _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
-                    _b = np.sum([src.flux.I for src in model2_sources])
-                    ra_err = np.abs(ra) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
-                    _err_a = np.sqrt(np.sum([np.sqrt((src.flux.I_err/src.flux.I)**2 +
-                                             (src.pos.ra_err/src.pos.dec)**2)*abs(src.flux.I*src.pos.dec)
-                                     for src in model2_sources]))
-                    _a = np.sum([src.flux.I*src.pos.dec for src in model2_sources])
-                    _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
-                    _b = np.sum([src.flux.I for src in model2_sources])
-                    dec_err = np.abs(dec) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
+                   # _err_a = np.sqrt(np.sum([np.sqrt((src.flux.I_err/src.flux.I)**2 +
+                   #                          (src.pos.ra_err/src.pos.ra)**2)*np.abs(src.flux.I*src.pos.ra)
+                   #                  for src in model2_sources]))
+                   # _a = np.sum([src.flux.I*src.pos.ra for src in model2_sources])
+                   # _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
+                   # _b = np.sum([src.flux.I for src in model2_sources])
+                   # ra_err = np.abs(ra) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
+                   # _err_a = np.sqrt(np.sum([np.sqrt((src.flux.I_err/src.flux.I)**2 +
+                   #                          (src.pos.ra_err/src.pos.dec)**2)*abs(src.flux.I*src.pos.dec)
+                   #                  for src in model2_sources]))
+                   # _a = np.sum([src.flux.I*src.pos.dec for src in model2_sources])
+                   # _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
+                   # _b = np.sum([src.flux.I for src in model2_sources])
+                   # dec_err = np.abs(dec) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
+                    ra_err = sorted(model2_sources, key=lambda x: x.flux.I, reverse=True)[0].pos.ra_err
+                    dec_err = sorted(model2_sources, key=lambda x: x.flux.I, reverse=True)[0].pos.dec_err
                 except ZeroDivisionError:
                     if len(model2_sources) > 1:
                         LOGGER.warn('Position ({}, {}): Since more than one source is detected'
@@ -1675,7 +1677,6 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             x_ra_err = np.array(RA_err)
             y_dec_err = np.array(DEC_err)
             # TODO: Use flux as a radius dimension
-            flux_in = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0])
             flux_in_mjy = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0]
             phase_centre_distance = np.array(DELTA_PHASE0)  # For color
             # Create additional feature on the plot such as hover, display text
