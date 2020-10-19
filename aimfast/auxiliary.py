@@ -138,6 +138,13 @@ def dec2deg(dec_dms):
     return d_m_s
 
 
+def unwrap(angle):
+    """Unwrap angle greater than 180"""
+    if angle > 180:
+        angle -= 360
+    return angle
+
+
 def get_online_catalog(catalog='NVSS', width='1d', thresh=1.0,
                        centre_coord=['0:0:0', '-30:0:0'],
                        catalog_table='sumss_catalog_table.txt'):
