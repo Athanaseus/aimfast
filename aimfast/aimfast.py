@@ -885,9 +885,14 @@ def get_model(catalog):
             model = Tigger.load(catalog)
     if ext in ['.tab', '.csv']:
         data = Table.read(catalog, format='ascii')
+        if ext == '.tab':
+            fits_file = catalog.replace('_comp.tab', '.fits')
+        else:
+            fits_file = catalog.replace('_comp.csv', '.fits')
+        fitsinfo = fitsInfo(fits_file)
         for i, src in enumerate(data):
             model.sources.append(tigger_src_ascii(src, i))
-        centre = fitsInfo['centre'] or _get_phase_centre(model)
+        centre = fitsinfo['centre'] or _get_phase_centre(model)
         model.ra0, model.dec0 = map(np.deg2rad, centre)
         model.save(catalog[:-4]+".lsm.html")
     if ext in ['.fits']:
@@ -1404,7 +1409,6 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 z = np.array(phase_centre_dist)
                 axis_labels = ['Model 1 log (flux)', 'Model 2 log (flux)']
             elif plot_type == 'snr':
-                print(flux_in_data)
                 x = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])
                 y = ((np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])/
                      (np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]))

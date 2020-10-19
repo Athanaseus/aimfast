@@ -201,6 +201,7 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=1.0,
 
 def aegean(image, kwargs, log):
     args = ['aegean']
+    outfile = ''
     for name, value in kwargs.items():
         if value is None:
             continue
@@ -208,11 +209,17 @@ def aegean(image, kwargs, log):
             continue
         if name == 'filename':  # positional argument
             args += ['{0}'.format(value)]
+        elif name == 'table':
+            outfile = "{}.tab".format(kwargs['filename'][:-5])
+            args += ['{0}{1} {2}'.format('--', name, outfile)]
+            # Aegean add '_comp' to the file name e.g. im_comp.tab
+            outfile = "{}_comp.tab".format(kwargs['filename'][:-5])
         else:
             args += ['{0}{1} {2}'.format('--', name, value)]
     log.info("Running: {}".format(" ".join(args)))
     run = subprocess.run(" ".join(args), shell=True)
     log.info("The exit code was: {}".format(run.returncode))
+    return outfile
 
 
 def bdsf(image, kwargs, log):

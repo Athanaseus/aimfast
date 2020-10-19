@@ -41,7 +41,7 @@ pybdsf:
   psf_snrtop: 0.15
   psf_stype_only: true
   psf_smooth:
-  psf_high_snr: 
+  psf_high_snr:
   indir:
   opdir_overwrite:
   output_all:
@@ -71,7 +71,7 @@ aegean:
   enable: false
   filename:                   # Image to extract radio sources
   table: ascii                # Additional table outputs, format inferred from extension (database: .db, votable: .vot, and ascii: .csv/.tab)
-  slice:                      # If the input data is a cube, then this slice will determine the array index of the image which will be processed by aegean
+  slice: 0                       # If the input data is a cube, then this slice will determine the array index of the image which will be processed by aegean
   psf:                        # A .fits file that represents the local psf
   noise:                      # A .fits file that represents the image noise
   region:                     # Use this regions file to restrict source finding in this image. Use MIMAS region (.mim) files
