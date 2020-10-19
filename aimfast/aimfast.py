@@ -2233,11 +2233,11 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
     res_stats = dict()
     dr_stats = dict()
     for par, val in data.items():
+        val_copy = val.copy()
         if '.fits' not in par and 'models' not in val and type(val) is not list:
             for p, v in val.items():
                 if type(v) is dict:
                     dr_stats[p] = v
-                    val_copy = val.copy()
                     val_copy.pop(p)
             res_stats[par] = val_copy
             res_stats[par]['NORM'] = res_stats[par]['NORM'][0]
@@ -2249,7 +2249,7 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
     rms_values = []
     stddev_values = []
     mad_values = []
-    slidingdev_values = []
+    max_values = []
     skew_values = []
     kurt_values = []
     norm_values = []
@@ -2258,7 +2258,7 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
         rms_values.append(res_stats[res_stat]['RMS'])
         stddev_values.append(res_stats[res_stat]['STDDev'])
         mad_values.append(res_stats[res_stat]['MAD'])
-        slidingdev_values.append(res_stats[res_stat]['SLIDING_STDDev'])
+        max_values.append(res_stats[res_stat]['MAX'])
         skew_values.append(res_stats[res_stat]['SKEW'])
         kurt_values.append(res_stats[res_stat]['KURT'])
         norm_values.append(res_stats[res_stat]['NORM'])
@@ -2272,7 +2272,7 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
                               plot_width=width, plot_height=height, title='Residual Variance')
     variance_plotter.line(im_keys, np.array(stddev_values)*multiplier, legend_label='std', color='blue')
     variance_plotter.line(im_keys, np.array(mad_values)*multiplier, legend_label='mad', color='red')
-    variance_plotter.line(im_keys, np.array(slidingdev_values)*multiplier, legend_label='sliding', color='green')
+    variance_plotter.line(im_keys, np.array(max_values)*multiplier, legend_label='max', color='green')
     variance_plotter.title.align = 'center'
 
     # Moment 3 & 4 plots
