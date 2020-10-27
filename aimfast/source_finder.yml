@@ -21,6 +21,13 @@ pybdsf:
   stop_at:                     # Stops after: 'isl' = island finding step or 'read' = image reading step
   pi_thresh_isl:               # Correct source parameters for image projection (BBS format only)
   pi_thresh_pix:               # Source detection threshold for PI image: threshold for the island peak in number of sigma above the mean. Uses thresh_pix if not set
+  spectralindex_do: false      # Calculate spectral indices (for multi-channel image)
+  incl_chan: false             # Include flux densities from each channel
+  beam:                        # FWHM of restoring beam. Specify as (maj, min, pos ang E of N) in degrees.
+  fix_to_beam: true            # Fix major and minor axes and PA of Gaussians to beam
+  beam_sp_derive: false        # If True and beam_spectrum is None, then assume header beam is for median frequency and scales with frequency for channels
+  multi_chan_beam: false       # Set to true if cube has beams per chans, otherwise
+  beam_spectrum:               # FWHM of synthesized beam per channel. Specify as [(bmaj_ch1, bmin_ch1, bpa_ch1), (bmaj_ch2, bmin_ch2, bpa_ch2), etc.] in degrees. E.g., beam_spectrum = [(0.1, 0.1, 45.0), (0.2,0.1, 34.0)] for two channels.
   correct_proj: true
   psf_vary_do: false
   psf_fwhm:
@@ -34,7 +41,7 @@ pybdsf:
   psf_snrtop: 0.15
   psf_stype_only: true
   psf_smooth:
-  psf_high_snr: 
+  psf_high_snr:
   indir:
   opdir_overwrite:
   output_all:
@@ -51,13 +58,6 @@ pybdsf:
   shapelet_basis: cartesian
   shapelet_gresid: false
   shapelet_fitmode:
-  spectralindex_do: false      # Calculate spectral indices (for multi-channel image)
-  incl_chan: false             # Include flux densities from each channel
-  beam:                  # FWHM of restoring beam. Specify as (maj, min, pos ang E of N) in degrees.     
-  fix_to_beam: true            # Fix major and minor axes and PA of Gaussians to beam
-  beam_sp_derive:              
-  multi_chan_beam: 
-  beam_spectrum:
   collapse_av:
   collapse_ch0:                # Find polarisation properties
   collapse_mode:
@@ -67,12 +67,11 @@ pybdsf:
   specind_maxchan: 0
   polarisation_do: false
   pi_fit: false
-  ncores: 
 aegean:
   enable: false
   filename:                   # Image to extract radio sources
   table: ascii                # Additional table outputs, format inferred from extension (database: .db, votable: .vot, and ascii: .csv/.tab)
-  slice:                      # If the input data is a cube, then this slice will determine the array index of the image which will be processed by aegean
+  slice: 0                       # If the input data is a cube, then this slice will determine the array index of the image which will be processed by aegean
   psf:                        # A .fits file that represents the local psf
   noise:                      # A .fits file that represents the image noise
   region:                     # Use this regions file to restrict source finding in this image. Use MIMAS region (.mim) files

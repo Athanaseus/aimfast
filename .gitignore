@@ -23,3 +23,5 @@ docs/_build/
 
 # Compiled bytecode
 aimfast/*.pyc
+aimfast/__pycache__/
+aimfast/tests/__pycache__/

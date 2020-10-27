@@ -40,8 +40,13 @@ from Tigger.Coordinates import angular_dist_pos_angle
 from sklearn.metrics import mean_squared_error, r2_score
 
 from aimfast.auxiliary import aegean, bdsf, get_online_catalog
-from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec, dec2deg, ra2deg, rad2deg
+from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec
+from aimfast.auxiliary import dec2deg, ra2deg, rad2deg, deg2rad, unwrap
 
+
+# Get version
+from pkg_resources import get_distribution
+_version = get_distribution('aimfast').version
 
 # Unit multipleirs for plotting
 FLUX_UNIT_SCALER = {
@@ -58,12 +63,22 @@ POSITION_UNIT_SCALER = {
                         'arcsec': [3600.0, u'``'],
                        }
 
-
 # Backgound color for plots
 BG_COLOR = 'rgb(229,229,229)'
 # Highlighters
 R = '\033[31m'  # red
 W = '\033[0m'   # white (normal)
+HEADER = '\033[95m'
+OKBLUE = '\033[94m'
+OKGREEN = '\033[92m'
+WARNING = '\033[93m'
+FAIL = '\033[91m'
+ENDC = '\033[0m'
+BOLD = '\033[1m'
+UNDERLINE = '\033[4m'
+
+# Decimal places
+DECIMALS = 2
 
 def create_logger():
     """Create a console logger"""
@@ -85,7 +100,7 @@ def generate_default_config(configfile):
     LOGGER.info(f"Getting parameter file: {configfile}")
     aim_path = os.path.dirname(os.path.dirname(os.path.abspath(aimfast.__file__)))
     copyfile(f"{aim_path}/aimfast/source_finder.yml", configfile)
- 
+
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
     "Extracts data from the json data file"
@@ -161,17 +176,23 @@ def fitsInfo(fitsname=None):
     except:
         beam_size = None
     try:
-        centre = '{0},{1},{2}'.format('J' + str(hdr['EQUINOX']),
-                                      str(hdr['CRVAL1']) + hdr['CUNIT1'],
-                                      str(hdr['CRVAL2']) + hdr['CUNIT2'])
+        centre = (hdr['CRVAL1'], hdr['CRVAL2'])
     except:
-        centre = 'J2000.0,0.0deg,0.0deg'
+        centre = None
+    try:
+        freq0=None
+        for i in range(1, hdr['NAXIS']+1):
+            if hdr['CTYPE{0:d}'.format(i)].startswith('FREQ'):
+                freq0 = hdr['CRVAL{0:d}'.format(i)]
+    except:
+        freq0=None
+
     skyArea = (numPix * ddec) ** 2
     fitsinfo = {'wcs': wcs, 'ra': ra, 'dec': dec,
                 'dra': dra, 'ddec': ddec, 'raPix': raPix,
                 'decPix': decPix, 'b_size': beam_size,
                 'numPix': numPix, 'centre': centre,
-                'skyArea': skyArea}
+                'skyArea': skyArea, 'freq0': freq0}
     return fitsinfo
 
 
@@ -271,33 +292,38 @@ def noise_sigma(noise_image):
     return noise_std
 
 
-def _get_ra_dec_range(area, phase_centre="J2000,0deg,-30deg"):
+def _get_ra_dec_range(area, phase_centre):
     """Get RA and DEC range from area of observations and phase centre"""
-    ra = float(phase_centre.split(',')[1].split('deg')[0])
-    dec = float(phase_centre.split(',')[2].split('deg')[0])
+    ra = phase_centre[0]
+    dec =  phase_centre[1]
     d_ra = np.sqrt(area) / 2.0
     d_dec = np.sqrt(area) / 2.0
     ra_range = [ra - d_ra, ra + d_ra]
     dec_range = [dec - d_dec, dec + d_dec]
     return ra_range, dec_range
 
-def _angular_dist_pos_angle(src1, src2):
+
+def _source_angular_dist_pos_angle(src1, src2):
     """Computes the angular distance between the two points on a sphere, and
     the position angle (North through East) of the direction from 1 to 2.""";
-    # I lifted this somewhere, from Oleg's Tigger Coordinates
     ra1, dec1 = src1.pos.ra, src1.pos.dec
     ra2, dec2 = src2.pos.ra, src2.pos.dec
-    sind1,sind2 = np.sin(dec1),np.sin(dec2);
-    cosd1,cosd2 = np.cos(dec1),np.cos(dec2);
-    cosra,sinra = np.cos(ra1-ra2),np.sin(ra1-ra2);
-
-    adist = np.arccos(min(sind1*sind2 + cosd1*cosd2*cosra,1));
-    pa = np.arctan2(-cosd2*sinra,-cosd2*sind1*cosra+sind2*cosd1);
-    return adist #return angular distance only
+    return angular_dist_pos_angle(ra1, dec1, ra2, dec2)
 
 
+def _get_phase_centre(model):
+    """Compute the phase centre of observation"""
+    # Get all sources in the model
+    model_sources = model.sources
+    # Get source Ra and Dec coordinates
+    RA = [rad2deg(src.pos.ra) for src in model_sources]
+    DEC = [rad2deg(src.pos.dec) for src in model_sources]
+    xc = np.sum(RA)/len(RA)
+    yc = np.sum(DEC)/len(DEC)
+    return (xc ,yc)
 
-def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
+
+def _get_random_pixel_coord(num, sky_area, phase_centre=[0.0, -30.0]):
     """Provides random pixel coordinates
 
     Parameters
@@ -306,8 +332,9 @@ def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
         Number of data points
     sky: float
         Sky area to extract random points
-    phase_centre: str
-        Phase tracking centre of the telescope during observation
+        Phase tracking centre of the telescope during observation [ra0,dec0]
+    phase_centre: list
+        Phase centre in degrees
 
     Returns
     -------
@@ -328,8 +355,7 @@ def _get_random_pixel_coord(num, sky_area, phase_centre="J2000,0deg,-30deg"):
 
 
 def residual_image_stats(fitsname, test_normality=None, data_range=None,
-                         threshold=None, chans=None, mask=None,
-                         step_size=1, window_size=20):
+                         threshold=None, chans=None, mask=None):
     """Gets statistcal properties of a residual image.
 
     Parameters
@@ -346,24 +372,19 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         Channels to compute stats (e.g. 1;0~50;100~200)
     mask : file
         Fits mask to get stats in image
-    window_size : int
-        Window size to compute rms
-    step_size : int
-        Step size of sliding window
 
     Returns
     -------
     props : dict
         Dictionary of stats properties.
         e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'RMS': 0.1,
-              'SKEW': 0.2, 'KURT': 0.3, 'MAD': 0.4,
-              'SLIDING_STDDev': 0.5}.
+              'SKEW': 0.2, 'KURT': 0.3, 'MAD': 0.4, 'MAX': 0.7}
 
     Notes
     -----
     If normality_test=True, dictionary of stats props becomes \
     e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, \
-          'MAD': 0.4, 'RMS': 0.5, 'SLIDING_STDDev': 0.6,
+          'MAD': 0.4, 'RMS': 0.5, 'SLIDING_STDDev': 0.6, 'MAX': 0.7, \
           'NORM': (123.3,0.012)} \
     whereby the first element is the statistics (or average if data_range specified) \
     of the datasets and second element is the p-value.
@@ -406,6 +427,10 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         data = residual_data
     residual_data = data
 
+    # Get the max value
+    LOGGER.info("Computing max ...")
+    res_props['MAX'] = float("{0:.6}".format(residual_data.max()))
+    LOGGER.info("MAX = {}".format(res_props['MAX']))
     # Get the mean value
     LOGGER.info("Computing mean ...")
     res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
@@ -422,7 +447,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     res_data = residual_data.flatten()
     # Get the maximum absolute deviation
     LOGGER.info("Computing median absolute deviation ...")
-    res_props['MAD'] = float("{0:.6f}".format(stats.median_absolute_deviation(res_data)))
+    res_props['MAD'] = float("{0:.6f}".format(stats.median_abs_deviation(res_data)))
     LOGGER.info("MAD = {}".format(res_props['MAD']))
     # Compute the skewness of the residual
     LOGGER.info("Computing skewness ...")
@@ -432,13 +457,6 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     LOGGER.info("Computing kurtosis ...")
     res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
     LOGGER.info("KURT = {}".format(res_props['KURT']))
-    # Compute sliding window sigma
-    LOGGER.info("Computing sliding window standard deviation ...")
-    res_props['SLIDING_STDDev'] = float("{0:.6f}".format(sliding_window_std(
-                                                         residual_data,
-                                                         window_size,
-                                                         step_size)))
-    LOGGER.info("SLIDING_STDDev = {}".format(res_props['SLIDING_STDDev']))
     # Perform normality testing
     if test_normality:
         LOGGER.info("Performing normality test ...")
@@ -448,45 +466,6 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     props = res_props
     # Return dictionary of results
     return props
-
-
-def sliding_window_std(data, window_size, step_size):
-    """Gets the standard deviation of the sliding window boxes pixel values
-
-    Parameters
-    ----------
-    data : numpy.array
-        Residual residual array. i.e. fitsio.open(fitsname)[0].data
-    window_size : int
-        Window size to compute rms
-    step_size : int
-        Step size of sliding window
-
-    Returns
-    -------
-    w_std : float
-        Standard deviation of the windows.
-
-    """
-    windows_avg = []
-    # Get residual image data
-    residual_data = data
-    # Define a nxn window
-    (w_width, w_height) = (int(window_size), int(window_size))
-    # Get number of channels
-    nchan = residual_data.shape[0]
-    # Check if window is less than image size
-    image_size = residual_data.shape[-1]
-    if int(window_size) > image_size:
-        raise Exception("Window size of {} should be less than image size {}".format(
-                        window_size, image_size))
-    for frq_ax in range(nchan):
-        image = residual_data[frq_ax, :, :]
-        for x in range(0, image.shape[1] - w_width + 1, int(step_size)):
-            for y in range(0, image.shape[0] - w_height + 1, int(step_size)):
-                window = image[x:x + w_width, y:y + w_height]
-                windows_avg.append(np.array(window).mean())
-    return np.array(windows_avg).std()
 
 
 def normality_testing(data, test_normality='normaltest', data_range=None):
@@ -752,12 +731,12 @@ def get_model(catalog):
             source.setAttribute("I_peak_err", float(src["err_int_flux"]))
         return source
 
-    def tigger_src_online(src, idx):
+    def tigger_src_nvss(src, idx):
         """Get ascii catalog source as a tigger source """
 
         name = "SRC%d" % idx
-        flux = ModelClasses.Polarization(float(src["S1.4"]), 0, 0, 0,
-                                         I_err=float(src["e_S1.4"]))
+        flux = ModelClasses.Polarization(float(src["S1.4"]/1000.), 0, 0, 0,
+                                         I_err=float(src["e_S1.4"]/1000.))
         ra, ra_err = map(np.deg2rad, (float(ra2deg(src["RAJ2000"])),
                                       float(src["e_RAJ2000"])))
         dec, dec_err = map(np.deg2rad, (float(dec2deg(src["DEJ2000"])),
@@ -774,11 +753,37 @@ def get_model(catalog):
         source = SkyModel.Source(name, pos, flux, shape=shape)
         # Adding source peak flux (error) as extra flux attributes for sources,
         # and to avoid null values for point sources I_peak = src["Total_flux"]
-        source.setAttribute("I_peak", float(src["S1.4"]))
-        source.setAttribute("I_peak_err", float(src["e_S1.4"]))
+        source.setAttribute("I_peak", float(src["S1.4"]/1000.))
+        source.setAttribute("I_peak_err", float(src["e_S1.4"]/1000.))
         return source
 
-    def tigger_src_fits(src, idx):
+    def tigger_src_sumss(src, idx):
+        """Get ascii catalog source as a tigger source """
+
+        name = "SRC%d" % idx
+        flux = ModelClasses.Polarization(float(src["St"]/1000.), 0, 0, 0,
+                                         I_err=float(src["e_St1.4"]/1000.))
+        ra, ra_err = map(np.deg2rad, (float(ra2deg(src["RAJ2000"])),
+                                      float(src["e_RAJ2000"])))
+        dec, dec_err = map(np.deg2rad, (float(dec2deg(src["DEJ2000"])),
+                                        float(src["e_DEJ2000"])))
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+        ex, ex_err = map(np.deg2rad, (float(src['MajAxis']), float(0.00)))
+        ey, ey_err = map(np.deg2rad, (float(src['MinAxis']), float(0.00)))
+        pa, pa_err = map(np.deg2rad, (float(src['PA']), float(0.00)))
+        if ex and ey:
+            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
+                                          ey_err=ey_err, pa_err=pa_err)
+        else:
+            shape = None
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        # Adding source peak flux (error) as extra flux attributes for sources,
+        # and to avoid null values for point sources I_peak = src["Total_flux"]
+        source.setAttribute("I_peak", float(src["Sp"]/1000.))
+        source.setAttribute("I_peak_err", float(src["e_Sp"]/1000.))
+        return source
+
+    def tigger_src_fits(src, idx, freq0=None):
         """Get fits catalog source as a tigger source """
 
         name = "SRC%d" % idx
@@ -790,6 +795,8 @@ def get_model(catalog):
         ex, ex_err = map(np.deg2rad, (float(src["DC_Maj"]), float(src["E_DC_Maj"])))
         ey, ey_err = map(np.deg2rad, (float(src["DC_Min"]), float(src["E_DC_Min"])))
         pa, pa_err = map(np.deg2rad, (float(src["PA"]), float(src["E_PA"])))
+        # Try to get spectral index
+
         if ex and ey:
             shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
                                           ey_err=ey_err, pa_err=pa_err)
@@ -805,6 +812,45 @@ def get_model(catalog):
         else:
             source.setAttribute("I_peak", src["Total_flux"])
             source.setAttribute("I_peak_err", src["E_Total_flux"])
+        if freq0:
+            try:
+                spi, spi_err = (src['Spec_Indx'], src['E_Spec_Indx'])
+                source.spectrum = ModelClasses.SpectralIndex(spi, freq0)
+                source.setAttribute('spi_error', spi_err)
+            except:
+                pass
+        return source
+
+    def tigger_src_wsclean(src, idx):
+        """Get ascii catalog source as a tigger source """
+
+        name = src['col1']
+        flux = ModelClasses.Polarization(float(src["col5"]), 0, 0, 0,
+                                         I_err=float(0.00))
+        ra, ra_err = map(np.deg2rad, (float(ra2deg(src["col3"])),
+                                      float(0.00)))
+        dec, dec_err = map(np.deg2rad, (float(dec2deg(src["col4"])),
+                                        float(0.00)))
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+        ex, ex_err = map(np.deg2rad, (float(src["col9"])
+                                      if type(src["col9"]) is not
+                                      np.ma.core.MaskedConstant else
+                                      0.00, float(0.00)))
+        ey, ey_err = map(np.deg2rad, (float(src["col10"])
+                                      if type(src["col10"]) is not
+                                      np.ma.core.MaskedConstant else
+                                      0.00, float(0.00)))
+        pa, pa_err = map(np.deg2rad, (float(0.00), float(0.00)))
+        if ex and ey:
+            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err,
+                                          ey_err=ey_err, pa_err=pa_err)
+        else:
+            shape = None
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        # Adding source peak flux (error) as extra flux attributes for sources,
+        # and to avoid null values for point sources I_peak = src["Total_flux"]
+        source.setAttribute("I_peak", float(src['col5']))
+        source.setAttribute("I_peak_err", float(0.00))
         return source
 
     tfile = tempfile.NamedTemporaryFile(suffix='.txt')
@@ -815,30 +861,55 @@ def get_model(catalog):
     tfile.close()
     ext = os.path.splitext(catalog)[-1]
     if ext in ['.html', '.txt']:
-        if 'nvss' in catalog or 'sdss' in catalog:
+        if 'catalog_table' in catalog:
             data = Table.read(catalog, format='ascii')
             for i, src in enumerate(data):
-                model.sources.append(tigger_src_online(src, i))
+                # Check which online catalog the source belongs to
+                # Prefix is in the name by default when created
+                if 'nvss' in catalog:
+                    model.sources.append(tigger_src_nvss(src, i))
+                if 'sumss' in catalog:
+                    model.sources.append(tigger_src_sumss(src, i))
+            centre = _get_phase_centre(model)
+            model.ra0, model.dec0 = map(np.deg2rad, centre)
+            model.save(catalog[:-4]+".lsm.html")
+        elif 'sources.txt' in catalog:
+            data = Table.read(catalog, format='ascii')
+            for i, src in enumerate(data):
+                if i:
+                    model.sources.append(tigger_src_wsclean(src, i))
+            centre = _get_phase_centre(model)
+            model.ra0, model.dec0 = map(np.deg2rad, centre)
             model.save(catalog[:-4]+".lsm.html")
         else:
             model = Tigger.load(catalog)
     if ext in ['.tab', '.csv']:
         data = Table.read(catalog, format='ascii')
+        if ext == '.tab':
+            fits_file = catalog.replace('_comp.tab', '.fits')
+        else:
+            fits_file = catalog.replace('_comp.csv', '.fits')
+        fitsinfo = fitsInfo(fits_file)
         for i, src in enumerate(data):
             model.sources.append(tigger_src_ascii(src, i))
+        centre = fitsinfo['centre'] or _get_phase_centre(model)
+        model.ra0, model.dec0 = map(np.deg2rad, centre)
+        model.save(catalog[:-4]+".lsm.html")
     if ext in ['.fits']:
         data = Table.read(catalog, format='fits')
-        for i, src in enumerate(data):
-            model.sources.append(tigger_src_fits(src, i))
         fits_file = catalog.replace('-pybdsf', '')
-        wcs = WCS(fits_file)
-        centre = wcs.getCentreWCSCoords()
+        fitsinfo = fitsInfo(fits_file)
+        freq0 = fitsinfo['freq0']
+        for i, src in enumerate(data):
+            model.sources.append(tigger_src_fits(src, i, freq0))
+        centre = fitsinfo['centre'] or _get_phase_centre(model)
         model.ra0, model.dec0 = map(np.deg2rad, centre)
+        model.save(catalog[:-5]+".lsm.html")
     return model
 
 
 def get_detected_sources_properties(model_1, model_2, area_factor,
-                                    phase_centre=None, all_sources=False, closest_only=False):
+                                    all_sources=False, closest_only=False):
     """Extracts the output simulation sources properties.
 
     Parameters
@@ -849,8 +920,6 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         Tigger formatted or txt model 2 file.
     area_factor : float
         Area factor to multiply the psf size around source.
-    phase_centre : str
-        Phase centre of catalog (if not already embeded)
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
     closest_only: bool
@@ -862,10 +931,10 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
         Tuple of target flux, morphology and astrometry information
 
     """
-    model_lsm = get_model(model_1)
-    pybdsm_lsm = get_model(model_2)
+    model_lsm1 = get_model(model_1)
+    model_lsm2 = get_model(model_2)
     # Sources from the input model
-    model_sources = model_lsm.sources
+    model1_sources = model_lsm1.sources
     # {"source_name": [I_out, I_out_err, I_in, source_name]}
     targets_flux = dict()       # recovered sources flux
     # {"source_name": [delta_pos_angle_arc_sec, ra_offset, dec_offset,
@@ -874,42 +943,40 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
     # {"source_name: [shape_out=(maj, min, angle), shape_out_err=, shape_in=,
     #                 scale_out, scale_out_err, I_in, source_name]
     targets_scale = dict()         # recovered sources scale
+    deci = 3  # round off to this decimal places
     names = dict()
-    for model_source in model_sources:
+    for model1_source in model1_sources:
         I_out = 0.0
         I_out_err = 0.0
-        name = model_source.name
-        RA = model_source.pos.ra
-        DEC = model_source.pos.dec
-        I_in = model_source.flux.I
+        name = model1_source.name
+        RA = model1_source.pos.ra
+        DEC = model1_source.pos.dec
+        I_in = model1_source.flux.I
+        I_in_err = model1_source.flux.I_err
         tolerance = area_factor * (np.pi / (3600.0 * 180))
-        sources = pybdsm_lsm.getSourcesNear(RA, DEC, tolerance)
-        # More than one source detected, thus we sum up all the detected sources
-        # within a radius equal to the beam size in radians around the true target
-        # coordinate
-
-        # litle tweak to use the closest source only
+        model2_sources = model_lsm2.getSourcesNear(RA, DEC, tolerance)
+        if not model2_sources:
+            continue
+        # More than one source detected, thus we sum up all the detected sources with
+        # a radius equal to the beam size in radians around the true target coordinate
+        # Or use the closest source only
         if closest_only:
-            if len(sources) > 1:
-                rdist = np.array([_angular_dist_pos_angle(model_source, source) for source in sources])
-                sources = [sources[np.argmin(rdist)]]
-
+            if len(model2_sources) > 1:
+                rdist = np.array([_source_angular_dist_pos_angle(model1_source,
+                                                                 model2_source)[0]
+                                  for model2_source in model2_sources])
+                model2_sources = [model2_sources[np.argmin(rdist)]]
 
         I_out_err_list = []
         I_out_list = []
-        for target in sources:
+        for target in model2_sources:
             I_out_list.append(target.flux.I)
             I_out_err_list.append(target.flux.I_err * target.flux.I_err)
 
-        # weighting with the flux error appears to be dangerous thing as these values are very small
-        # taking their reciprocal leads to very high weights
-
-        I_out = sum([val / err for val, err in zip(I_out_list, I_out_err_list)])
-
-        if I_out != 0.0:
-            source = sources[0]
+        if I_out_list[0] > 0.0:
+            source = model2_sources[0]
             try:
-                shape_in = model_source.shape.getShape()
+                shape_in = model1_source.shape.getShape()
             except AttributeError:
                 shape_in = (0, 0, 0)
             if source.shape:
@@ -923,29 +990,70 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                     continue
 
             if closest_only:
+                I_out = source.flux.I
                 I_out_err = source.flux.I_err
-                I_out = source.flux.I  
+                ra = source.pos.ra
+                dec = source.pos.dec
+                ra_err = source.pos.ra_err
+                dec_err = source.pos.dec_err
             else:
+                # weighting with the flux error appears to be dangerous thing as
+                # these values are very small taking their reciprocal
+                # leads to very high weights
+                # Also if the model has no errors this will raise
+                # a div by zero exception (ZeroDivisionError)
+                try:
+                    I_out = sum([val / err for val, err in zip(I_out_list, I_out_err_list)])
+                    I_out_err = sum([1.0 / I_out_error for I_out_error
+                                     in I_out_err_list])
+                    I_out_var_err = np.sqrt(1.0 / I_out_err)
+                    I_out /= I_out_err
+                    I_out_err = I_out_var_err
+                    ra = (np.sum([src.pos.ra * src.flux.I for src in model2_sources]) /
+                          np.sum([src.flux.I for src in model2_sources]))
+                    dec = (np.sum([src.pos.dec * src.flux.I for src in model2_sources]) /
+                          np.sum([src.flux.I for src in model2_sources]))
+                   # Get position weighted error
+                   # _err_a = np.sqrt(np.sum([np.sqrt((src.flux.I_err/src.flux.I)**2 +
+                   #                          (src.pos.ra_err/src.pos.ra)**2)*np.abs(src.flux.I*src.pos.ra)
+                   #                  for src in model2_sources]))
+                   # _a = np.sum([src.flux.I*src.pos.ra for src in model2_sources])
+                   # _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
+                   # _b = np.sum([src.flux.I for src in model2_sources])
+                   # ra_err = np.abs(ra) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
+                   # _err_a = np.sqrt(np.sum([np.sqrt((src.flux.I_err/src.flux.I)**2 +
+                   #                          (src.pos.ra_err/src.pos.dec)**2)*abs(src.flux.I*src.pos.dec)
+                   #                  for src in model2_sources]))
+                   # _a = np.sum([src.flux.I*src.pos.dec for src in model2_sources])
+                   # _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
+                   # _b = np.sum([src.flux.I for src in model2_sources])
+                   # dec_err = np.abs(dec) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
+                    ra_err = sorted(model2_sources, key=lambda x: x.flux.I, reverse=True)[0].pos.ra_err
+                    dec_err = sorted(model2_sources, key=lambda x: x.flux.I, reverse=True)[0].pos.dec_err
+                except ZeroDivisionError:
+                    if len(model2_sources) > 1:
+                        LOGGER.warn('Position ({}, {}): Since more than one source is detected'
+                                    ' at the matched position,'
+                                    'only the closest to the matched position will be considered.'
+                                    'NB: This is because model2 does not have photometric errors.'
+                                    'otherwise a weighted average source would be returned'.format(
+                                           rad2deg(RA), rad2deg(DEC)))
+                        rdist = np.array([_source_angular_dist_pos_angle(model2_source, model1_source)[0]
+                                         for model2_source in model2_sources])
+                        model2_sources = [model2_sources[np.argmin(rdist)]]
+                    source = model2_sources[0]
+                    I_out = source.flux.I
+                    I_out_err = source.flux.I_err
+                    ra = source.pos.ra
+                    dec = source.pos.dec
+                    ra_err = source.pos.ra_err
+                    dec_err = source.pos.dec_err
 
-                I_out_err = sum([1.0 / I_out_error for I_out_error
-                            in I_out_err_list])    
-
-                I_out_var_err = np.sqrt(1.0 / I_out_err)
-                I_out /= I_out_err
-                I_out_err = I_out_var_err
-
-
-            RA0 = pybdsm_lsm.ra0
-            DEC0 = pybdsm_lsm.dec0
-            if phase_centre:
-                RA0 = np.deg2rad(float(phase_centre.split(',')[1].split('deg')[0]))
-                DEC0 = np.deg2rad(float(phase_centre.split(',')[-1].split('deg')[0]))
-            ra = source.pos.ra
-            dec = source.pos.dec
-            ra_err = source.pos.ra_err
-            dec_err = source.pos.dec_err
+            RA0, DEC0 = model_lsm1.ra0, model_lsm1.dec0
             source_name = source.name
-            targets_flux[name] = [I_out, I_out_err, I_in, source_name]
+            targets_flux[name] = [I_out, I_out_err,
+                                  I_in, I_in_err,
+                                  (name, source_name)]
             if ra > np.pi:
                 ra -= 2.0*np.pi
             if RA > np.pi:
@@ -965,17 +1073,19 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                                       delta_phase_centre_arc_sec, I_in,
                                       rad2arcsec(ra_err),
                                       rad2arcsec(dec_err),
-                                      source_name]
+                                      (round(rad2deg(RA), deci),
+                                       round(rad2deg(DEC), deci)),
+                                      (name, source_name)]
             src_scale = get_src_scale(source.shape)
             targets_scale[name] = [shape_out, shape_out_err, shape_in,
                                    src_scale[0], src_scale[1], I_in,
                                    source_name]
             names[name] = source_name
-    
 
 
-    sources1 = model_lsm.sources
-    sources2 = pybdsm_lsm.sources
+
+    sources1 = model_lsm1.sources
+    sources2 = model_lsm2.sources
     targets_not_matching_a, targets_not_matching_b = targets_not_matching(sources1,
                                                                           sources2,
                                                                           names)
@@ -987,8 +1097,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             sources_overlay)
 
 
-def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
-                   all_sources=False, closest_only=False, prefix=None):
+def compare_models(models, tolerance=0.2, plot=True, all_sources=False,
+                   closest_only=False, prefix=None, flux_plot='log'):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -999,13 +1109,12 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
         Tolerace in detecting source from model 2 (in arcsec).
     plot : bool
         Output html plot from which a png can be obtained.
-    phase_centre : str
-        Phase centre of catalog (if not already embeded)
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
     closest_only: bool
         Returns the closest source only as the matching source
-
+    flux_plot: str
+        The type of output flux comparison plot (options:log,snr,inout)
     prefix : str
         Prefix for output htmls
 
@@ -1030,8 +1139,8 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
         results[heading]['overlay'] = []
         props = get_detected_sources_properties('{}'.format(input_model["path"]),
                                                 '{}'.format(output_model["path"]),
-                                                tolerance, phase_centre,
-                                                all_sources, closest_only)
+                                                tolerance, all_sources,
+                                                closest_only)
         for i in range(len(props[0])):
             flux_prop = list(props[0].items())
             results[heading]['flux'].append(flux_prop[i][-1])
@@ -1052,7 +1161,7 @@ def compare_models(models, tolerance=0.2, plot=True, phase_centre=None,
             results[heading]['overlay'].append(no_match_prop2[i][-1])
         results[heading]['tolerance'] = tolerance
     if plot:
-        _source_flux_plotter(results, models, prefix=prefix)
+        _source_flux_plotter(results, models, prefix=prefix, plot_type=flux_plot)
         _source_astrometry_plotter(results, models, prefix=prefix)
     return results
 
@@ -1095,30 +1204,31 @@ def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
     units = flux_units
     targets_not_matching_a = dict()
     targets_not_matching_b = dict()
-    for s1, s2 in zip(sources1, sources2):
+    for s1 in sources1:
         if s1.name not in matched_names.keys():
             props1 = [s1.name,
                       round(s1.flux.I*FLUX_UNIT_SCALER[units][0], deci),
                       round(s1.flux.I_err*FLUX_UNIT_SCALER[units][0], deci)
-                          if s1.flux.I_err else None,
-                      round(rad2deg(s1.pos.ra), deci),
+                            if s1.flux.I_err else None,
+                      unwrap(round(rad2deg(s1.pos.ra), deci)),
                       f'{rad2deg(s1.pos.ra_err):.{deci}e}'
                           if s1.pos.ra_err else None,
                       round(rad2deg(s1.pos.dec), deci),
                       f'{rad2deg(s1.pos.dec_err):.{deci}e}'
                           if s1.pos.dec_err else None]
             targets_not_matching_a[s1.name] = props1
+    for s2 in sources2:
         if s2.name not in matched_names.values():
             props2 = [s2.name,
                       round(s2.flux.I*FLUX_UNIT_SCALER[units][0], deci),
                       round(s2.flux.I_err*FLUX_UNIT_SCALER[units][0], deci)
-                          if s2.flux.I_err else None,
-                      round(rad2deg(s2.pos.ra), deci),
+                            if s2.flux.I_err else None,
+                      unwrap(round(rad2deg(s2.pos.ra), deci)),
                       f'{rad2deg(s2.pos.ra_err):.{deci}e}'
                           if s2.pos.ra_err else None,
                       round(rad2deg(s2.pos.dec), deci),
                       f'{rad2deg(s2.pos.dec_err):.{deci}e}'
-                          if s1.pos.dec_err else None]
+                          if s2.pos.dec_err else None]
             targets_not_matching_b[s2.name] = props2
     return targets_not_matching_a, targets_not_matching_b
 
@@ -1146,7 +1256,7 @@ def get_source_overlay(sources1, sources2):
 
 
 def plot_photometry(models, label=None, tolerance=0.2, phase_centre=None,
-                    all_sources=False):
+                    all_sources=False, flux_plot='log'):
     """Plot model-model fluxes from lsm.html/txt models
 
     Parameters
@@ -1170,7 +1280,7 @@ def plot_photometry(models, label=None, tolerance=0.2, phase_centre=None,
                         dict(label="{}-model_b_{}".format(label, i), path=model2)])
         i += 1
     results = compare_models(_models, tolerance, False, phase_centre, all_sources)
-    _source_flux_plotter(results, _models, inline=True)
+    _source_flux_plotter(results, _models, inline=True, plot_type=flux_plot)
 
 
 def plot_astrometry(models, label=None, tolerance=0.2, phase_centre=None,
@@ -1228,7 +1338,8 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
     compare_residuals(_residual_images, skymodel, points, True, area_factor)
 
 
-def _source_flux_plotter(results, all_models, inline=False, units='milli', prefix=None):
+def _source_flux_plotter(results, all_models, inline=False, units='milli',
+                         prefix=None, plot_type='log'):
     """Plot flux results and save output as html file.
 
     Parameters
@@ -1245,6 +1356,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         Data points and axis label units
     prefix : str
         Prefix for output htmls
+    plot_type: str
+        The type of output flux comparison plot (options:log,snr,inout)
 
     """
     if prefix:
@@ -1259,37 +1372,64 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
         flux_in_data = []
         flux_out_data = []
         source_scale = []
-        phase_centre_dist = []
+        positions_in_out = []
+        flux_in_err_data = []
         flux_out_err_data = []
+        phase_centre_dist = []
         no_match1 = results[heading]['no_match1']
         no_match2 = results[heading]['no_match2']
         for n in range(len(results[heading]['flux'])):
             flux_out_data.append(results[heading]['flux'][n][0])
             flux_out_err_data.append(results[heading]['flux'][n][1])
             flux_in_data.append(results[heading]['flux'][n][2])
-            name_labels.append(results[heading]['flux'][n][3])
+            flux_in_err_data.append(results[heading]['flux'][n][3])
+            name_labels.append(results[heading]['flux'][n][4])
             phase_centre_dist.append(results[heading]['position'][n][3])
+            positions_in_out.append(results[heading]['position'][n][7])
             source_scale.append(results[heading]['shape'][n][3])
         if len(flux_in_data) > 1:
-            # Compute some fit stats of the two models being compared
-            flux_MSE = mean_squared_error(flux_in_data, flux_out_data)
-            reg = linregress(flux_in_data, flux_out_data)
-            flux_R_score = reg.rvalue
+            # Error lists
+            err_xs1 = []
+            err_ys1 = []
+            err_xs2 = []
+            err_ys2 = []
             # Format data points value to a readable units
-            x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
-            y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
-            z = np.array(phase_centre_dist)
+            # and select type of comparison plot
+            if plot_type == 'inout':
+                x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
+                y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
+                z = np.array(phase_centre_dist)
+                axis_labels = ['Input flux ({:s})'.format(
+                                  FLUX_UNIT_SCALER[units][1]),
+                              'Output flux ({:s})'.format(
+                                  FLUX_UNIT_SCALER[units][1])]
+            elif plot_type == 'log':
+                x = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])
+                y = np.log(np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0])
+                z = np.array(phase_centre_dist)
+                axis_labels = ['Model 1 log (flux)', 'Model 2 log (flux)']
+            elif plot_type == 'snr':
+                x = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])
+                y = ((np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])/
+                     (np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]))
+                z = np.array(phase_centre_dist)
+                axis_labels = ['Model 1 log (flux)', 'Flux1/Flux2']
+            # Compute some fit stats of the two models being compared
+            flux_MSE = mean_squared_error(x, y)
+            reg = linregress(x, y)
+            flux_R_score = reg.rvalue
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
-                        data=dict(x=x, y=y, z=z, label=name_labels))
-            text = model_pair[1]["path"].split("/")[-1].split('.')[0]
+                        data=dict(flux_in=x, flux_out=y,
+                                  phase_centre_dist=z,
+                                  ra_dec=positions_in_out,
+                                  label=name_labels))
+            text = model_pair[0]["path"].split("/")[-1].split('.')[0]
             # Create a plot object
             plot_flux = figure(title=text,
-                               x_axis_label='Input flux ({:s})'.format(
-                                   FLUX_UNIT_SCALER[units][1]),
-                               y_axis_label='Output flux ({:s})'.format(
-                                   FLUX_UNIT_SCALER[units][1]),
+                               x_axis_label=axis_labels[0],
+                               y_axis_label=axis_labels[1],
                                tools=TOOLS)
             plot_flux.title.text_font_size = '16pt'
             # Create a color bar and size objects
@@ -1309,45 +1449,78 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
                                     toolbar_location=None,
                                     outline_line_color=None,
                                     min_border=0)
-            # Get errors from the output fluxes
-            err_xs = []
-            err_ys = []
-            for x, y, yerr in zip(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0],
-                                  np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0],
+            # Get errors from the input/output fluxes
+            for xval, yval, xerr, yerr in zip(x, y,
+                                  np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
                                   np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0]):
-                err_xs.append((x, x))  # TODO: Also if the main model has error plot them (+)
-                err_ys.append((y - yerr, y + yerr))
+                err_xs1.append((xval - xerr, xval + xerr))
+                err_ys2.append((yval - yerr, yval + yerr))
+                err_ys1.append((yval, yval))
+                err_xs2.append((xval, xval))
             # Create a plot object for errors
-            errors = plot_flux.multi_line(err_xs, err_ys,
-                                          legend_label="Errors",
-                                          color="red")
-            # Create a plot object for I_out = I_in line .i.e. Perfect match
-            equal = plot_flux.line(np.array([min(flux_in_data),
-                                             max(flux_in_data)]) * FLUX_UNIT_SCALER[units][0],
-                                   np.array([min(flux_in_data),
-                                             max(flux_in_data)]) * FLUX_UNIT_SCALER[units][0],
-                                   legend_label=u"Iₒᵤₜ=Iᵢₙ",
-                                   line_dash="dashed",
-                                   color="gray")
+            error1_plot = plot_flux.multi_line(err_xs1, err_ys1,
+                                                   legend_label="Errors",
+                                                   color="red")
+            error2_plot = plot_flux.multi_line(err_xs2, err_ys2,
+                                                   legend_label="Errors",
+                                                   color="red")
             # Create a plot object for a Fit
-            fit_points = 100
-            slope = reg.slope
-            intercept = reg.intercept
-            fit_xs = np.linspace(min(flux_in_data) * FLUX_UNIT_SCALER[units][0],
-                                 max(flux_in_data) * FLUX_UNIT_SCALER[units][0],
-                                 fit_points)
-            fit_ys = slope * fit_xs + intercept
-            fit = plot_flux.line(fit_xs, fit_ys,
-                                 legend_label="Fit",
-                                 color="blue")
+            if plot_type == 'inout':
+                fit_points = 100
+                slope = reg.slope
+                intercept = reg.intercept
+                fit_xs = np.linspace(min(x), max(x), fit_points)
+                fit_ys = slope * fit_xs + intercept
+                # Regression fit plot
+                fit = plot_flux.line(fit_xs, fit_ys,
+                                     legend_label="Fit",
+                                     color="blue")
+                # Create a plot object for I_out = I_in line .i.e. Perfect match
+                equal = plot_flux.line(np.array([min(x), max(x)]),
+                                       np.array([min(x), max(x)]),
+                                       legend_label=u"Iₒᵤₜ=Iᵢₙ",
+                                       line_dash="dashed",
+                                       color="gray")
+            elif plot_type == 'snr':
+                fit_points = 100
+                slope = reg.slope
+                intercept = reg.intercept
+                # Regression fit plot
+                fit_xs = np.linspace(min(x), max(x), fit_points)
+                fit_ys = slope * fit_xs + intercept
+                fit = plot_flux.line(fit_xs, fit_ys,
+                                     legend_label="Fit",
+                                     color="blue")
+                # Create a plot object for I_out = I_in line .i.e. Perfect match
+                equal = plot_flux.line(np.array([min(x), max(x)]),
+                                       np.array([1, 1]),
+                                       legend_label=u"Iₒᵤₜ/Iᵢₙ=1",
+                                       line_dash="dashed",
+                                       color="gray")
+            elif plot_type == 'log':
+                fit_points = 100
+                slope = reg.slope
+                intercept = reg.intercept
+                # Regression fit plot
+                fit_xs = np.linspace(min(x), max(x), fit_points)
+                fit_ys = slope * fit_xs + intercept
+                fit = plot_flux.line(fit_xs, fit_ys,
+                                     legend_label="Fit",
+                                     color="blue")
+                # Create a plot object for I_out = I_in line .i.e. Perfect match
+                equal = plot_flux.line(np.array([min(x), max(x)]),
+                                       np.array([min(x), max(x)]),
+                                       legend_label=u"log(Iₒᵤₜ)=log(Iᵢₙ)",
+                                       line_dash="dashed",
+                                       color="gray")
             # Create a plot object for the data points
-            data = plot_flux.circle('x', 'y',
+            data = plot_flux.circle('flux_in', 'flux_out',
                                     name='data',
                                     legend_label="Data",
                                     source=source,
                                     line_color=None,
-                                    fill_color={"field": "z",
-                                                "transform": mapper})
+                                    fill_color={"field": "phase_centre_dist",
+                                               "transform": mapper})
             # Table with stats data
             deci = 3  # Round off to this decimal places
             cols = ["Stats", "Value"]
@@ -1409,8 +1582,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli', prefi
             hover = plot_flux.select(dict(type=HoverTool))
             hover.names = ['data']
             hover.tooltips = OrderedDict([
-                ("(Input,Output)", "(@x,@y)"),
-                ("source", "@label")])
+                ("(Input,Output)", "(@flux_in,@flux_out)"),
+                ("source", "(@label)"),
+                ("(RA,DEC)", "(@ra_dec)"),
+                ("Phase_centre_distance", "@phase_centre_dist")])
             # Legend position and title align
             plot_flux.legend.location = "top_left"
             plot_flux.title.align = "center"
@@ -1469,6 +1644,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         flux_in_data = []
         flux_out_data = []
         delta_pos_data = []
+        position_in_out = []
         heading = model_pair[0]['label']
         overlays = results[heading]['overlay']
         tolerance = results[heading]['tolerance']
@@ -1481,7 +1657,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             flux_in_data.append(results[heading]['position'][n][4])
             RA_err.append(results[heading]['position'][n][5])
             DEC_err.append(results[heading]['position'][n][6])
-            source_labels.append(results[heading]['position'][n][7])
+            position_in_out.append(results[heading]['position'][n][7])
+            source_labels.append(results[heading]['position'][n][8])
         # Compute some stats of the two models being compared
         if len(flux_in_data) > 1:
             RA_mean = np.mean(RA_offset)
@@ -1501,15 +1678,23 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             # Format data list into numpy arrays
             x_ra = np.array(RA_offset)
             y_dec = np.array(DEC_offset)
+            x_ra_err = np.array(RA_err)
+            y_dec_err = np.array(DEC_err)
             # TODO: Use flux as a radius dimension
-            flux_in = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0])
+            flux_in_mjy = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0]
             phase_centre_distance = np.array(DELTA_PHASE0)  # For color
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
-                        data=dict(x=x_ra, y=y_dec, z=phase_centre_distance,
-                                  f=flux_in, label=source_labels))
-            text = model_pair[1]["path"].split("/")[-1].split('.')[0]
+                        data=dict(ra_offset=x_ra,
+                                  ra_err=x_ra_err,
+                                  dec_offset=y_dec,
+                                  dec_err=y_dec_err,
+                                  ra_dec=position_in_out,
+                                  phase_centre_dist=phase_centre_distance,
+                                  flux_in=flux_in_mjy,
+                                  label=source_labels))
+            text = model_pair[0]["path"].split("/")[-1].split('.')[0]
             # Create a plot object
             plot_position = figure(title=text,
                                    x_axis_label='RA offset ({:s})'.format(
@@ -1520,54 +1705,59 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             plot_position.title.text_font_size = '16pt'
             # Create an image overlay
             s1_ra_rad = np.unwrap([src[3] for src in overlays if src[-1] == 1])
-            s1_ra_deg = [rad2deg(s_ra) for s_ra in s1_ra_rad]
+            s1_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s1_ra_rad]
             s1_dec_rad = [src[5] for src in overlays if src[-1] == 1]
             s1_dec_deg = [rad2deg(s_dec) for s_dec in s1_dec_rad]
             s1_labels = [src[0] for src in overlays if src[-1] == 1]
             s1_flux = [src[1] for src in overlays if src[-1] == 1]
             s2_ra_rad = np.unwrap([src[3] for src in overlays if src[-1] == 2])
-            s2_ra_deg = [rad2deg(s_ra) for s_ra in s2_ra_rad]
+            s2_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s2_ra_rad]
             s2_dec_rad = [src[5] for src in overlays if src[-1] == 2]
             s2_dec_deg = [rad2deg(s_dec) for s_dec in s2_dec_rad]
             s2_labels = [src[0] for src in overlays if src[-1] == 2]
             s2_flux = [src[1] for src in overlays if src[-1] == 2]
             overlay_source = ColumnDataSource(
-                        data=dict(x1=s1_ra_deg, y1=s1_dec_deg,
-                                  x2=s2_ra_deg, y2=s2_dec_deg,
-                                  s1_label=s1_labels,
-                                  s2_label=s2_labels,
-                                  s1_flux=s1_flux,
-                                  s2_flux=s2_flux))
+                        data=dict(ra1=s1_ra_deg, dec1=s1_dec_deg,
+                                  ra2=s2_ra_deg, dec2=s2_dec_deg,
+                                  ra_offset=x_ra,
+                                  dec_offset=y_dec,
+                                  ra_err=x_ra_err,
+                                  dec_err=y_dec_err,
+                                  label1=s1_labels,
+                                  label2=s2_labels,
+                                  flux1=s1_flux,
+                                  flux2=s2_flux))
             plot_overlay = figure(title="Overlay Plot of the catalogs",
                                   x_axis_label='RA ({:s})'.format(
                                       POSITION_UNIT_SCALER['deg'][1]),
                                   y_axis_label='DEC ({:s})'.format(
                                       POSITION_UNIT_SCALER['deg'][1]),
                                   match_aspect=True,
-                                  tools=TOOLS)
-            plot_overlay.ellipse('x1', 'y1',
-                                 name='tolerance',
+                                  tools=("crosshair,pan,wheel_zoom,"
+                                         "box_zoom,reset,save"))
+            plot_overlay_1 = plot_overlay.circle('ra1', 'dec1',
+                                                 name='model1',
+                                                 legend_label='Model1',
+                                                 source=overlay_source,
+                                                 line_color=None,
+                                                 color='blue')
+            plot_overlay_2 = plot_overlay.circle('ra2', 'dec2',
+                                                 name='model2',
+                                                 legend_label='Model2',
+                                                 source=overlay_source,
+                                                 line_color=None,
+                                                 color='red')
+            plot_overlay.ellipse('ra1', 'dec1',
                                  source=overlay_source,
                                  width=tolerance/3600.0,
                                  height=tolerance/3600.0,
                                  line_color=None,
                                  color='#CAB2D6')
-            m1 = plot_overlay.circle('x1', 'y1',
-                                 name='model1',
-                                 legend_label='Model1',
-                                 source=overlay_source,
-                                 line_color=None,
-                                 color='blue')
-            m2 = plot_overlay.circle('x2', 'y2',
-                                 name='model2',
-                                 legend_label='Model2',
-                                 source=overlay_source,
-                                 line_color=None,
-                                 color='red')
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
             color_bar_height = 100
+            plot_overlay.x_range.flipped = True
             # Colorbar Mapper
             mapper_opts = dict(palette="Viridis256",
                                low=min(phase_centre_distance),
@@ -1605,13 +1795,12 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             sigma_plot = plot_position.line(np.array(x1), np.array(y1),
                                             legend_label='Sigma')
             # Create position data points plot object
-            plot_position.circle('x', 'y',
+            plot_position.circle('ra_offset', 'dec_offset',
                                  name='data',
                                  source=source,
                                  line_color=None,
-                                 #size='f',
                                  legend_label='Data',
-                                 fill_color={"field": "z",
+                                 fill_color={"field": "phase_centre_dist",
                                              "transform": mapper})
             # Table with stats data
             deci = 2  # round off to this decimal places
@@ -1637,9 +1826,33 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             hover = plot_position.select(dict(type=HoverTool))
             hover.names = ['data']
             hover.tooltips = OrderedDict([
-                ("source", "@label"),
-                ("Flux_in (mJy)", "@f"),
-                ("(RA_offset,DEC_offset)", "(@x,@y)")])
+                ("source", "(@label)"),
+                ("Flux_in (mJy)", "@flux_in"),
+                ("(RA,DEC)", "(@ra_dec)"),
+                ("(RA_err,DEC_err)",
+                 "(@ra_err,@dec_err)"),
+                ("(RA_offset,DEC_offset)",
+                 "(@ra_offset,@dec_offset)")])
+            plot_overlay.add_tools(
+                HoverTool(renderers=[plot_overlay_1],
+                          tooltips=OrderedDict([
+                              ("source", "@label1"),
+                              ("Flux (mJy)", "@flux1"),
+                              ("(RA,DEC)", "(@ra1,@dec1)"),
+                              ("(RA_err,DEC_err)",
+                               "(@ra_err,@dec_err)"),
+                              ("(RA_offset,DEC_offset)",
+                               "(@ra_offset,@dec_offset)")])))
+            plot_overlay.add_tools(
+                HoverTool(renderers=[plot_overlay_2],
+                          tooltips=OrderedDict([
+                              ("source", "@label2"),
+                              ("Flux (mJy)", "@flux2"),
+                              ("(RA,DEC)", "(@ra2,@dec2)"),
+                              ("(RA_err,DEC_err)",
+                               "(@ra_err,@dec_err)"),
+                              ("(RA_offset,DEC_offset)",
+                               "(@ra_offset,@dec_offset)")])))
             # Legend position and title align
             plot_position.legend.location = "top_left"
             plot_position.legend.click_policy = "hide"
@@ -1659,7 +1872,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         # Save the plot (html)
         save(position_plots, title=outfile)
         LOGGER.info('Saving astrometry comparisons in {}'.format(outfile))
- 
+
 
 def _residual_plotter(res_noise_images, points=None, results=None,
                       inline=False, prefix=None):
@@ -1853,7 +2066,7 @@ def _random_residual_results(res_noise_images, data_points=None,
             imslice = get_box(fits_info["wcs"], (RA, DEC), width)
             # Get noise rms in the box around the point coordinate
             res1_area = res_data1[0, 0, :, :][imslice]
-            res2_area = res_data1[0, 0, :, :][imslice]
+            res2_area = res_data2[0, 0, :, :][imslice]
             # Ignore empty arrays due to points at the edge
             if not res1_area.size or not res2_area.size:
                 continue
@@ -1885,8 +2098,8 @@ def _random_residual_results(res_noise_images, data_points=None,
                 # Get the average std and mean along all frequency channels
                 res2_rms = flux_rms2/float(nchan2)
             # Get phase centre and determine phase centre distance
-            RA0 = float(fits_info['centre'].split(',')[1].split('deg')[0])
-            DEC0 = float(fits_info['centre'].split(',')[-1].split('deg')[0])
+            RA0 = fits_info['centre'][0]
+            DEC0 = fits_info['centre'][1]
             phase_dist_arcsec = deg2arcsec(np.sqrt((RA-RA0)**2 + (DEC-DEC0)**2))
             # Store all outputs in the results data structure
             results[res_label1].append([res1_rms*1e0,
@@ -2017,11 +2230,94 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
     return results
 
 
+def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
+    """Plot stats results if more that one residual images where assessed"""
+
+    with open(fidelity_results_file) as f:
+        data = json.load(f)
+    res_stats = dict()
+    dr_stats = dict()
+    for par, val in data.items():
+        val_copy = val.copy()
+        if '.fits' not in par and 'models' not in val and type(val) is not list:
+            for p, v in val.items():
+                if type(v) is dict:
+                    dr_stats[p] = v
+                    val_copy.pop(p)
+            res_stats[par] = val_copy
+            res_stats[par]['NORM'] = res_stats[par]['NORM'][0]
+
+    res_stats = dict(sorted(res_stats.items()))
+    dr_stats = dict(sorted(dr_stats.items()))
+
+    im_keys = []
+    rms_values = []
+    stddev_values = []
+    mad_values = []
+    max_values = []
+    skew_values = []
+    kurt_values = []
+    norm_values = []
+    for res_stat in res_stats:
+        im_keys.append(res_stat.replace('-residual', ''))
+        rms_values.append(res_stats[res_stat]['RMS'])
+        stddev_values.append(res_stats[res_stat]['STDDev'])
+        mad_values.append(res_stats[res_stat]['MAD'])
+        max_values.append(res_stats[res_stat]['MAX'])
+        skew_values.append(res_stats[res_stat]['SKEW'])
+        kurt_values.append(res_stats[res_stat]['KURT'])
+        norm_values.append(res_stats[res_stat]['NORM'])
+
+    width = 400
+    height = 300
+    multiplier = FLUX_UNIT_SCALER[units][0]
+
+    # Vriance plots
+    variance_plotter = figure(x_range=im_keys, x_axis_label="Image", y_axis_label="Flux density (µJy)",
+                              plot_width=width, plot_height=height, title='Residual Variance')
+    variance_plotter.line(im_keys, np.array(stddev_values)*multiplier, legend_label='std', color='blue')
+    variance_plotter.line(im_keys, np.array(mad_values)*multiplier, legend_label='mad', color='red')
+    variance_plotter.line(im_keys, np.array(max_values)*multiplier, legend_label='max', color='green')
+    variance_plotter.title.align = 'center'
+
+    # Moment 3 & 4 plots
+    mom34_plotter = figure(x_range=im_keys, x_axis_label="Image", y_axis_label="Value",
+                           plot_width=width, plot_height=height, title='Skewness & Kurtosis')
+    mom34_plotter.line(im_keys, skew_values, legend_label='Skewness', color='blue')
+    mom34_plotter.line(im_keys, kurt_values, legend_label='kurtosis', color='red')
+    mom34_plotter.title.align = 'center'
+
+    # Normality test plot
+    normalised = np.array(norm_values)/norm_values[0]
+    norm_plotter = figure(x_range=im_keys, x_axis_label="Image", y_axis_label="Value",
+                          plot_width=width, plot_height=height, title='Normality Tests')
+    norm_plotter.vbar(x=im_keys, top=normalised, width=0.9)
+    #norm_plotter.y_range.start = 0
+    norm_plotter.title.align = 'center'
+
+    # Dynamic Range plot
+    dr_keys = []
+    dr_values = []
+    for dr_stat in dr_stats:
+        dr_keys.append(dr_stat.replace('-model', ''))
+        dr_values.append(dr_stats[dr_stat]['DR'])
+    dr_plotter = figure(x_range=dr_keys, x_axis_label="Image", y_axis_label="Value",
+                        plot_width=width, plot_height=height, title='Dynamic Range')
+    dr_plotter.vbar(x=dr_keys, top=dr_values, width=0.9)
+    #dr_plotter.y_range.start = 0
+    dr_plotter.title.align = 'center'
+    outfile = '{}-stats-plot.html'.format(prefix or 'aimfast')
+    output_file(outfile)
+    save(column(row(variance_plotter, mom34_plotter),
+                    row(norm_plotter, dr_plotter)), title=outfile)
+
+
 def get_sf_params(configfile):
     import yaml
     with open(r'{}'.format(configfile)) as file:
         sf_parameters = yaml.load(file, Loader=yaml.FullLoader)
     return sf_parameters
+
 
 def source_finding(sf_params, sf=None):
     outfile = None
@@ -2029,16 +2325,16 @@ def source_finding(sf_params, sf=None):
     pybd_sf = sf_params.pop('pybdsf')
     enable_aegean = aegean_sf.pop('enable')
     enable_pybdsf = pybd_sf.pop('enable')
-    if enable_aegean or sf in ['aegean']:
-        filename = aegean_sf['filename']
-        LOGGER.info(f"Running aegean source finder on image: {filename}")
-        outfile = aegean(filename, aegean_sf, LOGGER)
     if enable_pybdsf or sf in ['pybdsf']:
         filename = pybd_sf['filename']
         LOGGER.info(f"Running pybdsf source finder on image: {filename}")
         outfile = bdsf(filename, pybd_sf, LOGGER)
-    if not enable_aegean and not enable_pybdsf and not sf:
-        LOGGER.error("No source finder selected.")
+    elif enable_aegean or sf in ['aegean']:
+        filename = aegean_sf['filename']
+        LOGGER.info(f"Running aegean source finder on image: {filename}")
+        outfile = aegean(filename, aegean_sf, LOGGER)
+    else:
+        LOGGER.warn(f"{WARNING}No source finder selected.{ENDC}")
     return outfile
 
 
@@ -2049,7 +2345,7 @@ def get_argparser():
                      "- The four (4) moments of a residual image \n"
                      "- The Dynamic range in restored image \n"
                      "- Comparing the fits images by running source finder \n"
-                     "- Comparing the tigger models and online catalogs (NVSS, SDSS) \n"
+                     "- Comparing the tigger models and online catalogs (NVSS, SUMSS) \n"
                      "- Comparing the on source/random residuals to noise"))
     subparser = parser.add_subparsers(dest='subcommand')
     sf = subparser.add_parser('source-finder')
@@ -2058,6 +2354,8 @@ def get_argparser():
     sf.add_argument('-gc', '--generate-config', dest='generate',
                     help='Genrate config file to run source finder of choice')
     argument = partial(parser.add_argument)
+    argument('-v', "--version", action='version',
+             version='{0:s} version {1:s}'.format(parser.prog, _version))
     argument('-c', '--config', dest='config',
                     help='Config file to run source finder of choice (YAML format)')
     argument('--tigger-model', dest='model',
@@ -2103,25 +2401,31 @@ def get_argparser():
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals residual1.fits residual2.fits')
     argument('-sf', '--source-finder', dest='sourcery',
-             choices=('aegean', 'pybdsf'),
+             choices=('aegean', 'pybdsf'), default='pybdsf',
              help='Source finder to run if comparing restored images')
     argument('-dp', '--data-points', dest='points',
              help='Data points to sample the residual/noise image')
-    argument('-ptc', '--phase-centre', dest='phase',
-             help='Phase tracking centre of the catalogs e.g. "J2000.0,0.0deg,-30.0"')
     argument('-thresh', '--threshold', dest='thresh',
              help='Get stats of channels with pixel flux above thresh in Jy/Beam')
     argument('-chans', '--channels', dest='channels',
              help='Get stats of specified channels e.g. "10~20;100~1000"')
-    argument('-ws', '--window-size', dest='window', default=20,
-             help='Window size to compute rms')
-    argument('-ss', '--step-size', dest='step', default=1,
-             help='Step size of sliding window')
+    argument('-deci', '--decimals', dest='deci', default=2,
+             help='Number of decimal places to round off results')
+    argument('-fp', '--flux-plot', dest='fluxplot', default='log',
+             choices=('log', 'snr', 'inout'),
+             help='Type of plot for flux comparison of the two catalogs')
     argument("--label",
              help='Use this label instead of the FITS image path when saving '
                   'data as JSON file')
     argument("--html-prefix", dest='htmlprefix',
              help='Prefix of output html files. Default: None.')
+    argument("--online-catalog-name", dest='catalog_name',
+             help='Prefix of output catalog file name')
+    argument('-oc', '--online-catalog', dest='online_catalog',
+             choices=('sumss', 'nvss'), default='nvss',
+             help='Online catalog to compare local image/model.')
+    argument('-fdr', '--fidelity-results', dest='json',
+             help='aimfast fidelity results file (JSON format)')
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
     return parser
@@ -2130,19 +2434,23 @@ def get_argparser():
 def main():
     """Main function."""
     LOGGER.info("Welcome to AIMfast")
+    LOGGER.info(f"Version: {_version}")
     output_dict = dict()
     parser = get_argparser()
     args = parser.parse_args()
+    DECIMALS = args.deci
     if args.subcommand:
         if args.config:
-            source_finding(args.config)
+            source_finding(get_sf_params(args.config))
         if args.generate:
             generate_default_config(args.generate)
+    elif args.json:
+       plot_aimfast_stats(args.json, prefix=args.htmlprefix)
     elif not args.residual and not args.restored and not args.model \
             and not args.models and not args.noise and not args.images \
-            and not args.online:
-        LOGGER.error(f"{R}Please provide lsm.html/fits file name(s).{W}")
-        LOGGER.error(f"{R}Or aimfast -h for arguments.{W}")
+            and not args.online and not args.json:
+        LOGGER.warn(f"{R}No arguments file(s) provided.{W}")
+        LOGGER.warn(f"{R}Or 'aimfast -h' for arguments.{W}")
 
     if args.label:
         residual_label = "{0:s}-residual".format(args.label)
@@ -2158,21 +2466,21 @@ def main():
             raise RuntimeError(f"{R}Please provide residual fits file{W}")
 
         if args.psf:
-            if isinstance(args.psf, (str, unicode)):
+            if isinstance(args.psf, str):
                 psf_size = measure_psf(args.psf)
             else:
                 psf_size = int(args.psf)
         else:
-            psf_size = 5
+            psf_size = 6
+            LOGGER.warning(f"{R}Please provide psf fits file or psf size.\n"
+                           "Otherwise a default beam size of six (~6``) asec "
+                           f"is used{W}")
 
         if args.factor:
             DR = model_dynamic_range(args.model, args.residual, psf_size,
                                      area_factor=args.factor)
         else:
             DR = model_dynamic_range(args.model, args.residual, psf_size)
-            LOGGER.warning(f"{R}Please provide psf fits file or psf size.\n"
-                           "Otherwise a default beam size of six (~6``) asec "
-                           f"is used{W}")
 
         if args.test_normality in ['shapiro', 'normaltest']:
             stats = residual_image_stats(args.residual,
@@ -2180,9 +2488,7 @@ def main():
                                          args.data_range,
                                          args.thresh,
                                          args.channels,
-                                         args.mask,
-                                         args.step,
-                                         args.window)
+                                         args.mask)
         else:
             if not args.test_normality:
                 stats = residual_image_stats(args.residual,
@@ -2190,9 +2496,7 @@ def main():
                                              args.data_range,
                                              args.thresh,
                                              args.channels,
-                                             args.mask,
-                                             args.step,
-                                             args.window)
+                                             args.mask)
             else:
                 LOGGER.error(f"{R}Please provide correct normality model{W}")
         stats.update({model_label: {
@@ -2209,9 +2513,7 @@ def main():
                                              args.data_range,
                                              args.thresh,
                                              args.channels,
-                                             args.mask,
-                                             args.step,
-                                             args.window)
+                                             args.mask)
             else:
                 if not args.test_normality:
                     stats = residual_image_stats(args.residual,
@@ -2219,9 +2521,7 @@ def main():
                                                  args.data_range,
                                                  args.thresh,
                                                  args.channels,
-                                                 args.mask,
-                                                 args.step,
-                                                 args.window)
+                                                 args.mask)
                 else:
                     LOGGER.error(f"{R}Please provide correct normality model{W}")
             output_dict[residual_label] = stats
@@ -2240,7 +2540,7 @@ def main():
 
     if args.models:
         models = args.models
-        LOGGER.info(f"Number of model pairs to compare: {len(models)}")
+        LOGGER.info(f"Number of model pair(s) to compare: {len(models)}")
         if len(models) < 1:
             LOGGER.error(f"{R}Can only compare two models at a time.{W}")
         else:
@@ -2255,10 +2555,10 @@ def main():
                 )
             output_dict = compare_models(models_list,
                                          tolerance=args.tolerance,
-                                         phase_centre=args.phase,
                                          all_sources=args.all,
                                          closest_only=args.closest_only,
-                                         prefix=args.htmlprefix)
+                                         prefix=args.htmlprefix,
+                                         flux_plot=args.fluxplot)
 
     if args.noise:
         residuals = args.noise
@@ -2311,29 +2611,27 @@ def main():
                       path=out2)])
         output_dict = compare_models(images_list,
                                      tolerance=args.tolerance,
-                                     phase_centre=args.phase,
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
-                                     prefix=args.htmlprefix)
+                                     prefix=args.htmlprefix,
+                                     flux_plot=args.fluxplot)
 
     if args.online:
         configfile = 'default_sf_config.yml'
         generate_default_config(configfile)
         models = args.online
         sourcery = args.sourcery
-        if args.phase:
-            pc_coord = args.phase.split(',')[1:]
-            pc_coord = [float(val.split('deg')[0]) for val in pc_coord]
-        else:
-            raise ValueError(f"{R}Provide phase centre. e.g. -ptc 'J2000,-30deg,0deg'.{W}")
+        catalog_prefix = args.catalog_name or 'default'
+        online_catalog = args.online_catalog
+        catalog_name = f"{catalog_prefix}_{online_catalog}_catalog_table.txt"
         images_list = []
-        get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
-                           centre_coord=pc_coord,
-                           catalog_table='nvss_catalog_table.txt')
+        get_online_catalog(catalog=online_catalog.upper(),
+                           width='1.0d', thresh=1.0,
+                           catalog_table=catalog_name)
 
         for i, ims in enumerate(models):
-            image1 = ims
-            if sourcery:
+            image1 = ims[0]
+            if '.fits' in image1:
                 sf_params1 = get_sf_params(configfile)
                 sf_params1[sourcery]['filename'] = image1
                 out1 = source_finding(sf_params1, sourcery)
@@ -2341,16 +2639,16 @@ def main():
 
             images_list.append(
                 [dict(label="{}-model_a_{}".format(args.label, i),
-                      path='nvss_catalog_table.txt'),
+                      path=image1),
                  dict(label="{}-model_b_{}".format(args.label, i),
-                      path=image1)])
+                      path=catalog_name)])
 
         output_dict = compare_models(images_list,
                                      tolerance=args.tolerance,
-                                     phase_centre=args.phase,
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
-                                     prefix=args.htmlprefix)
+                                     prefix=args.htmlprefix,
+                                     flux_plot=args.fluxplot)
 
     if output_dict:
         if args.outfile:

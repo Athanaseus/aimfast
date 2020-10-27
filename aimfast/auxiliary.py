@@ -4,11 +4,6 @@ import subprocess
 
 import numpy as np
 
-try:
-    import bdsf as bdsm
-except (ModuleNotFoundError, ImportError):
-    pass
-
 from astropy.io import ascii
 from astropy import units as u
 from astropy.table import Table
@@ -51,6 +46,24 @@ def rad2deg(x):
 
     """
     result = float(x) * (180 / np.pi)
+    return result
+
+
+def deg2rad(x):
+    """Converts 'x' from degrees to radians
+
+    Parameters
+    ----------
+    x : float
+        Angle in degree
+
+    Returns
+    -------
+    result : float
+        Angle in radians
+
+    """
+    result = float(x) * (np.pi/ 180)
     return result
 
 
@@ -108,6 +121,11 @@ def dec2deg(dec_dms):
         conv_units.radeg: dec in degrees
 
     """
+    if ':' not in dec_dms:
+        # In the case dec is specified as -30.12.40.2 (Not sure why).
+        dec_dms = dec_dms.split('.')
+        dec_dms = ':'.join(dec_dms[:3])
+        dec_dms += f'.{dec_dms[-1]}'
     dec = dec_dms.split(':')
     dd = abs(float(dec[0]))
     mm = float(dec[1]) / 60
@@ -120,9 +138,16 @@ def dec2deg(dec_dms):
     return d_m_s
 
 
-def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
-                       centre_coord=['0.0', -30.0],
-                       catalog_table='nvss_catalog_table.txt'):
+def unwrap(angle):
+    """Unwrap angle greater than 180"""
+    if angle > 180:
+        angle -= 360
+    return angle
+
+
+def get_online_catalog(catalog='NVSS', width='1d', thresh=1.0,
+                       centre_coord=['0:0:0', '-30:0:0'],
+                       catalog_table='sumss_catalog_table.txt'):
     """Query an online catalog to compare with local catalog
 
     Parameters
@@ -147,18 +172,24 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
     C = Vizier.query_region(coord.SkyCoord(centre_coord[0], centre_coord[1],
                             unit=(u.hourangle, u.deg), frame='icrs'),
                             width=width, catalog=catalog)
+    if not C.values():
+        raise NameError(f"No object found around (ICRS) position {centre_coord}")
+
     table = C[0]
     ra_deg = []
     dec_deg = []
 
-    if catalog == 'NVSS':
+    if catalog in ['NVSS', 'SUMSS']:
         for i in range(0, len(table['RAJ2000'])):
             table['RAJ2000'][i] = ':'.join(table['RAJ2000'][i].split(' '))
             ra_deg.append(ra2deg(table['RAJ2000'][i]))
             table['DEJ2000'][i] = ':'.join(table['DEJ2000'][i].split(' '))
             dec_deg.append(dec2deg(table['DEJ2000'][i]))
 
-        above_thresh = table['S1.4'] < thresh
+        if catalog in ['NVSS']:
+            above_thresh = table['S1.4'] < thresh
+        if catalog in ['SUMSS']:
+            above_thresh = table['St'] < thresh
 
     for i in range(1, len(table.colnames)):
         table[table.colnames[i]][above_thresh] = np.nan
@@ -170,6 +201,7 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=2.0,
 
 def aegean(image, kwargs, log):
     args = ['aegean']
+    outfile = ''
     for name, value in kwargs.items():
         if value is None:
             continue
@@ -177,14 +209,28 @@ def aegean(image, kwargs, log):
             continue
         if name == 'filename':  # positional argument
             args += ['{0}'.format(value)]
+        elif name == 'table':
+            outfile = "{}.tab".format(kwargs['filename'][:-5])
+            args += ['{0}{1} {2}'.format('--', name, outfile)]
+            # Aegean add '_comp' to the file name e.g. im_comp.tab
+            outfile = "{}_comp.tab".format(kwargs['filename'][:-5])
         else:
             args += ['{0}{1} {2}'.format('--', name, value)]
     log.info("Running: {}".format(" ".join(args)))
     run = subprocess.run(" ".join(args), shell=True)
     log.info("The exit code was: {}".format(run.returncode))
+    return outfile
 
 
 def bdsf(image, kwargs, log):
+
+    try:
+        import bdsf as bdsm
+    except (ModuleNotFoundError, ImportError):
+        raise ModuleNotFoundError("Source finding module is not "
+                                  " installed. Install with "
+                                  "`pip install aimfast[bdsf]`")
+
     img_opts = {}
     write_opts = {'outfile': None}
     freq0 = None
@@ -242,6 +288,7 @@ def bdsf(image, kwargs, log):
     image = img_opts.pop('filename')
     filename = os.path.basename(image)
     outfile = write_opts.pop('outfile') or '{}-pybdsf.fits'.format(image[:-5])
+    print(outfile)
     img = bdsm.process_image(image, **img_opts, ncores=ncores)
     img.write_catalog(outfile=outfile, **write_opts)
     return outfile

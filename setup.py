@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 pkg = 'aimfast'
-__version__ = "1.0-pre11"
+__version__ = "1.0.0"
 build_root = os.path.dirname(__file__)
 
 def readme():
@@ -41,8 +41,8 @@ setup(name=pkg,
                                "numpydoc",
                                "Sphinx"],
                       'aegean': ["AegeanTools"],
-                      'bdsf': ["bdsf", "matplotlib"],
-                      'source_finders': ["bdsf",
+                      'pybdsf': ["bdsf", "matplotlib"],
+                      'source_finders': ["bdsf", "matplotlib",
                                          "AegeanTools"]},
       python_requires='>=3.6',
       include_package_data=True,
