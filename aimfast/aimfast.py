@@ -2424,6 +2424,9 @@ def get_argparser():
     argument('-oc', '--online-catalog', dest='online_catalog',
              choices=('sumss', 'nvss'), default='nvss',
              help='Online catalog to compare local image/model.')
+    argument('-ptc', '--centre_coord', dest='centre_coord',
+             default="0:0:0, -30:0:0",
+             help='Centre of online catalog to compare local image/model in "RA hh:mm:ss, Dec deg:min:sec".')
     argument('-fdr', '--fidelity-results', dest='json',
              help='aimfast fidelity results file (JSON format)')
     argument("--outfile",
@@ -2625,9 +2628,12 @@ def main():
         online_catalog = args.online_catalog
         catalog_name = f"{catalog_prefix}_{online_catalog}_catalog_table.txt"
         images_list = []
-        get_online_catalog(catalog=online_catalog.upper(),
+        centre_coord = args.centre_coord.split(',')
+        # import ipdb; ipdb.set_trace()
+        get_online_catalog(catalog=online_catalog.upper(), centre_coord=centre_coord,
                            width='1.0d', thresh=1.0,
                            catalog_table=catalog_name)
+
 
         for i, ims in enumerate(models):
             image1 = ims[0]
