@@ -43,6 +43,7 @@ from aimfast.auxiliary import aegean, bdsf, get_online_catalog
 from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec
 from aimfast.auxiliary import dec2deg, ra2deg, rad2deg, deg2rad, unwrap
 
+from aimfast.auxiliary import deg2dec, deg2ra
 
 # Get version
 from pkg_resources import get_distribution
@@ -79,6 +80,7 @@ UNDERLINE = '\033[4m'
 
 # Decimal places
 DECIMALS = 2
+
 
 def create_logger():
     """Create a console logger"""
@@ -2628,8 +2630,20 @@ def main():
         online_catalog = args.online_catalog
         catalog_name = f"{catalog_prefix}_{online_catalog}_catalog_table.txt"
         images_list = []
-        centre_coord = args.centre_coord.split(',')
-        # import ipdb; ipdb.set_trace()
+
+        if models[0][0].endswith('html'):
+            Tigger_model = Tigger.load(models[0][0])
+            centre_ra_deg, centre_dec_deg = _get_phase_centre(Tigger_model)
+            centre_coord =  deg2ra(centre_ra_deg) + ',' + deg2dec(centre_dec_deg)
+            centre_coord = centre_coord.split(',')
+        elif models[0][0].endswith('.fits'):
+            centre_ra_deg, centre_dec_deg = fitsInfo(models[0][0])['centre']
+            centre_coord =  deg2ra(centre_ra_deg) + ',' + deg2dec(centre_dec_deg)
+            centre_coord = centre_coord.split(',')
+        else:
+            print('Please supply central coordinates using -ptc see help')
+            centre_coord = args.centre_coord.split(',')
+
         get_online_catalog(catalog=online_catalog.upper(), centre_coord=centre_coord,
                            width='1.0d', thresh=1.0,
                            catalog_table=catalog_name)
