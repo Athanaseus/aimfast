@@ -42,7 +42,7 @@ jobs:
 
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@master
-        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+        if: github.event_name == startsWith(github.event.ref, 'refs/tags')
         with:
           user: __token__
           password: ${{ secrets.pypi_token }}
