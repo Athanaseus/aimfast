@@ -1363,9 +1363,9 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
 
     """
     if prefix:
-        outfile = f'{prefix}-InputOutputFluxDensity.html'
+        outfile = f'{prefix}-FluxOffset.html'
     else:
-        outfile = 'InputOutputFluxDensity.html'
+        outfile = 'FluxOffset.html'
     output_file(outfile)
     flux_plot_list = []
     for model_pair in all_models:
@@ -1395,27 +1395,29 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             err_ys1 = []
             err_xs2 = []
             err_ys2 = []
+            model_1_name = model_pair[0]['path'].split('/')[-1].split('.')[0]
+            model_2_name = model_pair[1]['path'].split('/')[-1].split('.')[0]
             # Format data points value to a readable units
             # and select type of comparison plot
             if plot_type == 'inout':
                 x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
                 y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
-                z = np.array(phase_centre_dist)
-                axis_labels = ['Input flux ({:s})'.format(
-                                  FLUX_UNIT_SCALER[units][1]),
-                              'Output flux ({:s})'.format(
-                                  FLUX_UNIT_SCALER[units][1])]
+                axis_labels = [f"{model_1_name} S1 ({FLUX_UNIT_SCALER[units][1]})",
+                               f"{model_2_name} S2 ({FLUX_UNIT_SCALER[units][1]})"]
             elif plot_type == 'log':
-                x = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])
-                y = np.log(np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0])
-                z = np.array(phase_centre_dist)
-                axis_labels = ['Model 1 log (flux)', 'Model 2 log (flux)']
+                x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
+                y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
+                x1 = np.log(x)
+                y1 = np.log(y)
+                axis_labels = [f"log S1: {model_1_name}",
+                               f"log S2: {model_2_name}"]
             elif plot_type == 'snr':
                 x = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])
                 y = ((np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])/
                      (np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]))
-                z = np.array(phase_centre_dist)
-                axis_labels = ['Model 1 log (flux)', 'Flux1/Flux2']
+                axis_labels = ['log S1', 'S1/S2']
+            # Phase centre distance in degree
+            z = np.array(phase_centre_dist)/3600.
             # Compute some fit stats of the two models being compared
             flux_MSE = mean_squared_error(x, y)
             reg = linregress(x, y)
@@ -1427,7 +1429,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                   phase_centre_dist=z,
                                   ra_dec=positions_in_out,
                                   label=name_labels))
-            text = model_pair[0]["path"].split("/")[-1].split('.')[0]
+            text = "Flux Offset"
             # Create a plot object
             plot_flux = figure(title=text,
                                x_axis_label=axis_labels[0],
@@ -1437,15 +1439,15 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             # Create a color bar and size objects
             color_bar_height = 100
             mapper_opts = dict(palette="Viridis256",
-                               low=min(phase_centre_dist),
-                               high=max(phase_centre_dist))
+                               low=min(z),
+                               high=max(z))
             mapper = LinearColorMapper(**mapper_opts)
             flux_mapper = LinearColorMapper(**mapper_opts)
             color_bar = ColorBar(color_mapper=mapper,
                                  ticker=plot_flux.xaxis.ticker,
                                  formatter=plot_flux.xaxis.formatter,
                                  location=(0, 0), orientation='horizontal')
-            color_bar_plot = figure(title="Phase centre distance (arcsec)",
+            color_bar_plot = figure(title="Distance off-axis (deg)",
                                     title_location="below",
                                     height=color_bar_height,
                                     toolbar_location=None,
@@ -1471,7 +1473,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 fit_points = 100
                 slope = reg.slope
                 intercept = reg.intercept
-                fit_xs = np.linspace(min(x), max(x), fit_points)
+                fit_xs = np.linspace(0 if 0 < min(x) else min(x), max(x), fit_points)
                 fit_ys = slope * fit_xs + intercept
                 # Regression fit plot
                 fit = plot_flux.line(fit_xs, fit_ys,
@@ -1504,7 +1506,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 slope = reg.slope
                 intercept = reg.intercept
                 # Regression fit plot
-                fit_xs = np.linspace(min(x), max(x), fit_points)
+                fit_xs = np.linspace(0 if 0 < min(x) else min(x), max(x), fit_points)
                 fit_ys = slope * fit_xs + intercept
                 fit = plot_flux.line(fit_xs, fit_ys,
                                      legend_label="Fit",
@@ -1584,10 +1586,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             hover = plot_flux.select(dict(type=HoverTool))
             hover.names = ['data']
             hover.tooltips = OrderedDict([
-                ("(Input,Output)", "(@flux_in,@flux_out)"),
+                ("(S1,S2)", "(@flux_in,@flux_out)"),
                 ("source", "(@label)"),
                 ("(RA,DEC)", "(@ra_dec)"),
-                ("Phase_centre_distance", "@phase_centre_dist")])
+                ("Distance off-axis", "@phase_centre_dist")])
             # Legend position and title align
             plot_flux.legend.location = "top_left"
             plot_flux.title.align = "center"
@@ -1631,9 +1633,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
 
     """
     if prefix:
-        outfile = f'{prefix}-InputOutputPosition.html'
+        outfile = f'{prefix}-PositionOffset.html'
     else:
-        outfile = 'InputOutputPosition.html'
+        outfile = 'PositionOffset.html'
     output_file(outfile)
     position_plot_list = []
     for model_pair in all_models:
@@ -1641,12 +1643,12 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         RA_err = []
         DEC_offset = []
         DEC_err = []
-        DELTA_PHASE0 = []
         source_labels = []
         flux_in_data = []
         flux_out_data = []
         delta_pos_data = []
         position_in_out = []
+        phase_centre_dist = []
         heading = model_pair[0]['label']
         overlays = results[heading]['overlay']
         tolerance = results[heading]['tolerance']
@@ -1655,7 +1657,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             delta_pos_data.append(results[heading]['position'][n][0])
             RA_offset.append(results[heading]['position'][n][1])
             DEC_offset.append(results[heading]['position'][n][2])
-            DELTA_PHASE0.append(results[heading]['position'][n][3])
+            phase_centre_dist.append(results[heading]['position'][n][3])
             flux_in_data.append(results[heading]['position'][n][4])
             RA_err.append(results[heading]['position'][n][5])
             DEC_err.append(results[heading]['position'][n][6])
@@ -1684,7 +1686,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             y_dec_err = np.array(DEC_err)
             # TODO: Use flux as a radius dimension
             flux_in_mjy = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0]
-            phase_centre_distance = np.array(DELTA_PHASE0)  # For color
+            z = np.array(phase_centre_dist)/3600. # For color
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
@@ -1693,7 +1695,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                   dec_offset=y_dec,
                                   dec_err=y_dec_err,
                                   ra_dec=position_in_out,
-                                  phase_centre_dist=phase_centre_distance,
+                                  phase_centre_dist=z,
                                   flux_in=flux_in_mjy,
                                   label=source_labels))
             text = model_pair[0]["path"].split("/")[-1].split('.')[0]
@@ -1762,15 +1764,15 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             plot_overlay.x_range.flipped = True
             # Colorbar Mapper
             mapper_opts = dict(palette="Viridis256",
-                               low=min(phase_centre_distance),
-                               high=max(phase_centre_distance))
+                               low=min(z),
+                               high=max(z))
             mapper = LinearColorMapper(**mapper_opts)
             flux_mapper = LinearColorMapper(**mapper_opts)
             color_bar = ColorBar(color_mapper=mapper,
                                  ticker=plot_position.xaxis.ticker,
                                  formatter=plot_position.xaxis.formatter,
                                  location=(0, 0), orientation='horizontal')
-            color_bar_plot = figure(title="Phase centre distance (arcsec)",
+            color_bar_plot = figure(title="Phase centre distance (deg)",
                                     title_location="below",
                                     height=color_bar_height,
                                     toolbar_location=None,
@@ -1910,14 +1912,14 @@ def _residual_plotter(res_noise_images, points=None, results=None,
         residuals1 = []
         residuals2 = []
         name_labels = []
-        dist_from_phase = []
+        phase_centre_dist = []
         res_noise_ratio = []
         res_image = residual_pair[0]['label']
         for res_src in results[res_image]:
             residuals1.append(res_src[0])
             residuals2.append(res_src[1])
             res_noise_ratio.append(res_src[2])
-            dist_from_phase.append(res_src[3])
+            phase_centre_dist.append(res_src[3])
             name_labels.append(res_src[4])
         if len(name_labels) > 1:
             # Get sigma value of residuals
@@ -2102,12 +2104,12 @@ def _random_residual_results(res_noise_images, data_points=None,
             # Get phase centre and determine phase centre distance
             RA0 = fits_info['centre'][0]
             DEC0 = fits_info['centre'][1]
-            phase_dist_arcsec = deg2arcsec(np.sqrt((RA-RA0)**2 + (DEC-DEC0)**2))
+            phase_centre_dist= (np.sqrt((RA-RA0)**2 + (DEC-DEC0)**2))
             # Store all outputs in the results data structure
             results[res_label1].append([res1_rms*1e0,
                                        res2_rms*1e0,
                                        res2_rms/res1_rms*1e0,
-                                       phase_dist_arcsec,
+                                       phase_centre_dist,
                                        'source{0}'.format(i)])
     return results
 
@@ -2185,6 +2187,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
             # Get distance from phase centre
             delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
             phase_dist_arcsec = rad2arcsec(delta_phase_centre[0])
+            phase_centre_dist = phase_dist_arcsec/3600.
             # Get width of box around source
             width = int(deg2arcsec(beam_deg[0]) * area_factor)
             # Get a image slice around source
@@ -2226,7 +2229,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
             results[res_label1].append([res1_rms * 1e0,
                                        res2_rms * 1e0,
                                        res2_rms / res1_rms * 1e0,
-                                       phase_dist_arcsec,
+                                       phase_centre_dist,
                                        model_source.name,
                                        model_source.flux.I])
     return results
