@@ -1399,23 +1399,32 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             model_2_name = model_pair[1]['path'].split('/')[-1].split('.')[0]
             # Format data points value to a readable units
             # and select type of comparison plot
+            x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
+            y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
+            xerr = np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0]
+            yerr = np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0]
             if plot_type == 'inout':
-                x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
-                y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
+                x1 = x
+                y1 = y
+                xerr1 = xerr
+                yerr1 = yerr
                 axis_labels = [f"{model_1_name} S1 ({FLUX_UNIT_SCALER[units][1]})",
                                f"{model_2_name} S2 ({FLUX_UNIT_SCALER[units][1]})"]
             elif plot_type == 'log':
-                x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
-                y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
                 x1 = np.log(x)
                 y1 = np.log(y)
+                xerr1 = np.log(xerr)
+                yerr1 = np.log(yerr)
                 axis_labels = [f"log S1: {model_1_name}",
                                f"log S2: {model_2_name}"]
             elif plot_type == 'snr':
-                x = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])
-                y = ((np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])/
-                     (np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]))
+                x1 = np.log(x)
+                y1 = (x/y)
+                xerr1 = xerr
+                yerr1 = yerr
                 axis_labels = ['log S1', 'S1/S2']
+            # RA and Dec with a cross-match in deg:arcmin:arcsec
+            position_ra_dec = [(deg2ra(ra), deg2dec(dec)) for (ra, dec) in positions_in_out]
             # Phase centre distance in degree
             z = np.array(phase_centre_dist)/3600.
             # Compute some fit stats of the two models being compared
@@ -1425,9 +1434,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
-                        data=dict(flux_in=x, flux_out=y,
+                        data=dict(flux_in=x1, flux_out=y1,
+                                  flux_in_err=xerr1, flux_out_err=yerr1,
                                   phase_centre_dist=z,
-                                  ra_dec=positions_in_out,
+                                  ra_dec=position_ra_dec,
                                   label=name_labels))
             text = "Flux Offset"
             # Create a plot object
@@ -1454,14 +1464,14 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                     outline_line_color=None,
                                     min_border=0)
             # Get errors from the input/output fluxes
-            for xval, yval, xerr, yerr in zip(x, y,
+            for xval, yval, xerr, yerr in zip(x1, y1,
                                   np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
                                   np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0]):
                 err_xs1.append((xval - xerr, xval + xerr))
                 err_ys2.append((yval - yerr, yval + yerr))
                 err_ys1.append((yval, yval))
                 err_xs2.append((xval, xval))
-            # Create a plot object for errors
+            # Create S2plot object for errors
             error1_plot = plot_flux.multi_line(err_xs1, err_ys1,
                                                    legend_label="Errors",
                                                    color="red")
@@ -1473,16 +1483,16 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 fit_points = 100
                 slope = reg.slope
                 intercept = reg.intercept
-                fit_xs = np.linspace(0 if 0 < min(x) else min(x), max(x), fit_points)
+                fit_xs = np.linspace(0 if 0 < min(x1) else min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
                 # Regression fit plot
                 fit = plot_flux.line(fit_xs, fit_ys,
                                      legend_label="Fit",
                                      color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
-                equal = plot_flux.line(np.array([min(x), max(x)]),
-                                       np.array([min(x), max(x)]),
-                                       legend_label=u"Iₒᵤₜ=Iᵢₙ",
+                equal = plot_flux.line(np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                                       np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                                       legend_label=u"S1=S2",
                                        line_dash="dashed",
                                        color="gray")
             elif plot_type == 'snr':
@@ -1490,15 +1500,15 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 slope = reg.slope
                 intercept = reg.intercept
                 # Regression fit plot
-                fit_xs = np.linspace(min(x), max(x), fit_points)
+                fit_xs = np.linspace(min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
                 fit = plot_flux.line(fit_xs, fit_ys,
                                      legend_label="Fit",
                                      color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
-                equal = plot_flux.line(np.array([min(x), max(x)]),
+                equal = plot_flux.line(np.array([min(x1), max(x1)]),
                                        np.array([1, 1]),
-                                       legend_label=u"Iₒᵤₜ/Iᵢₙ=1",
+                                       legend_label=u"S1/S2=1",
                                        line_dash="dashed",
                                        color="gray")
             elif plot_type == 'log':
@@ -1506,15 +1516,15 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 slope = reg.slope
                 intercept = reg.intercept
                 # Regression fit plot
-                fit_xs = np.linspace(0 if 0 < min(x) else min(x), max(x), fit_points)
+                fit_xs = np.linspace(min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
                 fit = plot_flux.line(fit_xs, fit_ys,
                                      legend_label="Fit",
                                      color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
-                equal = plot_flux.line(np.array([min(x), max(x)]),
-                                       np.array([min(x), max(x)]),
-                                       legend_label=u"log(Iₒᵤₜ)=log(Iᵢₙ)",
+                equal = plot_flux.line(np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                                       np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                                       legend_label=u"log(S1)=log(S2)",
                                        line_dash="dashed",
                                        color="gray")
             # Create a plot object for the data points
@@ -1529,66 +1539,69 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             deci = 3  # Round off to this decimal places
             cols = ["Stats", "Value"]
             stats = {"Stats": ["Slope",
-                               "Intercept",
-                               "RMS_Error",
+                               f"Intercept ({FLUX_UNIT_SCALER[units][1]})",
+                               f"RMS_Error ({FLUX_UNIT_SCALER[units][1]})",
                                "R2"],
                      "Value": [f"{reg.slope:.{deci}f}",
-                               f"{reg.intercept * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
-                               f"{np.sqrt(flux_MSE) * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
+                               f"{reg.intercept:.{deci}f}",
+                               f"{np.sqrt(flux_MSE):.{deci}e}",
                                f"{flux_R_score:.{deci}f}"]}
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
-                             width=400, max_width=450,
+                             width=500, max_width=550,
                              height=100, max_height=150,
                              sizing_mode='stretch_both')
-            table_title = Div(text="Cross Match Stats")
+            table_title = Div(text="Cross Matching Statistics")
             table_title.align = "center"
             stats_table = column([table_title, dtab])
             # Table with no match data1
             _fu = FLUX_UNIT_SCALER[units][1]
-            cols1 = ["Source", "Flux [%s]"%_fu, "Flux err [%s]"%_fu, "RA", "RA err", "DEC", "DEC err"]
+            cols1 = ["Source", "Flux [%s]"%_fu, "Flux_err [%s]"%_fu, "RA",
+                     "RA_err ['']", "DEC", "DEC_err ['']"]
             stats1 = {"Source": [s[0] for s in no_match1],
                       "Flux [%s]"%_fu: [s[1] for s in no_match1],
-                      "Flux err [%s]"%_fu: [s[2] for s in no_match1],
-                      "RA": [s[3] for s in no_match1],
-                      "RA err": [s[4] for s in no_match1],
-                      "DEC": [s[5] for s in no_match1],
-                      "DEC err": [s[6] for s in no_match1]}
+                      "Flux_err [%s]"%_fu: [s[2] for s in no_match1],
+                      "RA": [deg2ra(s[3], deci) for s in no_match1],
+                      "RA_err ['']": [round(deg2arcsec(s[4]), deci) for s in no_match1],
+                      "DEC": [deg2dec(s[5], deci) for s in no_match1],
+                      "DEC_err ['']": [round(deg2arcsec(s[6]), deci) for s in no_match1]}
             source1 = ColumnDataSource(data=stats1)
             columns1 = [TableColumn(field=x, title=x.capitalize()) for x in cols1]
             dtab1 = DataTable(source=source1, columns=columns1,
-                              width=400, max_width=450,
-                              height=100, max_height=150,
+                              width=500, max_width=550,
+                              height=150, max_height=200,
                               sizing_mode='stretch_both')
-            table_title1 = Div(text="Non-matching sources from model 1")
+            table_title1 = Div(text=f"Non-matching sources from {model_1_name}")
             table_title1.align = "center"
             stats_table1 = column([table_title1, dtab1])
             # Table with no match data1
-            cols2 = ["Source", "Flux [%s]"%_fu, "Flux err [%s]"%_fu, "RA", "RA err", "DEC", "DEC err"]
+            cols2 = ["Source", "Flux [%s]"%_fu, "Flux_err [%s]"%_fu, "RA",
+                     "RA_err ['']", "DEC", "DEC_err ['']"]
             stats2 = {"Source": [s[0] for s in no_match2],
                       "Flux [%s]"%_fu: [s[1] for s in no_match2],
-                      "Flux err [%s]"%_fu: [s[2] for s in no_match2],
-                      "RA": [s[3] for s in no_match2],
-                      "RA err": [s[4] for s in no_match2],
-                      "DEC": [s[5] for s in no_match2],
-                      "DEC err": [s[6] for s in no_match2]}
+                      "Flux_err [%s]"%_fu: [s[2] for s in no_match2],
+                      "RA": [deg2ra(s[3], deci) for s in no_match2],
+                      "RA_err ['']": [round(deg2arcsec(s[4]), deci) for s in no_match2],
+                      "DEC": [deg2dec(s[5], deci) for s in no_match2],
+                      "DEC_err ['']": [round(deg2arcsec(s[6]), deci) for s in no_match2]}
             source2 = ColumnDataSource(data=stats2)
             columns2 = [TableColumn(field=x, title=x.capitalize()) for x in cols2]
             dtab2 = DataTable(source=source2, columns=columns2,
-                              width=400, max_width=450,
-                              height=100, max_height=150,
+                              width=500, max_width=550,
+                              height=150, max_height=200,
                               sizing_mode='stretch_both')
-            table_title2 = Div(text="Non-matching sources from model 2")
+            table_title2 = Div(text=f"Non-matching sources from {model_2_name}")
             table_title2.align = "center"
             stats_table2 = column([table_title2, dtab2])
             # Attaching the hover object with labels
             hover = plot_flux.select(dict(type=HoverTool))
             hover.names = ['data']
             hover.tooltips = OrderedDict([
-                ("(S1,S2)", "(@flux_in,@flux_out)"),
                 ("source", "(@label)"),
-                ("(RA,DEC)", "(@ra_dec)"),
+                ("(S1,S2)", "(@flux_in,@flux_out)"),
+                ("(S_err1, S_err2)"," (@flux_in_err,@flux_out_err)"),
+                ("(RA,DEC)", "@ra_dec"),
                 ("Distance off-axis", "@phase_centre_dist")])
             # Legend position and title align
             plot_flux.legend.location = "top_left"
@@ -1807,20 +1820,20 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                  fill_color={"field": "phase_centre_dist",
                                              "transform": mapper})
             # Table with stats data
-            deci = 2  # round off to this decimal places
+            deci = 3  # round off to this decimal places
             cols = ["Stats", "Value"]
             stats = {"Stats": ["Total sources",
-                               "(RA, DEC) mean",
+                               "(RA, DEC) mean ['']",
                                "Sigma sources",
-                               "(RA, DEC) sigma"],
+                               "(RA, DEC) sigma ['']"],
                      "Value": [recovered_sources,
-                               f"({RA_mean:.{deci}e}, {DEC_mean:.{deci}e})",
+                               f"({deg2arcsec(RA_mean, deci)}, {deg@arcsec(DEC_mean, deci)})",
                                one_sigma_sources,
-                               f"({r1:.{deci}e}, {r2:.{deci}e})"]}
+                               f"({deg2arcsec(r1, deci)}, {deg2arcsec(r2, deci)})"]}
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
-                             width=450, max_width=800,
+                             width=450, max_width=500,
                              height=100, max_height=150,
                              sizing_mode='stretch_both')
             table_title = Div(text="Cross Match Stats")
