@@ -1431,6 +1431,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             flux_MSE = mean_squared_error(x, y)
             reg = linregress(x, y)
             flux_R_score = reg.rvalue
+            reg1 = linregress(x1, y1)
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
@@ -1481,8 +1482,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             # Create a plot object for a Fit
             if plot_type == 'inout':
                 fit_points = 100
-                slope = reg.slope
-                intercept = reg.intercept
+                slope = reg1.slope
+                intercept = reg1.intercept
                 fit_xs = np.linspace(0 if 0 < min(x1) else min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
                 # Regression fit plot
@@ -1497,8 +1498,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                        color="gray")
             elif plot_type == 'snr':
                 fit_points = 100
-                slope = reg.slope
-                intercept = reg.intercept
+                slope = reg1.slope
+                intercept = reg1.intercept
                 # Regression fit plot
                 fit_xs = np.linspace(min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
@@ -1513,8 +1514,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                        color="gray")
             elif plot_type == 'log':
                 fit_points = 100
-                slope = reg.slope
-                intercept = reg.intercept
+                slope = reg1.slope
+                intercept = reg1.intercept
                 # Regression fit plot
                 fit_xs = np.linspace(min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
@@ -1599,8 +1600,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             hover.names = ['data']
             hover.tooltips = OrderedDict([
                 ("source", "(@label)"),
-                ("(S1,S2)", "(@flux_in,@flux_out)"),
-                ("(S_err1, S_err2)"," (@flux_in_err,@flux_out_err)"),
+                ("(S1,S2)", "(@flux_in, @flux_out)"),
+                ("(S_err1, S_err2)"," (@flux_in_err, @flux_out_err)"),
                 ("(RA,DEC)", "@ra_dec"),
                 ("Distance off-axis", "@phase_centre_dist")])
             # Legend position and title align
@@ -1660,7 +1661,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         flux_in_data = []
         flux_out_data = []
         delta_pos_data = []
-        position_in_out = []
+        positions_in_out = []
         phase_centre_dist = []
         heading = model_pair[0]['label']
         overlays = results[heading]['overlay']
@@ -1674,10 +1675,12 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             flux_in_data.append(results[heading]['position'][n][4])
             RA_err.append(results[heading]['position'][n][5])
             DEC_err.append(results[heading]['position'][n][6])
-            position_in_out.append(results[heading]['position'][n][7])
+            positions_in_out.append(results[heading]['position'][n][7])
             source_labels.append(results[heading]['position'][n][8])
         # Compute some stats of the two models being compared
         if len(flux_in_data) > 1:
+            model_1_name = model_pair[0]['path'].split('/')[-1].split('.')[0]
+            model_2_name = model_pair[1]['path'].split('/')[-1].split('.')[0]
             RA_mean = np.mean(RA_offset)
             DEC_mean = np.mean(DEC_offset)
             r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
@@ -1699,7 +1702,10 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             y_dec_err = np.array(DEC_err)
             # TODO: Use flux as a radius dimension
             flux_in_mjy = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0]
+            flux_out_mjy = np.array(flux_out_data) * FLUX_UNIT_SCALER['milli'][0]
             z = np.array(phase_centre_dist)/3600. # For color
+            # RA and Dec with a cross-match in deg:arcmin:arcsec
+            position_ra_dec = [(deg2ra(ra), deg2dec(dec)) for (ra, dec) in positions_in_out]
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
@@ -1707,13 +1713,13 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                   ra_err=x_ra_err,
                                   dec_offset=y_dec,
                                   dec_err=y_dec_err,
-                                  ra_dec=position_in_out,
+                                  ra_dec=position_ra_dec,
                                   phase_centre_dist=z,
-                                  flux_in=flux_in_mjy,
+                                  flux_s1=flux_in_mjy,
+                                  flux_s2=flux_out_mjy,
                                   label=source_labels))
-            text = model_pair[0]["path"].split("/")[-1].split('.')[0]
             # Create a plot object
-            plot_position = figure(title=text,
+            plot_position = figure(title="Position Offset",
                                    x_axis_label='RA offset ({:s})'.format(
                                        POSITION_UNIT_SCALER['arcsec'][1]),
                                    y_axis_label='DEC offset ({:s})'.format(
@@ -1736,15 +1742,19 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             overlay_source = ColumnDataSource(
                         data=dict(ra1=s1_ra_deg, dec1=s1_dec_deg,
                                   ra2=s2_ra_deg, dec2=s2_dec_deg,
+                                  str_ra1=[deg2ra(_s1_radeg) for _s1_radeg in s1_ra_deg],
+                                  str_dec1=[deg2dec(_s1_decdeg) for _s1_decdeg in s1_dec_deg],
+                                  str_ra2=[deg2ra(_s2_radeg) for _s2_radeg in s2_ra_deg],
+                                  str_dec2=[deg2dec(_s2_decdeg) for _s2_decdeg in s2_dec_deg],
                                   ra_offset=x_ra,
                                   dec_offset=y_dec,
-                                  ra_err=x_ra_err,
+                                  ra_err=x_ra_err, 
                                   dec_err=y_dec_err,
                                   label1=s1_labels,
                                   label2=s2_labels,
                                   flux1=s1_flux,
                                   flux2=s2_flux))
-            plot_overlay = figure(title="Overlay Plot of the catalogs",
+            plot_overlay = figure(title="Catalogs Overlay",
                                   x_axis_label='RA ({:s})'.format(
                                       POSITION_UNIT_SCALER['deg'][1]),
                                   y_axis_label='DEC ({:s})'.format(
@@ -1754,13 +1764,13 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                          "box_zoom,reset,save"))
             plot_overlay_1 = plot_overlay.circle('ra1', 'dec1',
                                                  name='model1',
-                                                 legend_label='Model1',
+                                                 legend_label=model_1_name,
                                                  source=overlay_source,
                                                  line_color=None,
                                                  color='blue')
             plot_overlay_2 = plot_overlay.circle('ra2', 'dec2',
                                                  name='model2',
-                                                 legend_label='Model2',
+                                                 legend_label=model_2_name,
                                                  source=overlay_source,
                                                  line_color=None,
                                                  color='red')
@@ -1770,6 +1780,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                  height=tolerance/3600.0,
                                  line_color=None,
                                  color='#CAB2D6')
+            plot_position.title.text_font_size = '16pt'
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
@@ -1785,7 +1796,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                  ticker=plot_position.xaxis.ticker,
                                  formatter=plot_position.xaxis.formatter,
                                  location=(0, 0), orientation='horizontal')
-            color_bar_plot = figure(title="Phase centre distance (deg)",
+            color_bar_plot = figure(title="Distance off-axis (deg)",
                                     title_location="below",
                                     height=color_bar_height,
                                     toolbar_location=None,
@@ -1823,20 +1834,22 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             deci = 3  # round off to this decimal places
             cols = ["Stats", "Value"]
             stats = {"Stats": ["Total sources",
-                               "(RA, DEC) mean ['']",
+                               "(RA, DEC) mean offset ['']",
                                "Sigma sources",
-                               "(RA, DEC) sigma ['']"],
+                               "(RA, DEC) sigma offset ['']"],
                      "Value": [recovered_sources,
-                               f"({deg2arcsec(RA_mean, deci)}, {deg@arcsec(DEC_mean, deci)})",
+                               f"({round(deg2arcsec(RA_mean), deci)},"
+                               f"{round(deg2arcsec(DEC_mean), deci)})",
                                one_sigma_sources,
-                               f"({deg2arcsec(r1, deci)}, {deg2arcsec(r2, deci)})"]}
+                               f"({round(deg2arcsec(r1), deci)},"
+                               f"{round(deg2arcsec(r2), deci)})"]}
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
                              width=450, max_width=500,
                              height=100, max_height=150,
                              sizing_mode='stretch_both')
-            table_title = Div(text="Cross Match Stats")
+            table_title = Div(text="Cross Matching Statistics")
             table_title.align = "center"
             stats_table = column([table_title, dtab])
             # Attaching the hover object with labels
@@ -1844,32 +1857,35 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             hover.names = ['data']
             hover.tooltips = OrderedDict([
                 ("source", "(@label)"),
-                ("Flux_in (mJy)", "@flux_in"),
+                ("(S1,S2) [mJy]",
+                 "(@flux_s1, @flux_s2)"),
                 ("(RA,DEC)", "(@ra_dec)"),
                 ("(RA_err,DEC_err)",
-                 "(@ra_err,@dec_err)"),
+                 "(@ra_err, @dec_err)"),
                 ("(RA_offset,DEC_offset)",
-                 "(@ra_offset,@dec_offset)")])
+                 "(@ra_offset, @dec_offset)"),
+                ("Distance off-axis",
+                 "@phase_centre_dist")])
             plot_overlay.add_tools(
                 HoverTool(renderers=[plot_overlay_1],
                           tooltips=OrderedDict([
                               ("source", "@label1"),
                               ("Flux (mJy)", "@flux1"),
-                              ("(RA,DEC)", "(@ra1,@dec1)"),
+                              ("(RA,DEC)", "(@str_ra1, @str_dec1)"),
                               ("(RA_err,DEC_err)",
-                               "(@ra_err,@dec_err)"),
+                               "(@ra_err, @dec_err)"),
                               ("(RA_offset,DEC_offset)",
-                               "(@ra_offset,@dec_offset)")])))
+                               "(@ra_offset, @dec_offset)")])))
             plot_overlay.add_tools(
                 HoverTool(renderers=[plot_overlay_2],
                           tooltips=OrderedDict([
                               ("source", "@label2"),
                               ("Flux (mJy)", "@flux2"),
-                              ("(RA,DEC)", "(@ra2,@dec2)"),
+                              ("(RA,DEC)", "(@str_ra2, @str_dec2)"),
                               ("(RA_err,DEC_err)",
-                               "(@ra_err,@dec_err)"),
+                               "(@ra_err, @dec_err)"),
                               ("(RA_offset,DEC_offset)",
-                               "(@ra_offset,@dec_offset)")])))
+                               "(@ra_offset, @dec_offset)")])))
             # Legend position and title align
             plot_position.legend.location = "top_left"
             plot_position.legend.click_policy = "hide"
@@ -2487,10 +2503,11 @@ def main():
             raise RuntimeError(f"{R}Please provide residual fits file{W}")
 
         if args.psf:
-            if isinstance(args.psf, str):
-                psf_size = measure_psf(args.psf)
+            psf_val = args.psf.replace(".", "", 1)
+            if psf_val.isdigit():
+                psf_size = float(args.psf)
             else:
-                psf_size = int(args.psf)
+                psf_size = measure_psf(args.psf)
         else:
             psf_size = 6
             LOGGER.warning(f"{R}Please provide psf fits file or psf size.\n"
