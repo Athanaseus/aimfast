@@ -1926,11 +1926,13 @@ def _residual_plotter(res_noise_images, points=None, results=None,
 
     """
     if points:
+        title = "Random residual noise"
         if prefix:
             outfile = f'{prefix}-RandomResidualNoiseRatio.html'
         else:
             outfile = 'RandomResidualNoiseRatio.html'
     else:
+        title = "Source residual noise"
         if prefix:
             outfile = f'{prefix}-SourceResidualNoiseRatio.html'
         else:
@@ -1961,13 +1963,14 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
                         data=dict(x=x1, y=y1, res1=res1, res2=res2, label=name_labels))
-            text = residual_pair[1]["path"].split("/")[-1].split('.')[0]
+            text1 = residual_pair[0]["path"].split("/")[-1].split('.')[0]
+            text2 = residual_pair[1]["path"].split("/")[-1].split('.')[0]
             # Get y2 label and range
             y2_label = "Flux ({})".format(FLUX_UNIT_SCALER['micro'][1])
             y_max = max(res1) if max(res1) > max(res2) else max(res2)
             y_min = min(res1) if min(res1) < min(res2) else min(res2)
             # Create a plot objects and set axis limits
-            plot_residual = figure(title=text,
+            plot_residual = figure(title=title,
                                    x_axis_label='Sources',
                                    y_axis_label='Res1-to-Res2',
                                    tools=TOOLS)
@@ -1977,24 +1980,24 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.add_layout(LinearAxis(y_range_name=y2_label,
                                                 axis_label=y2_label),
                                      'right')
+            res1_object = plot_residual.line(x1, res1,
+                                             color='red',
+                                             legend_label=f'res1: {text1}',
+                                             y_range_name=y2_label)
+            res2_object = plot_residual.line(x1, res2,
+                                             color='blue',
+                                             legend_label=f'res2: {text2}',
+                                             y_range_name=y2_label)
             res_ratio_object = plot_residual.line('x', 'y',
                                                   name='ratios',
                                                   source=source,
                                                   color='green',
                                                   legend_label='res1-to-res2')
-            res1_object = plot_residual.line(x1, res1,
-                                             color='red',
-                                             legend_label='res1',
-                                             y_range_name=y2_label)
-            res2_object = plot_residual.line(x1, res2,
-                                             color='blue',
-                                             legend_label='res2',
-                                             y_range_name=y2_label)
             plot_residual.title.text_font_size = '16pt'
             # Table with stats data
             cols = ["Stats", "Value"]
-            stats = {"Stats": ["Residual1",
-                               "Residual2",
+            stats = {"Stats": [f"{text1} ({FLUX_UNIT_SCALER['micro'][1]})",
+                               f"{text2} ({FLUX_UNIT_SCALER['micro'][1]})",
                                "Res1-to-Res2"],
                      "Value": [np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
                                np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
@@ -2002,7 +2005,7 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
-                             width=450, max_width=800,
+                             width=550, max_width=800,
                              height=100, max_height=150,
                              sizing_mode='stretch_both')
             table_title = Div(text="Cross Match Stats")
@@ -2223,7 +2226,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
             imslice = get_box(fits_info["wcs"], (RA, DEC), width)
             # Get noise rms in the box around the point coordinate
             res1_area = res_data1[0, 0, :, :][imslice]
-            res2_area = res_data1[0, 0, :, :][imslice]
+            res2_area = res_data2[0, 0, :, :][imslice]
             # Ignore empty arrays due to sources at the edge
             if not res1_area.size or not res2_area.size:
                 continue
