@@ -1363,9 +1363,9 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
 
     """
     if prefix:
-        outfile = f'{prefix}-InputOutputFluxDensity.html'
+        outfile = f'{prefix}-FluxOffset.html'
     else:
-        outfile = 'InputOutputFluxDensity.html'
+        outfile = 'FluxOffset.html'
     output_file(outfile)
     flux_plot_list = []
     for model_pair in all_models:
@@ -1395,39 +1395,52 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             err_ys1 = []
             err_xs2 = []
             err_ys2 = []
+            model_1_name = model_pair[0]['path'].split('/')[-1].split('.')[0]
+            model_2_name = model_pair[1]['path'].split('/')[-1].split('.')[0]
             # Format data points value to a readable units
             # and select type of comparison plot
+            x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
+            y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
+            xerr = np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0]
+            yerr = np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0]
             if plot_type == 'inout':
-                x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
-                y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
-                z = np.array(phase_centre_dist)
-                axis_labels = ['Input flux ({:s})'.format(
-                                  FLUX_UNIT_SCALER[units][1]),
-                              'Output flux ({:s})'.format(
-                                  FLUX_UNIT_SCALER[units][1])]
+                x1 = x
+                y1 = y
+                xerr1 = xerr
+                yerr1 = yerr
+                axis_labels = [f"{model_1_name} S1 ({FLUX_UNIT_SCALER[units][1]})",
+                               f"{model_2_name} S2 ({FLUX_UNIT_SCALER[units][1]})"]
             elif plot_type == 'log':
-                x = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])
-                y = np.log(np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0])
-                z = np.array(phase_centre_dist)
-                axis_labels = ['Model 1 log (flux)', 'Model 2 log (flux)']
+                x1 = np.log(x)
+                y1 = np.log(y)
+                xerr1 = np.log(xerr)
+                yerr1 = np.log(yerr)
+                axis_labels = [f"log S1: {model_1_name}",
+                               f"log S2: {model_2_name}"]
             elif plot_type == 'snr':
-                x = np.log(np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])
-                y = ((np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0])/
-                     (np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]))
-                z = np.array(phase_centre_dist)
-                axis_labels = ['Model 1 log (flux)', 'Flux1/Flux2']
+                x1 = np.log(x)
+                y1 = (x/y)
+                xerr1 = xerr
+                yerr1 = yerr
+                axis_labels = ['log S1', 'S1/S2']
+            # RA and Dec with a cross-match in deg:arcmin:arcsec
+            position_ra_dec = [(deg2ra(ra), deg2dec(dec)) for (ra, dec) in positions_in_out]
+            # Phase centre distance in degree
+            z = np.array(phase_centre_dist)/3600.
             # Compute some fit stats of the two models being compared
             flux_MSE = mean_squared_error(x, y)
             reg = linregress(x, y)
             flux_R_score = reg.rvalue
+            reg1 = linregress(x1, y1)
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
-                        data=dict(flux_in=x, flux_out=y,
+                        data=dict(flux_in=x1, flux_out=y1,
+                                  flux_in_err=xerr1, flux_out_err=yerr1,
                                   phase_centre_dist=z,
-                                  ra_dec=positions_in_out,
+                                  ra_dec=position_ra_dec,
                                   label=name_labels))
-            text = model_pair[0]["path"].split("/")[-1].split('.')[0]
+            text = "Flux Offset"
             # Create a plot object
             plot_flux = figure(title=text,
                                x_axis_label=axis_labels[0],
@@ -1437,29 +1450,29 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             # Create a color bar and size objects
             color_bar_height = 100
             mapper_opts = dict(palette="Viridis256",
-                               low=min(phase_centre_dist),
-                               high=max(phase_centre_dist))
+                               low=min(z),
+                               high=max(z))
             mapper = LinearColorMapper(**mapper_opts)
             flux_mapper = LinearColorMapper(**mapper_opts)
             color_bar = ColorBar(color_mapper=mapper,
                                  ticker=plot_flux.xaxis.ticker,
                                  formatter=plot_flux.xaxis.formatter,
                                  location=(0, 0), orientation='horizontal')
-            color_bar_plot = figure(title="Phase centre distance (arcsec)",
+            color_bar_plot = figure(title="Distance off-axis (deg)",
                                     title_location="below",
                                     height=color_bar_height,
                                     toolbar_location=None,
                                     outline_line_color=None,
                                     min_border=0)
             # Get errors from the input/output fluxes
-            for xval, yval, xerr, yerr in zip(x, y,
+            for xval, yval, xerr, yerr in zip(x1, y1,
                                   np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
                                   np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0]):
                 err_xs1.append((xval - xerr, xval + xerr))
                 err_ys2.append((yval - yerr, yval + yerr))
                 err_ys1.append((yval, yval))
                 err_xs2.append((xval, xval))
-            # Create a plot object for errors
+            # Create S2plot object for errors
             error1_plot = plot_flux.multi_line(err_xs1, err_ys1,
                                                    legend_label="Errors",
                                                    color="red")
@@ -1469,50 +1482,50 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             # Create a plot object for a Fit
             if plot_type == 'inout':
                 fit_points = 100
-                slope = reg.slope
-                intercept = reg.intercept
-                fit_xs = np.linspace(min(x), max(x), fit_points)
+                slope = reg1.slope
+                intercept = reg1.intercept
+                fit_xs = np.linspace(0 if 0 < min(x1) else min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
                 # Regression fit plot
                 fit = plot_flux.line(fit_xs, fit_ys,
                                      legend_label="Fit",
                                      color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
-                equal = plot_flux.line(np.array([min(x), max(x)]),
-                                       np.array([min(x), max(x)]),
-                                       legend_label=u"Iₒᵤₜ=Iᵢₙ",
+                equal = plot_flux.line(np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                                       np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                                       legend_label=u"S1=S2",
                                        line_dash="dashed",
                                        color="gray")
             elif plot_type == 'snr':
                 fit_points = 100
-                slope = reg.slope
-                intercept = reg.intercept
+                slope = reg1.slope
+                intercept = reg1.intercept
                 # Regression fit plot
-                fit_xs = np.linspace(min(x), max(x), fit_points)
+                fit_xs = np.linspace(min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
                 fit = plot_flux.line(fit_xs, fit_ys,
                                      legend_label="Fit",
                                      color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
-                equal = plot_flux.line(np.array([min(x), max(x)]),
+                equal = plot_flux.line(np.array([min(x1), max(x1)]),
                                        np.array([1, 1]),
-                                       legend_label=u"Iₒᵤₜ/Iᵢₙ=1",
+                                       legend_label=u"S1/S2=1",
                                        line_dash="dashed",
                                        color="gray")
             elif plot_type == 'log':
                 fit_points = 100
-                slope = reg.slope
-                intercept = reg.intercept
+                slope = reg1.slope
+                intercept = reg1.intercept
                 # Regression fit plot
-                fit_xs = np.linspace(min(x), max(x), fit_points)
+                fit_xs = np.linspace(min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
                 fit = plot_flux.line(fit_xs, fit_ys,
                                      legend_label="Fit",
                                      color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
-                equal = plot_flux.line(np.array([min(x), max(x)]),
-                                       np.array([min(x), max(x)]),
-                                       legend_label=u"log(Iₒᵤₜ)=log(Iᵢₙ)",
+                equal = plot_flux.line(np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                                       np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                                       legend_label=u"log(S1)=log(S2)",
                                        line_dash="dashed",
                                        color="gray")
             # Create a plot object for the data points
@@ -1527,67 +1540,70 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             deci = 3  # Round off to this decimal places
             cols = ["Stats", "Value"]
             stats = {"Stats": ["Slope",
-                               "Intercept",
-                               "RMS_Error",
+                               f"Intercept ({FLUX_UNIT_SCALER[units][1]})",
+                               f"RMS_Error ({FLUX_UNIT_SCALER[units][1]})",
                                "R2"],
                      "Value": [f"{reg.slope:.{deci}f}",
-                               f"{reg.intercept * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
-                               f"{np.sqrt(flux_MSE) * FLUX_UNIT_SCALER[units][0]:.{deci}e}",
+                               f"{reg.intercept:.{deci}f}",
+                               f"{np.sqrt(flux_MSE):.{deci}e}",
                                f"{flux_R_score:.{deci}f}"]}
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
-                             width=400, max_width=450,
+                             width=500, max_width=550,
                              height=100, max_height=150,
                              sizing_mode='stretch_both')
-            table_title = Div(text="Cross Match Stats")
+            table_title = Div(text="Cross Matching Statistics")
             table_title.align = "center"
             stats_table = column([table_title, dtab])
             # Table with no match data1
             _fu = FLUX_UNIT_SCALER[units][1]
-            cols1 = ["Source", "Flux [%s]"%_fu, "Flux err [%s]"%_fu, "RA", "RA err", "DEC", "DEC err"]
+            cols1 = ["Source", "Flux [%s]"%_fu, "Flux_err [%s]"%_fu, "RA",
+                     "RA_err ['']", "DEC", "DEC_err ['']"]
             stats1 = {"Source": [s[0] for s in no_match1],
                       "Flux [%s]"%_fu: [s[1] for s in no_match1],
-                      "Flux err [%s]"%_fu: [s[2] for s in no_match1],
-                      "RA": [s[3] for s in no_match1],
-                      "RA err": [s[4] for s in no_match1],
-                      "DEC": [s[5] for s in no_match1],
-                      "DEC err": [s[6] for s in no_match1]}
+                      "Flux_err [%s]"%_fu: [s[2] for s in no_match1],
+                      "RA": [deg2ra(s[3], deci) for s in no_match1],
+                      "RA_err ['']": [round(deg2arcsec(s[4]), deci) for s in no_match1],
+                      "DEC": [deg2dec(s[5], deci) for s in no_match1],
+                      "DEC_err ['']": [round(deg2arcsec(s[6]), deci) for s in no_match1]}
             source1 = ColumnDataSource(data=stats1)
             columns1 = [TableColumn(field=x, title=x.capitalize()) for x in cols1]
             dtab1 = DataTable(source=source1, columns=columns1,
-                              width=400, max_width=450,
-                              height=100, max_height=150,
+                              width=500, max_width=550,
+                              height=150, max_height=200,
                               sizing_mode='stretch_both')
-            table_title1 = Div(text="Non-matching sources from model 1")
+            table_title1 = Div(text=f"Non-matching sources from {model_1_name}")
             table_title1.align = "center"
             stats_table1 = column([table_title1, dtab1])
             # Table with no match data1
-            cols2 = ["Source", "Flux [%s]"%_fu, "Flux err [%s]"%_fu, "RA", "RA err", "DEC", "DEC err"]
+            cols2 = ["Source", "Flux [%s]"%_fu, "Flux_err [%s]"%_fu, "RA",
+                     "RA_err ['']", "DEC", "DEC_err ['']"]
             stats2 = {"Source": [s[0] for s in no_match2],
                       "Flux [%s]"%_fu: [s[1] for s in no_match2],
-                      "Flux err [%s]"%_fu: [s[2] for s in no_match2],
-                      "RA": [s[3] for s in no_match2],
-                      "RA err": [s[4] for s in no_match2],
-                      "DEC": [s[5] for s in no_match2],
-                      "DEC err": [s[6] for s in no_match2]}
+                      "Flux_err [%s]"%_fu: [s[2] for s in no_match2],
+                      "RA": [deg2ra(s[3], deci) for s in no_match2],
+                      "RA_err ['']": [round(deg2arcsec(s[4]), deci) for s in no_match2],
+                      "DEC": [deg2dec(s[5], deci) for s in no_match2],
+                      "DEC_err ['']": [round(deg2arcsec(s[6]), deci) for s in no_match2]}
             source2 = ColumnDataSource(data=stats2)
             columns2 = [TableColumn(field=x, title=x.capitalize()) for x in cols2]
             dtab2 = DataTable(source=source2, columns=columns2,
-                              width=400, max_width=450,
-                              height=100, max_height=150,
+                              width=500, max_width=550,
+                              height=150, max_height=200,
                               sizing_mode='stretch_both')
-            table_title2 = Div(text="Non-matching sources from model 2")
+            table_title2 = Div(text=f"Non-matching sources from {model_2_name}")
             table_title2.align = "center"
             stats_table2 = column([table_title2, dtab2])
             # Attaching the hover object with labels
             hover = plot_flux.select(dict(type=HoverTool))
             hover.names = ['data']
             hover.tooltips = OrderedDict([
-                ("(Input,Output)", "(@flux_in,@flux_out)"),
                 ("source", "(@label)"),
-                ("(RA,DEC)", "(@ra_dec)"),
-                ("Phase_centre_distance", "@phase_centre_dist")])
+                ("(S1,S2)", "(@flux_in, @flux_out)"),
+                ("(S_err1, S_err2)"," (@flux_in_err, @flux_out_err)"),
+                ("(RA,DEC)", "@ra_dec"),
+                ("Distance off-axis", "@phase_centre_dist")])
             # Legend position and title align
             plot_flux.legend.location = "top_left"
             plot_flux.title.align = "center"
@@ -1631,9 +1647,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
 
     """
     if prefix:
-        outfile = f'{prefix}-InputOutputPosition.html'
+        outfile = f'{prefix}-PositionOffset.html'
     else:
-        outfile = 'InputOutputPosition.html'
+        outfile = 'PositionOffset.html'
     output_file(outfile)
     position_plot_list = []
     for model_pair in all_models:
@@ -1641,12 +1657,12 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         RA_err = []
         DEC_offset = []
         DEC_err = []
-        DELTA_PHASE0 = []
         source_labels = []
         flux_in_data = []
         flux_out_data = []
         delta_pos_data = []
-        position_in_out = []
+        positions_in_out = []
+        phase_centre_dist = []
         heading = model_pair[0]['label']
         overlays = results[heading]['overlay']
         tolerance = results[heading]['tolerance']
@@ -1655,14 +1671,16 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             delta_pos_data.append(results[heading]['position'][n][0])
             RA_offset.append(results[heading]['position'][n][1])
             DEC_offset.append(results[heading]['position'][n][2])
-            DELTA_PHASE0.append(results[heading]['position'][n][3])
+            phase_centre_dist.append(results[heading]['position'][n][3])
             flux_in_data.append(results[heading]['position'][n][4])
             RA_err.append(results[heading]['position'][n][5])
             DEC_err.append(results[heading]['position'][n][6])
-            position_in_out.append(results[heading]['position'][n][7])
+            positions_in_out.append(results[heading]['position'][n][7])
             source_labels.append(results[heading]['position'][n][8])
         # Compute some stats of the two models being compared
         if len(flux_in_data) > 1:
+            model_1_name = model_pair[0]['path'].split('/')[-1].split('.')[0]
+            model_2_name = model_pair[1]['path'].split('/')[-1].split('.')[0]
             RA_mean = np.mean(RA_offset)
             DEC_mean = np.mean(DEC_offset)
             r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
@@ -1684,7 +1702,10 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             y_dec_err = np.array(DEC_err)
             # TODO: Use flux as a radius dimension
             flux_in_mjy = np.array(flux_in_data) * FLUX_UNIT_SCALER['milli'][0]
-            phase_centre_distance = np.array(DELTA_PHASE0)  # For color
+            flux_out_mjy = np.array(flux_out_data) * FLUX_UNIT_SCALER['milli'][0]
+            z = np.array(phase_centre_dist)/3600. # For color
+            # RA and Dec with a cross-match in deg:arcmin:arcsec
+            position_ra_dec = [(deg2ra(ra), deg2dec(dec)) for (ra, dec) in positions_in_out]
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
@@ -1692,13 +1713,13 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                   ra_err=x_ra_err,
                                   dec_offset=y_dec,
                                   dec_err=y_dec_err,
-                                  ra_dec=position_in_out,
-                                  phase_centre_dist=phase_centre_distance,
-                                  flux_in=flux_in_mjy,
+                                  ra_dec=position_ra_dec,
+                                  phase_centre_dist=z,
+                                  flux_s1=flux_in_mjy,
+                                  flux_s2=flux_out_mjy,
                                   label=source_labels))
-            text = model_pair[0]["path"].split("/")[-1].split('.')[0]
             # Create a plot object
-            plot_position = figure(title=text,
+            plot_position = figure(title="Position Offset",
                                    x_axis_label='RA offset ({:s})'.format(
                                        POSITION_UNIT_SCALER['arcsec'][1]),
                                    y_axis_label='DEC offset ({:s})'.format(
@@ -1721,15 +1742,19 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             overlay_source = ColumnDataSource(
                         data=dict(ra1=s1_ra_deg, dec1=s1_dec_deg,
                                   ra2=s2_ra_deg, dec2=s2_dec_deg,
+                                  str_ra1=[deg2ra(_s1_radeg) for _s1_radeg in s1_ra_deg],
+                                  str_dec1=[deg2dec(_s1_decdeg) for _s1_decdeg in s1_dec_deg],
+                                  str_ra2=[deg2ra(_s2_radeg) for _s2_radeg in s2_ra_deg],
+                                  str_dec2=[deg2dec(_s2_decdeg) for _s2_decdeg in s2_dec_deg],
                                   ra_offset=x_ra,
                                   dec_offset=y_dec,
-                                  ra_err=x_ra_err,
+                                  ra_err=x_ra_err, 
                                   dec_err=y_dec_err,
                                   label1=s1_labels,
                                   label2=s2_labels,
                                   flux1=s1_flux,
                                   flux2=s2_flux))
-            plot_overlay = figure(title="Overlay Plot of the catalogs",
+            plot_overlay = figure(title="Catalogs Overlay",
                                   x_axis_label='RA ({:s})'.format(
                                       POSITION_UNIT_SCALER['deg'][1]),
                                   y_axis_label='DEC ({:s})'.format(
@@ -1739,13 +1764,13 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                          "box_zoom,reset,save"))
             plot_overlay_1 = plot_overlay.circle('ra1', 'dec1',
                                                  name='model1',
-                                                 legend_label='Model1',
+                                                 legend_label=model_1_name,
                                                  source=overlay_source,
                                                  line_color=None,
                                                  color='blue')
             plot_overlay_2 = plot_overlay.circle('ra2', 'dec2',
                                                  name='model2',
-                                                 legend_label='Model2',
+                                                 legend_label=model_2_name,
                                                  source=overlay_source,
                                                  line_color=None,
                                                  color='red')
@@ -1755,6 +1780,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                  height=tolerance/3600.0,
                                  line_color=None,
                                  color='#CAB2D6')
+            plot_position.title.text_font_size = '16pt'
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
@@ -1762,15 +1788,15 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             plot_overlay.x_range.flipped = True
             # Colorbar Mapper
             mapper_opts = dict(palette="Viridis256",
-                               low=min(phase_centre_distance),
-                               high=max(phase_centre_distance))
+                               low=min(z),
+                               high=max(z))
             mapper = LinearColorMapper(**mapper_opts)
             flux_mapper = LinearColorMapper(**mapper_opts)
             color_bar = ColorBar(color_mapper=mapper,
                                  ticker=plot_position.xaxis.ticker,
                                  formatter=plot_position.xaxis.formatter,
                                  location=(0, 0), orientation='horizontal')
-            color_bar_plot = figure(title="Phase centre distance (arcsec)",
+            color_bar_plot = figure(title="Distance off-axis (deg)",
                                     title_location="below",
                                     height=color_bar_height,
                                     toolbar_location=None,
@@ -1805,23 +1831,25 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                  fill_color={"field": "phase_centre_dist",
                                              "transform": mapper})
             # Table with stats data
-            deci = 2  # round off to this decimal places
+            deci = 3  # round off to this decimal places
             cols = ["Stats", "Value"]
             stats = {"Stats": ["Total sources",
-                               "(RA, DEC) mean",
+                               "(RA, DEC) mean offset ['']",
                                "Sigma sources",
-                               "(RA, DEC) sigma"],
+                               "(RA, DEC) sigma offset ['']"],
                      "Value": [recovered_sources,
-                               f"({RA_mean:.{deci}e}, {DEC_mean:.{deci}e})",
+                               f"({round(deg2arcsec(RA_mean), deci)},"
+                               f"{round(deg2arcsec(DEC_mean), deci)})",
                                one_sigma_sources,
-                               f"({r1:.{deci}e}, {r2:.{deci}e})"]}
+                               f"({round(deg2arcsec(r1), deci)},"
+                               f"{round(deg2arcsec(r2), deci)})"]}
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
-                             width=450, max_width=800,
+                             width=450, max_width=500,
                              height=100, max_height=150,
                              sizing_mode='stretch_both')
-            table_title = Div(text="Cross Match Stats")
+            table_title = Div(text="Cross Matching Statistics")
             table_title.align = "center"
             stats_table = column([table_title, dtab])
             # Attaching the hover object with labels
@@ -1829,32 +1857,35 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             hover.names = ['data']
             hover.tooltips = OrderedDict([
                 ("source", "(@label)"),
-                ("Flux_in (mJy)", "@flux_in"),
+                ("(S1,S2) [mJy]",
+                 "(@flux_s1, @flux_s2)"),
                 ("(RA,DEC)", "(@ra_dec)"),
                 ("(RA_err,DEC_err)",
-                 "(@ra_err,@dec_err)"),
+                 "(@ra_err, @dec_err)"),
                 ("(RA_offset,DEC_offset)",
-                 "(@ra_offset,@dec_offset)")])
+                 "(@ra_offset, @dec_offset)"),
+                ("Distance off-axis",
+                 "@phase_centre_dist")])
             plot_overlay.add_tools(
                 HoverTool(renderers=[plot_overlay_1],
                           tooltips=OrderedDict([
                               ("source", "@label1"),
                               ("Flux (mJy)", "@flux1"),
-                              ("(RA,DEC)", "(@ra1,@dec1)"),
+                              ("(RA,DEC)", "(@str_ra1, @str_dec1)"),
                               ("(RA_err,DEC_err)",
-                               "(@ra_err,@dec_err)"),
+                               "(@ra_err, @dec_err)"),
                               ("(RA_offset,DEC_offset)",
-                               "(@ra_offset,@dec_offset)")])))
+                               "(@ra_offset, @dec_offset)")])))
             plot_overlay.add_tools(
                 HoverTool(renderers=[plot_overlay_2],
                           tooltips=OrderedDict([
                               ("source", "@label2"),
                               ("Flux (mJy)", "@flux2"),
-                              ("(RA,DEC)", "(@ra2,@dec2)"),
+                              ("(RA,DEC)", "(@str_ra2, @str_dec2)"),
                               ("(RA_err,DEC_err)",
-                               "(@ra_err,@dec_err)"),
+                               "(@ra_err, @dec_err)"),
                               ("(RA_offset,DEC_offset)",
-                               "(@ra_offset,@dec_offset)")])))
+                               "(@ra_offset, @dec_offset)")])))
             # Legend position and title align
             plot_position.legend.location = "top_left"
             plot_position.legend.click_policy = "hide"
@@ -1895,11 +1926,13 @@ def _residual_plotter(res_noise_images, points=None, results=None,
 
     """
     if points:
+        title = "Random residual noise"
         if prefix:
             outfile = f'{prefix}-RandomResidualNoiseRatio.html'
         else:
             outfile = 'RandomResidualNoiseRatio.html'
     else:
+        title = "Source residual noise"
         if prefix:
             outfile = f'{prefix}-SourceResidualNoiseRatio.html'
         else:
@@ -1910,14 +1943,14 @@ def _residual_plotter(res_noise_images, points=None, results=None,
         residuals1 = []
         residuals2 = []
         name_labels = []
-        dist_from_phase = []
+        phase_centre_dist = []
         res_noise_ratio = []
         res_image = residual_pair[0]['label']
         for res_src in results[res_image]:
             residuals1.append(res_src[0])
             residuals2.append(res_src[1])
             res_noise_ratio.append(res_src[2])
-            dist_from_phase.append(res_src[3])
+            phase_centre_dist.append(res_src[3])
             name_labels.append(res_src[4])
         if len(name_labels) > 1:
             # Get sigma value of residuals
@@ -1930,13 +1963,14 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
                         data=dict(x=x1, y=y1, res1=res1, res2=res2, label=name_labels))
-            text = residual_pair[1]["path"].split("/")[-1].split('.')[0]
+            text1 = residual_pair[0]["path"].split("/")[-1].split('.')[0]
+            text2 = residual_pair[1]["path"].split("/")[-1].split('.')[0]
             # Get y2 label and range
             y2_label = "Flux ({})".format(FLUX_UNIT_SCALER['micro'][1])
             y_max = max(res1) if max(res1) > max(res2) else max(res2)
             y_min = min(res1) if min(res1) < min(res2) else min(res2)
             # Create a plot objects and set axis limits
-            plot_residual = figure(title=text,
+            plot_residual = figure(title=title,
                                    x_axis_label='Sources',
                                    y_axis_label='Res1-to-Res2',
                                    tools=TOOLS)
@@ -1946,24 +1980,24 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.add_layout(LinearAxis(y_range_name=y2_label,
                                                 axis_label=y2_label),
                                      'right')
+            res1_object = plot_residual.line(x1, res1,
+                                             color='red',
+                                             legend_label=f'res1: {text1}',
+                                             y_range_name=y2_label)
+            res2_object = plot_residual.line(x1, res2,
+                                             color='blue',
+                                             legend_label=f'res2: {text2}',
+                                             y_range_name=y2_label)
             res_ratio_object = plot_residual.line('x', 'y',
                                                   name='ratios',
                                                   source=source,
                                                   color='green',
                                                   legend_label='res1-to-res2')
-            res1_object = plot_residual.line(x1, res1,
-                                             color='red',
-                                             legend_label='res1',
-                                             y_range_name=y2_label)
-            res2_object = plot_residual.line(x1, res2,
-                                             color='blue',
-                                             legend_label='res2',
-                                             y_range_name=y2_label)
             plot_residual.title.text_font_size = '16pt'
             # Table with stats data
             cols = ["Stats", "Value"]
-            stats = {"Stats": ["Residual1",
-                               "Residual2",
+            stats = {"Stats": [f"{text1} ({FLUX_UNIT_SCALER['micro'][1]})",
+                               f"{text2} ({FLUX_UNIT_SCALER['micro'][1]})",
                                "Res1-to-Res2"],
                      "Value": [np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
                                np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
@@ -1971,7 +2005,7 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
-                             width=450, max_width=800,
+                             width=550, max_width=800,
                              height=100, max_height=150,
                              sizing_mode='stretch_both')
             table_title = Div(text="Cross Match Stats")
@@ -2102,12 +2136,12 @@ def _random_residual_results(res_noise_images, data_points=None,
             # Get phase centre and determine phase centre distance
             RA0 = fits_info['centre'][0]
             DEC0 = fits_info['centre'][1]
-            phase_dist_arcsec = deg2arcsec(np.sqrt((RA-RA0)**2 + (DEC-DEC0)**2))
+            phase_centre_dist= (np.sqrt((RA-RA0)**2 + (DEC-DEC0)**2))
             # Store all outputs in the results data structure
             results[res_label1].append([res1_rms*1e0,
                                        res2_rms*1e0,
                                        res2_rms/res1_rms*1e0,
-                                       phase_dist_arcsec,
+                                       phase_centre_dist,
                                        'source{0}'.format(i)])
     return results
 
@@ -2185,13 +2219,14 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
             # Get distance from phase centre
             delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
             phase_dist_arcsec = rad2arcsec(delta_phase_centre[0])
+            phase_centre_dist = phase_dist_arcsec/3600.
             # Get width of box around source
             width = int(deg2arcsec(beam_deg[0]) * area_factor)
             # Get a image slice around source
             imslice = get_box(fits_info["wcs"], (RA, DEC), width)
             # Get noise rms in the box around the point coordinate
             res1_area = res_data1[0, 0, :, :][imslice]
-            res2_area = res_data1[0, 0, :, :][imslice]
+            res2_area = res_data2[0, 0, :, :][imslice]
             # Ignore empty arrays due to sources at the edge
             if not res1_area.size or not res2_area.size:
                 continue
@@ -2226,7 +2261,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
             results[res_label1].append([res1_rms * 1e0,
                                        res2_rms * 1e0,
                                        res2_rms / res1_rms * 1e0,
-                                       phase_dist_arcsec,
+                                       phase_centre_dist,
                                        model_source.name,
                                        model_source.flux.I])
     return results
@@ -2471,10 +2506,11 @@ def main():
             raise RuntimeError(f"{R}Please provide residual fits file{W}")
 
         if args.psf:
-            if isinstance(args.psf, str):
-                psf_size = measure_psf(args.psf)
+            psf_val = args.psf.replace(".", "", 1)
+            if psf_val.isdigit():
+                psf_size = float(args.psf)
             else:
-                psf_size = int(args.psf)
+                psf_size = measure_psf(args.psf)
         else:
             psf_size = 6
             LOGGER.warning(f"{R}Please provide psf fits file or psf size.\n"

@@ -107,7 +107,7 @@ def ra2deg(ra_hms):
     return h_m_s
 
 
-def deg2ra(ra_deg):
+def deg2ra(ra_deg, deci=2):
     """Converts right ascension in hms coordinates to degrees
 
     Parameters
@@ -124,7 +124,7 @@ def deg2ra(ra_deg):
        ra_deg = 360 + ra_deg
     HH     = int((ra_deg*24)/360.)
     MM     = int((((ra_deg*24)/360.)-HH)*60)
-    SS     = (((((ra_deg*24)/360.)-HH)*60)-MM)*60
+    SS     = round(((((((ra_deg*24)/360.)-HH)*60)-MM)*60), deci)
     return "%s:%s:%s"%(HH,MM,SS)
 
 
@@ -160,7 +160,7 @@ def dec2deg(dec_dms):
 
 
 
-def deg2dec(dec_deg):
+def deg2dec(dec_deg, deci=2):
     """Converts declination in degrees to dms coordinates
 
     Parameters
@@ -176,7 +176,7 @@ def deg2dec(dec_deg):
     dec_deg_abs = np.abs(dec_deg)
     DD_abs      = np.abs(DD)
     MM          = int((dec_deg_abs - DD_abs)*60)
-    SS          = ((dec_deg_abs - DD_abs)*60)-MM
+    SS          = round((((dec_deg_abs - DD_abs)*60)-MM), deci)
     return "%s:%s:%s"%(DD,MM,SS)
 
 def unwrap(angle):
