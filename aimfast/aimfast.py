@@ -39,9 +39,9 @@ from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
 from sklearn.metrics import mean_squared_error, r2_score
 
-from aimfast.auxiliary import aegean, bdsf, get_online_catalog
 from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec
 from aimfast.auxiliary import dec2deg, ra2deg, rad2deg, deg2rad, unwrap
+from aimfast.auxiliary import aegean, bdsf, get_subimage, get_online_catalog
 
 from aimfast.auxiliary import deg2dec, deg2ra
 
@@ -392,7 +392,6 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     of the datasets and second element is the p-value.
 
     """
-    res_props = dict()
     # Open the residual image
     residual_hdu = fitsio.open(fitsname)
     # Get the header data unit for the residual rms
@@ -429,45 +428,52 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         data = residual_data
     residual_data = data
 
+    props = image_stats(residual_data)
+
+    return props
+
+
+def image_stats(image_data, test_normality='normaltest', data_range=None):
+
+    img_stats = dict()
     # Get the max value
     LOGGER.info("Computing max ...")
-    res_props['MAX'] = float("{0:.6}".format(residual_data.max()))
-    LOGGER.info("MAX = {}".format(res_props['MAX']))
+    img_stats['MAX'] = float("{0:.6}".format(image_data.max()))
+    LOGGER.info("MAX = {}".format(img_stats['MAX']))
     # Get the mean value
     LOGGER.info("Computing mean ...")
-    res_props['MEAN'] = float("{0:.6}".format(residual_data.mean()))
-    LOGGER.info("MEAN = {}".format(res_props['MEAN']))
+    img_stats['MEAN'] = float("{0:.6}".format(image_data.mean()))
+    LOGGER.info("MEAN = {}".format(img_stats['MEAN']))
     # Get the rms value
     LOGGER.info("Computing root mean square ...")
-    res_props['RMS'] = float("{0:.6f}".format(np.sqrt(np.mean(np.square(residual_data)))))
-    LOGGER.info("RMS = {}".format(res_props['RMS']))
+    img_stats['RMS'] = float("{0:.6f}".format(np.sqrt(np.mean(np.square(image_data)))))
+    LOGGER.info("RMS = {}".format(img_stats['RMS']))
     # Get the sigma value
     LOGGER.info("Computing standard deviation ...")
-    res_props['STDDev'] = float("{0:.6f}".format(residual_data.std()))
-    LOGGER.info("STDDev = {}".format(res_props['STDDev']))
+    img_stats['STDDev'] = float("{0:.6f}".format(image_data.std()))
+    LOGGER.info("STDDev = {}".format(img_stats['STDDev']))
     # Flatten image
-    res_data = residual_data.flatten()
+    img_data = image_data.flatten()
     # Get the maximum absolute deviation
     LOGGER.info("Computing median absolute deviation ...")
-    res_props['MAD'] = float("{0:.6f}".format(stats.median_abs_deviation(res_data)))
-    LOGGER.info("MAD = {}".format(res_props['MAD']))
+    img_stats['MAD'] = float("{0:.6f}".format(stats.median_abs_deviation(img_data)))
+    LOGGER.info("MAD = {}".format(img_stats['MAD']))
     # Compute the skewness of the residual
     LOGGER.info("Computing skewness ...")
-    res_props['SKEW'] = float("{0:.6f}".format(stats.skew(res_data)))
-    LOGGER.info("SKEW = {}".format(res_props['SKEW']))
+    img_stats['SKEW'] = float("{0:.6f}".format(stats.skew(img_data)))
+    LOGGER.info("SKEW = {}".format(img_stats['SKEW']))
     # Compute the kurtosis of the residual
     LOGGER.info("Computing kurtosis ...")
-    res_props['KURT'] = float("{0:.6f}".format(stats.kurtosis(res_data, fisher=False)))
-    LOGGER.info("KURT = {}".format(res_props['KURT']))
+    img_stats['KURT'] = float("{0:.6f}".format(stats.kurtosis(img_data, fisher=False)))
+    LOGGER.info("KURT = {}".format(img_stats['KURT']))
     # Perform normality testing
     if test_normality:
         LOGGER.info("Performing normality test ...")
-        norm_props = normality_testing(res_data, test_normality, data_range)
-        res_props.update(norm_props)
-        LOGGER.info("NORM = {}".format(res_props['NORM']))
-    props = res_props
+        norm_props = normality_testing(img_data, test_normality, data_range)
+        img_stats.update(norm_props)
+        LOGGER.info("NORM = {}".format(img_stats['NORM']))
     # Return dictionary of results
-    return props
+    return img_stats
 
 
 def normality_testing(data, test_normality='normaltest', data_range=None):
@@ -910,20 +916,22 @@ def get_model(catalog):
     return model
 
 
-def get_detected_sources_properties(model_1, model_2, area_factor,
+def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6.0,
                                     all_sources=False, closest_only=False):
     """Extracts the output simulation sources properties.
 
     Parameters
     ----------
     models_1 : file
-        Tigger formatted or txt model 1 file.
+        Tigger formatted or txt model 1 file
     models_2 : file
-        Tigger formatted or txt model 2 file.
+        Tigger formatted or txt model 2 file
     area_factor : float
-        Area factor to multiply the psf size around source.
+        Area factor to multiply the psf size around source
     all_source: bool
-        Compare all sources in the catalog (else only point-like source)
+        Compare all sources in the catalog (else only sources with maj<shape_limit)
+    shape_limit: float
+        Cross match only sources with maj-axis less than this value
     closest_only: bool
         Returns the closest source only as the matching source
 
@@ -950,13 +958,15 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
     for model1_source in model1_sources:
         I_out = 0.0
         I_out_err = 0.0
-        name = model1_source.name
-        RA = model1_source.pos.ra
-        DEC = model1_source.pos.dec
+        source1_name = model1_source.name
+        ra1 = model1_source.pos.ra
+        dec1 = model1_source.pos.dec
+        ra_err1 = model1_source.pos.ra_err
+        dec_err1 = model1_source.pos.dec_err
         I_in = model1_source.flux.I
         I_in_err = model1_source.flux.I_err
         tolerance = area_factor * (np.pi / (3600.0 * 180))
-        model2_sources = model_lsm2.getSourcesNear(RA, DEC, tolerance)
+        model2_sources = model_lsm2.getSourcesNear(ra1, dec1, tolerance)
         if not model2_sources:
             continue
         # More than one source detected, thus we sum up all the detected sources with
@@ -976,28 +986,30 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
             I_out_err_list.append(target.flux.I_err * target.flux.I_err)
 
         if I_out_list[0] > 0.0:
-            source = model2_sources[0]
+            model2_source = model2_sources[0]
             try:
-                shape_in = model1_source.shape.getShape()
+                shape_in = tuple(map(rad2arcsec, model1_source.shape.getShape()))
+                shape_in_err = tuple(map(rad2arcsec, model1_source.shape.getShapeErr()))
             except AttributeError:
                 shape_in = (0, 0, 0)
-            if source.shape:
-                shape_out = tuple(map(rad2arcsec, source.shape.getShape()))
-                shape_out_err = tuple(map(rad2arcsec, source.shape.getShapeErr()))
+                shape_in_err = (0, 0, 0)
+            if model2_source.shape:
+                shape_out = tuple(map(rad2arcsec, model2_source.shape.getShape()))
+                shape_out_err = tuple(map(rad2arcsec, model2_source.shape.getShapeErr()))
             else:
                 shape_out = (0, 0, 0)
                 shape_out_err = (0, 0, 0)
             if not all_sources:
-                if shape_out[0] > 2.0:
+                if shape_out[0] > shape_limit:
                     continue
 
             if closest_only:
                 I_out = source.flux.I
                 I_out_err = source.flux.I_err
-                ra = source.pos.ra
-                dec = source.pos.dec
-                ra_err = source.pos.ra_err
-                dec_err = source.pos.dec_err
+                ra2 = source.pos.ra
+                dec2 = source.pos.dec
+                ra_err2 = source.pos.ra_err
+                dec_err2 = source.pos.dec_err
             else:
                 # weighting with the flux error appears to be dangerous thing as
                 # these values are very small taking their reciprocal
@@ -1011,9 +1023,9 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                     I_out_var_err = np.sqrt(1.0 / I_out_err)
                     I_out /= I_out_err
                     I_out_err = I_out_var_err
-                    ra = (np.sum([src.pos.ra * src.flux.I for src in model2_sources]) /
+                    ra2 = (np.sum([src.pos.ra * src.flux.I for src in model2_sources]) /
                           np.sum([src.flux.I for src in model2_sources]))
-                    dec = (np.sum([src.pos.dec * src.flux.I for src in model2_sources]) /
+                    dec2 = (np.sum([src.pos.dec * src.flux.I for src in model2_sources]) /
                           np.sum([src.flux.I for src in model2_sources]))
                    # Get position weighted error
                    # _err_a = np.sqrt(np.sum([np.sqrt((src.flux.I_err/src.flux.I)**2 +
@@ -1030,8 +1042,8 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                    # _err_b = np.sqrt(np.sum([src.flux.I_err**2 for src in model2_sources]))
                    # _b = np.sum([src.flux.I for src in model2_sources])
                    # dec_err = np.abs(dec) * (np.sqrt((_err_a / _a)**2 + (_err_b / _b)**2))
-                    ra_err = sorted(model2_sources, key=lambda x: x.flux.I, reverse=True)[0].pos.ra_err
-                    dec_err = sorted(model2_sources, key=lambda x: x.flux.I, reverse=True)[0].pos.dec_err
+                    ra_err2 = sorted(model2_sources, key=lambda x: x.flux.I, reverse=True)[0].pos.ra_err
+                    dec_err2 = sorted(model2_sources, key=lambda x: x.flux.I, reverse=True)[0].pos.dec_err
                 except ZeroDivisionError:
                     if len(model2_sources) > 1:
                         LOGGER.warn('Position ({}, {}): Since more than one source is detected'
@@ -1043,46 +1055,46 @@ def get_detected_sources_properties(model_1, model_2, area_factor,
                         rdist = np.array([_source_angular_dist_pos_angle(model2_source, model1_source)[0]
                                          for model2_source in model2_sources])
                         model2_sources = [model2_sources[np.argmin(rdist)]]
-                    source = model2_sources[0]
-                    I_out = source.flux.I
-                    I_out_err = source.flux.I_err
-                    ra = source.pos.ra
-                    dec = source.pos.dec
-                    ra_err = source.pos.ra_err
-                    dec_err = source.pos.dec_err
+                    model2_source = model2_sources[0]
+                    I_out = model2_source.flux.I
+                    I_out_err = model2_source.flux.I_err
+                    ra2 = model2_source.pos.ra
+                    dec2 = model2_source.pos.dec
+                    ra_err2 = model2_source.pos.ra_err
+                    dec_err2 = model2_source.pos.dec_err
 
             RA0, DEC0 = model_lsm1.ra0, model_lsm1.dec0
-            source_name = source.name
-            targets_flux[name] = [I_out, I_out_err,
-                                  I_in, I_in_err,
-                                  (name, source_name)]
-            if ra > np.pi:
-                ra -= 2.0*np.pi
-            if RA > np.pi:
-                RA -= 2.0*np.pi
+            source2_name = model2_source.name
+            targets_flux[source2_name] = [I_out, I_out_err,
+                                          I_in, I_in_err,
+                                          (source1_name, source2_name)]
+            if ra2 > np.pi:
+                ra2 -= 2.0*np.pi
+            if ra1 > np.pi:
+                ra1 -= 2.0*np.pi
             delta_pos_angle_arc_sec = angular_dist_pos_angle(
-                rad2arcsec(RA), rad2arcsec(DEC),
-                rad2arcsec(ra), rad2arcsec(dec))[0]
+                rad2arcsec(ra1), rad2arcsec(dec1),
+                rad2arcsec(ra2), rad2arcsec(dec2))[0]
             delta_pos_angle_arc_sec = float('{0:.7f}'.format(delta_pos_angle_arc_sec))
             if RA0 or DEC0:
-                delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra, dec)
+                delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra2, dec2)
                 delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
             else:
                 delta_phase_centre_arc_sec = None
-            targets_position[name] = [delta_pos_angle_arc_sec,
-                                      rad2arcsec(ra - RA),
-                                      rad2arcsec(dec - DEC),
+            targets_position[source1_name] = [delta_pos_angle_arc_sec,
+                                      rad2arcsec(ra2 - ra1),
+                                      rad2arcsec(dec2 - dec1),
                                       delta_phase_centre_arc_sec, I_in,
-                                      rad2arcsec(ra_err),
-                                      rad2arcsec(dec_err),
-                                      (round(rad2deg(RA), deci),
-                                       round(rad2deg(DEC), deci)),
-                                      (name, source_name)]
-            src_scale = get_src_scale(source.shape)
-            targets_scale[name] = [shape_out, shape_out_err, shape_in,
-                                   src_scale[0], src_scale[1], I_in,
-                                   source_name]
-            names[name] = source_name
+                                      rad2arcsec(ra_err2),
+                                      rad2arcsec(dec_err2),
+                                      (round(rad2deg(ra1), deci),
+                                       round(rad2deg(dec1), deci)),
+                                      (source1_name, source2_name)]
+            src_scale = get_src_scale(model2_source.shape)
+            targets_scale[source1_name] = [shape_out, shape_out_err, shape_in,
+                                           src_scale[0], src_scale[1], I_in,
+                                           source2_name]
+            names[source1_name] = source2_name
 
 
 
@@ -1238,21 +1250,21 @@ def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
 def get_source_overlay(sources1, sources2):
     """Get source from models compare for overlay"""
     sources = dict()
-    for s in sources1:
-        props = [s.name,
-                 s.flux.I, s.flux.I_err,
-                 s.pos.ra, s.pos.ra_err,
-                 s.pos.dec, s.pos.dec_err,
-                 1]
-        sources[s.name+'-1'] = props
+    for s1 in sources1:
+        props1 = [s1.name,
+                  s1.flux.I, s1.flux.I_err,
+                  s1.pos.ra, s1.pos.ra_err,
+                  s1.pos.dec, s1.pos.dec_err,
+                  1]
+        sources[s1.name+'-1'] = props1
     LOGGER.info("Model 1 source: {}".format(len(sources1)))
-    for s in sources2:
-        props = [s.name,
-                 s.flux.I, s.flux.I_err,
-                 s.pos.ra, s.pos.ra_err,
-                 s.pos.dec, s.pos.dec_err,
-                 2]
-        sources[s.name+'-2'] = props
+    for s2 in sources2:
+        props2 = [s2.name,
+                  s2.flux.I, s2.flux.I_err,
+                  s2.pos.ra, s2.pos.ra_err,
+                  s2.pos.dec, s2.pos.dec_err,
+                  2]
+        sources[s2.name+'-2'] = props2
     LOGGER.info("Model 2 source: {}".format(len(sources2)))
     return sources
 
@@ -1727,16 +1739,20 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                    tools=TOOLS)
             plot_position.title.text_font_size = '16pt'
             # Create an image overlay
-            s1_ra_rad = np.unwrap([src[3] for src in overlays if src[-1] == 1])
-            s1_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s1_ra_rad]
+            s1_ra_rad = [src[3] for src in overlays if src[-1] == 1]
+            s1_ra_deg = [rad2deg(s_ra) for s_ra in s1_ra_rad]
             s1_dec_rad = [src[5] for src in overlays if src[-1] == 1]
             s1_dec_deg = [rad2deg(s_dec) for s_dec in s1_dec_rad]
+            s1_ra_err = [src[4] for src in overlays if src[-1] == 1]
+            s1_dec_err = [src[6] for src in overlays if src[-1] == 1] 
             s1_labels = [src[0] for src in overlays if src[-1] == 1]
             s1_flux = [src[1] for src in overlays if src[-1] == 1]
-            s2_ra_rad = np.unwrap([src[3] for src in overlays if src[-1] == 2])
-            s2_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s2_ra_rad]
+            s2_ra_rad = [src[3] for src in overlays if src[-1] == 2]
+            s2_ra_deg = [rad2deg(s_ra) for s_ra in s2_ra_rad]
             s2_dec_rad = [src[5] for src in overlays if src[-1] == 2]
             s2_dec_deg = [rad2deg(s_dec) for s_dec in s2_dec_rad]
+            s2_ra_err = [src[4] for src in overlays if src[-1] == 2]
+            s2_dec_err = [src[6] for src in overlays if src[-1] == 2]
             s2_labels = [src[0] for src in overlays if src[-1] == 2]
             s2_flux = [src[1] for src in overlays if src[-1] == 2]
             overlay_source = ColumnDataSource(
@@ -1746,10 +1762,10 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                   str_dec1=[deg2dec(_s1_decdeg) for _s1_decdeg in s1_dec_deg],
                                   str_ra2=[deg2ra(_s2_radeg) for _s2_radeg in s2_ra_deg],
                                   str_dec2=[deg2dec(_s2_decdeg) for _s2_decdeg in s2_dec_deg],
-                                  ra_offset=x_ra,
-                                  dec_offset=y_dec,
-                                  ra_err=x_ra_err, 
-                                  dec_err=y_dec_err,
+                                  ra_err1=s1_ra_err, 
+                                  dec_err1=s1_dec_err,
+                                  ra_err2=s2_ra_err, 
+                                  dec_err2=s2_dec_err,
                                   label1=s1_labels,
                                   label2=s2_labels,
                                   flux1=s1_flux,
@@ -1762,24 +1778,24 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                   match_aspect=True,
                                   tools=("crosshair,pan,wheel_zoom,"
                                          "box_zoom,reset,save"))
-            plot_overlay_1 = plot_overlay.circle('ra1', 'dec1',
-                                                 name='model1',
-                                                 legend_label=model_1_name,
-                                                 source=overlay_source,
-                                                 line_color=None,
-                                                 color='blue')
-            plot_overlay_2 = plot_overlay.circle('ra2', 'dec2',
-                                                 name='model2',
-                                                 legend_label=model_2_name,
-                                                 source=overlay_source,
-                                                 line_color=None,
-                                                 color='red')
             plot_overlay.ellipse('ra1', 'dec1',
                                  source=overlay_source,
                                  width=tolerance/3600.0,
                                  height=tolerance/3600.0,
                                  line_color=None,
                                  color='#CAB2D6')
+            plot_overlay_1 = plot_overlay.circle('ra1', 'dec1',
+                                                 name='model1',
+                                                 legend_label=model_1_name,
+                                                 source=overlay_source,
+                                                 #line_color=None,
+                                                 color='blue')
+            plot_overlay_2 = plot_overlay.circle('ra2', 'dec2',
+                                                 name='model2',
+                                                 legend_label=model_2_name,
+                                                 source=overlay_source,
+                                                 #line_color=None,
+                                                 color='red')
             plot_position.title.text_font_size = '16pt'
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
@@ -1861,7 +1877,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                  "(@flux_s1, @flux_s2)"),
                 ("(RA,DEC)", "(@ra_dec)"),
                 ("(RA_err,DEC_err)",
-                 "(@ra_err, @dec_err)"),
+                 "(@ra_err1, @dec_err1)"),
                 ("(RA_offset,DEC_offset)",
                  "(@ra_offset, @dec_offset)"),
                 ("Distance off-axis",
@@ -1869,23 +1885,19 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             plot_overlay.add_tools(
                 HoverTool(renderers=[plot_overlay_1],
                           tooltips=OrderedDict([
-                              ("source", "@label1"),
+                              ("source1", "@label1"),
                               ("Flux (mJy)", "@flux1"),
                               ("(RA,DEC)", "(@str_ra1, @str_dec1)"),
                               ("(RA_err,DEC_err)",
-                               "(@ra_err, @dec_err)"),
-                              ("(RA_offset,DEC_offset)",
-                               "(@ra_offset, @dec_offset)")])))
+                               "(@ra_err1, @dec_err1)")])))
             plot_overlay.add_tools(
                 HoverTool(renderers=[plot_overlay_2],
                           tooltips=OrderedDict([
-                              ("source", "@label2"),
+                              ("source2", "@label2"),
                               ("Flux (mJy)", "@flux2"),
                               ("(RA,DEC)", "(@str_ra2, @str_dec2)"),
                               ("(RA_err,DEC_err)",
-                               "(@ra_err, @dec_err)"),
-                              ("(RA_offset,DEC_offset)",
-                               "(@ra_offset, @dec_offset)")])))
+                               "(@ra_err2, @dec_err2)")])))
             # Legend position and title align
             plot_position.legend.location = "top_left"
             plot_position.legend.click_policy = "hide"
@@ -2349,6 +2361,87 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
                     row(norm_plotter, dr_plotter)), title=outfile)
 
 
+def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default', units='micro'):
+    """Plot subimages and stats"""
+    subplot_list = []
+    plot_height = 250
+    plot_width = 400
+    for im in range(len(centre_coords)):
+        im_subplot_list = []
+        LOGGER.info(f"Making Subimage with centre pixels ({centre_coords[im]})")
+        centre_coord = centre_coords[im]
+        size = sizes[im]
+        for fitsname in fitsnames:
+            subimage_data = get_subimage(fitsname, centre_coord, size)
+            subimg_stats = image_stats(subimage_data)
+
+            cols = ["Stats", "Value"]
+            stats = {"Stats": ["RMS",
+                               "STDDev",
+                               "MAD",
+                               "MAX",
+                               "SKEW",
+                               "KURT",
+                               "NORM"],
+                     "Value": [subimg_stats['RMS'],
+                               subimg_stats['STDDev'],
+                               subimg_stats['MAD'],
+                               subimg_stats['MAX'],
+                               subimg_stats['SKEW'],
+                               subimg_stats['KURT'],
+                               subimg_stats['NORM']]}
+
+            source = ColumnDataSource(data=stats)
+            columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
+            dtab = DataTable(source=source, columns=columns,
+                             width=250, max_width=300,
+                             height=150, max_height=200,
+                             sizing_mode='stretch_both')
+            table_title = Div(text="Sub-image Statistics")
+            table_title.align = "center"
+            stats_table = column([table_title, dtab])
+
+            plot_title = f"{fitsname.split('/')[-1].split('.')[0]} sub-image: {im+1}"
+            if len(im_subplot_list) > 0:
+                s1 = im_subplot_list[0]
+                subplot = figure(title=plot_title,
+                                 width=plot_width, height=plot_height,
+                                 x_range=s1.x_range, y_range=s1.y_range,
+                                 tooltips=[("(x, y)", "($x, $y)"),
+                                           (f"value ({FLUX_UNIT_SCALER[units][1]})",
+                                           "@image")])
+            else:
+                subplot = figure(title=plot_title,
+                                 width=plot_width, height=plot_height,
+                                 tooltips=[("(x, y)", "($x, $y)"),
+                                           (f"value ({FLUX_UNIT_SCALER[units][1]})",
+                                           "@image")])
+            # must give a vector of images
+            subimage = subimage_data[0,0,:,:]
+            subplot.image(image=[subimage * FLUX_UNIT_SCALER[units][0]],
+                          x=0, y=0, dw=size, dh=size,
+                          palette="Plasma11", level="image")
+            color_mapper = LinearColorMapper(palette="Plasma11",
+                                             low=subimage.min() * FLUX_UNIT_SCALER[units][0],
+                                             high=subimage.max() * FLUX_UNIT_SCALER[units][0])
+            color_bar = ColorBar(color_mapper=color_mapper, width=8, label_standoff=4,
+                                 location=(0, 0), orientation='vertical')
+            color_bar_plot = figure(title=f"Flux Density ({FLUX_UNIT_SCALER[units][1]})",
+                                    title_location="right", 
+                                    height=plot_height, width=8, 
+                                    toolbar_location=None, min_border=0, 
+                                    outline_line_color=None)
+            color_bar_plot.add_layout(color_bar, 'right')
+            color_bar_plot.title.align="center"
+            color_bar_plot.title.text_font_size = '10pt'
+            #subplot.add_layout(color_bar, 'right')
+            im_subplot_list.append(subplot)
+            im_subplot_list.append(stats_table)
+        subplot_list.append(column(row(im_subplot_list)))
+    output_file(f"{htmlprefix}_subimage_stats.html", title="subimage plots and stats")
+    save(column(subplot_list))
+
+
 def get_sf_params(configfile):
     import yaml
     with open(r'{}'.format(configfile)) as file:
@@ -2437,6 +2530,10 @@ def get_argparser():
     argument('--compare-residuals', dest='noise', nargs=2, action='append',
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals residual1.fits residual2.fits')
+    argument('--compare-residual-subimages', dest='subimage_noise',
+             nargs='+', action='append',
+             help='List of noise-like (fits) files to compare \n'
+                  'e.g. --compare-residuals residual1.fits residual2.fits')
     argument('-sf', '--source-finder', dest='sourcery',
              choices=('aegean', 'pybdsf'), default='pybdsf',
              help='Source finder to run if comparing restored images')
@@ -2463,7 +2560,12 @@ def get_argparser():
              help='Online catalog to compare local image/model.')
     argument('-ptc', '--centre_coord', dest='centre_coord',
              default="0:0:0, -30:0:0",
-             help='Centre of online catalog to compare local image/model in "RA hh:mm:ss, Dec deg:min:sec".')
+             help='Centre of online catalog to compare local image/model \n'
+                  'in "RA hh:mm:ss, Dec deg:min:sec".')
+    argument('-cps', '--centre-pixels-size', dest='centre_pix_size',
+             nargs='+', action='append',
+             help='List of subimage centre pixels and their sizes to compute stats. \n'
+                  'e.g. 500,500,20 200,10,5')
     argument('-fdr', '--fidelity-results', dest='json',
              help='aimfast fidelity results file (JSON format)')
     argument("--outfile",
@@ -2488,7 +2590,7 @@ def main():
        plot_aimfast_stats(args.json, prefix=args.htmlprefix)
     elif not args.residual and not args.restored and not args.model \
             and not args.models and not args.noise and not args.images \
-            and not args.online and not args.json:
+            and not args.subimage_noise and not args.online and not args.json:
         LOGGER.warn(f"{R}No arguments file(s) provided.{W}")
         LOGGER.warn(f"{R}Or 'aimfast -h' for arguments.{W}")
 
@@ -2677,8 +2779,10 @@ def main():
             centre_coord =  deg2ra(centre_ra_deg) + ',' + deg2dec(centre_dec_deg)
             centre_coord = centre_coord.split(',')
         else:
-            print('Please supply central coordinates using -ptc see help')
-            centre_coord = args.centre_coord.split(',')
+            if args.centre_coord:
+                centre_coord = args.centre_coord.split(',')
+            else:
+                LOGGER.error('Please supply central coordinates using -ptc. See --help')
 
         get_online_catalog(catalog=online_catalog.upper(), centre_coord=centre_coord,
                            width='1.0d', thresh=1.0,
@@ -2705,6 +2809,23 @@ def main():
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix,
                                      flux_plot=args.fluxplot)
+
+    if args.subimage_noise:
+        centre_coords = []
+        sizes = []
+        if args.centre_pix_size:
+            for cps in args.centre_pix_size[0]:
+                centre_pix = (int(cps.split(',')[0]), int(cps.split(',')[1]))
+                centre_coords.append(centre_pix)
+                sizes.append(int(cps.split(',')[-1]))
+
+            plot_subimage_stats(args.subimage_noise[0], centre_coords, sizes,
+                                htmlprefix=(args.htmlprefix
+                                if args.htmlprefix else 'default'))
+        else:
+            LOGGER.error(f"{R}Provide Centre coordinates in pixels "
+                         f"and size of subimage(s).{W}")
+
 
     if output_dict:
         if args.outfile:

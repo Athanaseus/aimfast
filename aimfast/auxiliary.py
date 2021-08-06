@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 
+import numpy
 import numpy as np
 
 from astropy.io import ascii
@@ -9,6 +10,7 @@ from astropy import units as u
 from astropy.table import Table
 from astroquery.vizier import Vizier
 from astropy.io import fits as pyfits
+from astropy.io import fits as fitsio
 from astropy import coordinates as coord
 from astropy.coordinates import SkyCoord
 
@@ -159,18 +161,20 @@ def dec2deg(dec_dms):
     return d_m_s
 
 
-
 def deg2dec(dec_deg, deci=2):
     """Converts declination in degrees to dms coordinates
 
     Parameters
     ----------
     dec_deg : float
-    dec in float format
+      Declination in degrees
+    dec: int
+      Decimal places in float format
 
     Returns
     -------
     dms : str
+      Declination in degrees:arcmin:arcsec format
     """
     DD          = int(dec_deg)
     dec_deg_abs = np.abs(dec_deg)
@@ -184,6 +188,66 @@ def unwrap(angle):
     if angle > 180:
         angle -= 360
     return angle
+
+
+def compute_in_out_slice(N, N0, R, R0):
+    """Given an input axis of size N, and an output axis of size N0,
+    and reference pixels of R and R0 respectively, computes two slice
+    objects such that A0[slice_out] = A1[slice_in]
+    would do the correct assignment (with I mapping to I0,
+    and the overlapping regions transferred)
+    """
+    i, j = 0, N     # input slice
+    i0 = R0 - R
+    j0 = i0 + N     # output slice
+    if i0 < 0:
+        i = -i0
+        i0 = 0
+    if j0 > N0:
+        j = N - (j0 - N0)
+        j0 = N0
+    if i >= j or i0 >= j0:
+        return None, None
+    return slice(i0, j0), slice(i, j)
+
+
+def get_subimage(fitsname, centre_coord, size, padding=1):
+    """Get a subimage given coordinates and size for area to extract
+
+    Parameters
+    ----------
+    fitsname: str
+      Fits file name to extract subimage
+    centre_coord: list
+      List of centre coordinates pixels to be extracted
+    padding: float
+      Amount of subimage padding
+    size: int
+      Size of output subimage in pixels (sizexsize)
+
+
+    Returns
+    -------
+    subimage: header.data
+      Header data unit for the subimage
+    """
+    # open image and obtain number of pixels
+    image = fitsio.open(fitsname)
+    data = image[0].data
+    nx = data.shape[-1]
+    ny = data.shape[-2]
+    # make output array of shape size x size
+    subdata_shape = list(data.shape)
+    subdata_shape[-1] = subdata_shape[-2] = size
+    subdata = numpy.zeros(subdata_shape, dtype=data.dtype)
+    # make input/output slices
+    rx, ry = centre_coord
+    rx0 = ry0 = size//2
+    xout, xin = compute_in_out_slice(nx, size, rx, rx0)
+    yout, yin = compute_in_out_slice(ny, size, ry, ry0)
+    subdata[..., yout, xout] = data[..., yin, xin]
+
+    return subdata
 
 
 def get_online_catalog(catalog='NVSS', width='1d', thresh=1.0,
