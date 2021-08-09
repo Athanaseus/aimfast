@@ -436,6 +436,10 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
 def image_stats(image_data, test_normality='normaltest', data_range=None):
 
     img_stats = dict()
+    # Get the min value
+    LOGGER.info("Computing min ...")
+    img_stats['MIN'] = float("{0:.6}".format(image_data.min()))
+    LOGGER.info("MIN = {}".format(img_stats['MIN']))
     # Get the max value
     LOGGER.info("Computing max ...")
     img_stats['MAX'] = float("{0:.6}".format(image_data.max()))
@@ -1004,12 +1008,12 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
                     continue
 
             if closest_only:
-                I_out = source.flux.I
-                I_out_err = source.flux.I_err
-                ra2 = source.pos.ra
-                dec2 = source.pos.dec
-                ra_err2 = source.pos.ra_err
-                dec_err2 = source.pos.dec_err
+                I_out = model2_source.flux.I
+                I_out_err = model2_source.flux.I_err
+                ra2 = model2_source.pos.ra
+                dec2 = model2_source.pos.dec
+                ra_err2 = model2_source.pos.ra_err
+                dec_err2 = model2_source.pos.dec_err
             else:
                 # weighting with the flux error appears to be dangerous thing as
                 # these values are very small taking their reciprocal
@@ -1257,6 +1261,9 @@ def get_source_overlay(sources1, sources2):
                   s1.pos.dec, s1.pos.dec_err,
                   1]
         sources[s1.name+'-1'] = props1
+        if rad2deg(s1.pos.ra) < 355:
+            print(s1.name)
+            print(rad2deg(s1.pos.ra))
     LOGGER.info("Model 1 source: {}".format(len(sources1)))
     for s2 in sources2:
         props2 = [s2.name,
@@ -1447,8 +1454,9 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
-                        data=dict(flux_in=x1, flux_out=y1,
-                                  flux_in_err=xerr1, flux_out_err=yerr1,
+                        data=dict(flux_1=x, flux_2=y,
+                                  plot_flux_1=x1, plot_flux_2=y1,
+                                  flux_1_err=xerr1, flux_2_err=yerr1,
                                   phase_centre_dist=z,
                                   ra_dec=position_ra_dec,
                                   label=name_labels))
@@ -1541,7 +1549,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                        line_dash="dashed",
                                        color="gray")
             # Create a plot object for the data points
-            data = plot_flux.circle('flux_in', 'flux_out',
+            data = plot_flux.circle('plot_flux_1', 'plot_flux_2',
                                     name='data',
                                     legend_label="Data",
                                     source=source,
@@ -1612,8 +1620,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             hover.names = ['data']
             hover.tooltips = OrderedDict([
                 ("source", "(@label)"),
-                ("(S1,S2)", "(@flux_in, @flux_out)"),
-                ("(S_err1, S_err2)"," (@flux_in_err, @flux_out_err)"),
+                ("(S1,S2)", "(@flux_1, @flux_2)"),
+                ("(S_err1, S_err2)"," (@flux_1_err, @flux_2_err)"),
                 ("(RA,DEC)", "@ra_dec"),
                 ("Distance off-axis", "@phase_centre_dist")])
             # Legend position and title align
@@ -2361,10 +2369,11 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
                     row(norm_plotter, dr_plotter)), title=outfile)
 
 
-def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default', units='micro'):
+def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
+                        units='micro'):
     """Plot subimages and stats"""
     subplot_list = []
-    plot_height = 250
+    plot_height = 300
     plot_width = 400
     for im in range(len(centre_coords)):
         im_subplot_list = []
@@ -2375,27 +2384,29 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default', u
             subimage_data = get_subimage(fitsname, centre_coord, size)
             subimg_stats = image_stats(subimage_data)
 
-            cols = ["Stats", "Value"]
-            stats = {"Stats": ["RMS",
-                               "STDDev",
-                               "MAD",
-                               "MAX",
-                               "SKEW",
-                               "KURT",
-                               "NORM"],
-                     "Value": [subimg_stats['RMS'],
-                               subimg_stats['STDDev'],
-                               subimg_stats['MAD'],
-                               subimg_stats['MAX'],
-                               subimg_stats['SKEW'],
-                               subimg_stats['KURT'],
-                               subimg_stats['NORM']]}
+            cols = ["Stats", f"Value ({FLUX_UNIT_SCALER[units][1]})"]
+            stats = {"Stats": ["RMS", "STDDev", "MAD", "MIN",
+                               "MAX", "*SKEW", "*KURT", "*NORM"],
+                     f"Value ({FLUX_UNIT_SCALER[units][1]})":
+                       [round(subimg_stats['RMS'] * FLUX_UNIT_SCALER[units][0],
+                              DECIMALS),
+                        round(subimg_stats['STDDev'] * FLUX_UNIT_SCALER[units][0],
+                              DECIMALS),
+                        round(subimg_stats['MAD'] * FLUX_UNIT_SCALER[units][0],
+                              DECIMALS),
+                        round(subimg_stats['MIN'] * FLUX_UNIT_SCALER[units][0],
+                              DECIMALS),
+                        round(subimg_stats['MAX'] * FLUX_UNIT_SCALER[units][0],
+                              DECIMALS),
+                        round(subimg_stats['SKEW'], DECIMALS),
+                        round(subimg_stats['KURT'], DECIMALS),
+                        round(subimg_stats['NORM'][0], DECIMALS)]}
 
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
-                             width=250, max_width=300,
-                             height=150, max_height=200,
+                             width=250, max_width=350,
+                             height=200, max_height=250,
                              sizing_mode='stretch_both')
             table_title = Div(text="Sub-image Statistics")
             table_title.align = "center"
