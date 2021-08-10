@@ -433,7 +433,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     return props
 
 
-def image_stats(image_data, test_normality='normaltest', data_range=None):
+def image_stats(image_data, test_normality=None, data_range=None):
 
     img_stats = dict()
     # Get the min value
@@ -2379,7 +2379,7 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
         size = sizes[im]
         for fitsname in fitsnames:
             subimage_data = get_subimage(fitsname, centre_coord, size)
-            subimg_stats = image_stats(subimage_data)
+            subimg_stats = image_stats(subimage_data, test_normality='normaltest')
 
             cols = ["Stats", f"Value ({FLUX_UNIT_SCALER[units][1]})"]
             stats = {"Stats": ["RMS", "STDDev", "MAD", "MIN",
