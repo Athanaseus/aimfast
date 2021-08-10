@@ -119,6 +119,7 @@ class TestClass(object):
                           'KURT': 2.870047,
                           'RMS': 3.1e-05,
                           'MAD': 2.2e-05,
+                          'MIN': -8.35573e-05
                           'MAX': 9.98428e-05,
                           'STDDev': 3.1e-05,
                           'MEAN': 1.21497e-06}
