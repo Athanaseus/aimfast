@@ -1055,7 +1055,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
                                     'only the closest to the matched position will be considered.'
                                     'NB: This is because model2 does not have photometric errors.'
                                     'otherwise a weighted average source would be returned'.format(
-                                           rad2deg(RA), rad2deg(DEC)))
+                                           rad2deg(ra1), rad2deg(dec1)))
                         rdist = np.array([_source_angular_dist_pos_angle(model2_source, model1_source)[0]
                                          for model2_source in model2_sources])
                         model2_sources = [model2_sources[np.argmin(rdist)]]
