@@ -1261,7 +1261,6 @@ def get_source_overlay(sources1, sources2):
                   s1.pos.dec, s1.pos.dec_err,
                   1]
         sources[s1.name+'-1'] = props1
-        if rad2deg(s1.pos.ra) < 355:
     LOGGER.info("Model 1 source: {}".format(len(sources1)))
     for s2 in sources2:
         props2 = [s2.name,
