@@ -968,7 +968,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
         ra_err1 = model1_source.pos.ra_err
         dec_err1 = model1_source.pos.dec_err
         I_in = model1_source.flux.I
-        I_in_err = model1_source.flux.I_err
+        I_in_err = model1_source.flux.I_err if model1_source.flux.I_err else 0.0
         tolerance = area_factor * (np.pi / (3600.0 * 180))
         model2_sources = model_lsm2.getSourcesNear(ra1, dec1, tolerance)
         if not model2_sources:
@@ -1581,9 +1581,11 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                       "Flux [%s]"%_fu: [s[1] for s in no_match1],
                       "Flux_err [%s]"%_fu: [s[2] for s in no_match1],
                       "RA": [deg2ra(s[3], deci) for s in no_match1],
-                      "RA_err ['']": [round(deg2arcsec(s[4]), deci) for s in no_match1],
+                      "RA_err ['']": [round(deg2arcsec(s[4] if s[4] else 0),
+                                      deci) for s in no_match1],
                       "DEC": [deg2dec(s[5], deci) for s in no_match1],
-                      "DEC_err ['']": [round(deg2arcsec(s[6]), deci) for s in no_match1]}
+                      "DEC_err ['']": [round(deg2arcsec(s[6] if s[6] else 0),
+                                       deci) for s in no_match1]}
             source1 = ColumnDataSource(data=stats1)
             columns1 = [TableColumn(field=x, title=x.capitalize()) for x in cols1]
             dtab1 = DataTable(source=source1, columns=columns1,
@@ -1600,9 +1602,11 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                       "Flux [%s]"%_fu: [s[1] for s in no_match2],
                       "Flux_err [%s]"%_fu: [s[2] for s in no_match2],
                       "RA": [deg2ra(s[3], deci) for s in no_match2],
-                      "RA_err ['']": [round(deg2arcsec(s[4]), deci) for s in no_match2],
+                      "RA_err ['']": [round(deg2arcsec(s[4] if s[4] else 0),
+                                      deci) for s in no_match2],
                       "DEC": [deg2dec(s[5], deci) for s in no_match2],
-                      "DEC_err ['']": [round(deg2arcsec(s[6]), deci) for s in no_match2]}
+                      "DEC_err ['']": [round(deg2arcsec(s[6]),
+                                       deci) for s in no_match2]}
             source2 = ColumnDataSource(data=stats2)
             columns2 = [TableColumn(field=x, title=x.capitalize()) for x in cols2]
             dtab2 = DataTable(source=source2, columns=columns2,
