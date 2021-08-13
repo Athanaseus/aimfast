@@ -2157,7 +2157,7 @@ def _random_residual_results(res_noise_images, data_points=None,
             # Store all outputs in the results data structure
             results[res_label1].append([res1_rms*1e0,
                                        res2_rms*1e0,
-                                       res2_rms/res1_rms*1e0,
+                                       res1_rms/res2_rms*1e0,
                                        phase_centre_dist,
                                        'source{0}'.format(i)])
     return results
@@ -2277,7 +2277,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
             # Store all outputs in the results data structure
             results[res_label1].append([res1_rms * 1e0,
                                        res2_rms * 1e0,
-                                       res2_rms / res1_rms * 1e0,
+                                       res1_rms / res2_rms * 1e0,
                                        phase_centre_dist,
                                        model_source.name,
                                        model_source.flux.I])
