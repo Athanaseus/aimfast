@@ -1760,21 +1760,18 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             s2_dec_err = [src[6] for src in overlays if src[-1] == 2]
             s2_labels = [src[0] for src in overlays if src[-1] == 2]
             s2_flux = [src[1] for src in overlays if src[-1] == 2]
-            overlay_source = ColumnDataSource(
+            overlay_source1 = ColumnDataSource(
                         data=dict(ra1=s1_ra_deg, dec1=s1_dec_deg,
-                                  ra2=s2_ra_deg, dec2=s2_dec_deg,
                                   str_ra1=[deg2ra(_s1_radeg) for _s1_radeg in s1_ra_deg],
                                   str_dec1=[deg2dec(_s1_decdeg) for _s1_decdeg in s1_dec_deg],
+                                  ra_err1=s1_ra_err, dec_err1=s1_dec_err,
+                                  label1=s1_labels, flux1=s1_flux))
+            overlay_source2 = ColumnDataSource(
+                        data=dict(ra2=s2_ra_deg, dec2=s2_dec_deg,
                                   str_ra2=[deg2ra(_s2_radeg) for _s2_radeg in s2_ra_deg],
                                   str_dec2=[deg2dec(_s2_decdeg) for _s2_decdeg in s2_dec_deg],
-                                  ra_err1=s1_ra_err, 
-                                  dec_err1=s1_dec_err,
-                                  ra_err2=s2_ra_err, 
-                                  dec_err2=s2_dec_err,
-                                  label1=s1_labels,
-                                  label2=s2_labels,
-                                  flux1=s1_flux,
-                                  flux2=s2_flux))
+                                  ra_err2=s2_ra_err, dec_err2=s2_dec_err,
+                                  label2=s2_labels, flux2=s2_flux))
             plot_overlay = figure(title="Catalogs Overlay",
                                   x_axis_label='RA ({:s})'.format(
                                       POSITION_UNIT_SCALER['deg'][1]),
@@ -1784,7 +1781,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                   tools=("crosshair,pan,wheel_zoom,"
                                          "box_zoom,reset,save"))
             plot_overlay.ellipse('ra1', 'dec1',
-                                 source=overlay_source,
+                                 source=overlay_source1,
                                  width=tolerance/3600.0,
                                  height=tolerance/3600.0,
                                  line_color=None,
@@ -1792,13 +1789,13 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             plot_overlay_1 = plot_overlay.circle('ra1', 'dec1',
                                                  name='model1',
                                                  legend_label=model_1_name,
-                                                 source=overlay_source,
+                                                 source=overlay_source1,
                                                  #line_color=None,
                                                  color='blue')
             plot_overlay_2 = plot_overlay.circle('ra2', 'dec2',
                                                  name='model2',
                                                  legend_label=model_2_name,
-                                                 source=overlay_source,
+                                                 source=overlay_source2,
                                                  #line_color=None,
                                                  color='red')
             plot_position.title.text_font_size = '16pt'
