@@ -428,7 +428,7 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
         data = residual_data
     residual_data = data
 
-    props = image_stats(residual_data)
+    props = image_stats(residual_data, test_normality=test_normality)
 
     return props
 
