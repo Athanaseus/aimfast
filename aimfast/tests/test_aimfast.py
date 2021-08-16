@@ -112,7 +112,7 @@ class TestClass(object):
                           'MAD': 2.2e-05,
                           'MIN': -8.35573e-05,
                           'MAX': 9.98428e-05,
-                          'SUM_NEG': -0.01914,
+                          'SUM_NEG': -0.010724,
                           'STDDev': 3.2e-05,
                           'MEAN': -9.18495e-07}
         test(expected_value, output_value)
