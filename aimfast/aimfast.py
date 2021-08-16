@@ -380,13 +380,14 @@ def residual_image_stats(fitsname, test_normality=None, data_range=None,
     props : dict
         Dictionary of stats properties.
         e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'RMS': 0.1,
-              'SKEW': 0.2, 'KURT': 0.3, 'MAD': 0.4, 'MAX': 0.7}
+              'SKEW': 0.2, 'KURT': 0.3, 'MAD': 0.4,
+              'MAX': 0.7, 'SUM_NEG': -0.1}
 
     Notes
     -----
     If normality_test=True, dictionary of stats props becomes \
     e.g. {'MEAN': 0.0, 'STDDev': 0.1, 'SKEW': 0.2, 'KURT': 0.3, \
-          'MAD': 0.4, 'RMS': 0.5, 'SLIDING_STDDev': 0.6, 'MAX': 0.7, \
+          'MAD': 0.4, 'RMS': 0.5, 'SUM_NEG': -0.1, 'MAX': 0.7, \
           'NORM': (123.3,0.012)} \
     whereby the first element is the statistics (or average if data_range specified) \
     of the datasets and second element is the p-value.
@@ -470,6 +471,10 @@ def image_stats(image_data, test_normality=None, data_range=None):
     LOGGER.info("Computing kurtosis ...")
     img_stats['KURT'] = float("{0:.6f}".format(stats.kurtosis(img_data, fisher=False)))
     LOGGER.info("KURT = {}".format(img_stats['KURT']))
+    # Compute the sum of Negative pixels
+    LOGGER.info("Computing sum of negative pixels ...")
+    img_stats['SUM_NEG'] = float("{0:.6f}".format(np.sum(img_data[np.where(img_data<0.0)])))
+    LOGGER.info("SUM_NEG = {}".format(img_stats['SUM_NEG']))
     # Perform normality testing
     if test_normality:
         LOGGER.info("Performing normality test ...")
@@ -2384,7 +2389,8 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
 
             cols = ["Stats", f"Value ({FLUX_UNIT_SCALER[units][1]})"]
             stats = {"Stats": ["RMS", "STDDev", "MAD", "MIN",
-                               "MAX", "*SKEW", "*KURT", "*NORM"],
+                               "MAX", "*SKEW", "*KURT", "*NORM",
+                               "SUM_NEG"],
                      f"Value ({FLUX_UNIT_SCALER[units][1]})":
                        [round(subimg_stats['RMS'] * FLUX_UNIT_SCALER[units][0],
                               DECIMALS),
@@ -2398,7 +2404,8 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
                               DECIMALS),
                         round(subimg_stats['SKEW'], DECIMALS),
                         round(subimg_stats['KURT'], DECIMALS),
-                        round(subimg_stats['NORM'][0], DECIMALS)]}
+                        round(subimg_stats['NORM'][0], DECIMALS),
+                        round(subimg_stats['SUM_NEG'], DECIMALS)]}
 
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
