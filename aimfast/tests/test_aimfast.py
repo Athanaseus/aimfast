@@ -80,7 +80,9 @@ class TestClass(object):
                           'KURT': 2.870047,
                           'RMS': 3.1e-05,
                           'MAD': 2.2e-05,
+                          'MIN': -8.35573e-05,
                           'MAX': 9.98428e-05,
+                          'SUM_NEG': -0.01914,
                           'STDDev': 3.1e-05,
                           'MEAN': 1.21497e-06}
         test(expected_value, output_value, normality=True)
@@ -93,7 +95,9 @@ class TestClass(object):
                           'KURT': 2.870047,
                           'RMS': 2.6e-05,
                           'MAD': 2.2e-05,
+                          'MIN': -8.35573e-05,
                           'MAX': 3.98551e-05,
+                          'SUM_NEG': -0.01914,
                           'STDDev': 2.5e-05,
                           'MEAN': -5.57698e-06}
         test(expected_value, output_value)
@@ -106,7 +110,9 @@ class TestClass(object):
                           'KURT': 2.891433,
                           'RMS': 3.2e-05,
                           'MAD': 2.2e-05,
+                          'MIN': -8.35573e-05,
                           'MAX': 9.98428e-05,
+                          'SUM_NEG': -0.010724,
                           'STDDev': 3.2e-05,
                           'MEAN': -9.18495e-07}
         test(expected_value, output_value)
@@ -119,22 +125,24 @@ class TestClass(object):
                           'KURT': 2.870047,
                           'RMS': 3.1e-05,
                           'MAD': 2.2e-05,
+                          'MIN': -8.35573e-05,
                           'MAX': 9.98428e-05,
+                          'SUM_NEG': -0.01914,
                           'STDDev': 3.1e-05,
                           'MEAN': 1.21497e-06}
         test(expected_value, output_value)
 
     def test_get_detected_sources_properties(self):
         """Test get detected sources properties"""
-        expected_label = 'None-model_a_1'
+        expected_label = 'None-model_a_0'
         label = None
         input_dir = 'aimfast/tests/files'
         model1 = 'catalog1.txt'
         model2 = 'catalog1.lsm.html'
         model1_path = '{:s}/{:s}'.format(input_dir, model1)
         model2_path = '{:s}/{:s}'.format(input_dir, model2)
-        models = [[dict(label="{}-model_a_1".format(label), path=model1_path),
-                   dict(label="{}-model_b_1".format(label), path=model2_path)]]
+        models = [[dict(label="{}-model_a_0".format(label), path=model1_path),
+                   dict(label="{}-model_b_0".format(label), path=model2_path)]]
         expected = aimfast.get_aimfast_data('fidelity_results.json', input_dir)
         output = aimfast.compare_models(models, tolerance=0.2, plot=False,
                                         all_sources=True)
