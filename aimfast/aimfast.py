@@ -1758,7 +1758,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             s1_dec_rad = [src[5] for src in overlays if src[-1] == 1]
             s1_dec_deg = [rad2deg(s_dec) for s_dec in s1_dec_rad]
             s1_ra_err = [src[4] for src in overlays if src[-1] == 1]
-            s1_dec_err = [src[6] for src in overlays if src[-1] == 1] 
+            s1_dec_err = [src[6] for src in overlays if src[-1] == 1]
             s1_labels = [src[0] for src in overlays if src[-1] == 1]
             s1_flux = [src[1] for src in overlays if src[-1] == 1]
             s2_ra_rad = [src[3] for src in overlays if src[-1] == 2]
@@ -2443,9 +2443,9 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
             color_bar = ColorBar(color_mapper=color_mapper, width=8, label_standoff=4,
                                  location=(0, 0), orientation='vertical')
             color_bar_plot = figure(title=f"Flux Density ({FLUX_UNIT_SCALER[units][1]})",
-                                    title_location="right", 
-                                    height=plot_height, width=8, 
-                                    toolbar_location=None, min_border=0, 
+                                    title_location="right",
+                                    height=plot_height, width=8,
+                                    toolbar_location=None, min_border=0,
                                     outline_line_color=None)
             color_bar_plot.add_layout(color_bar, 'right')
             color_bar_plot.title.align="center"
@@ -2524,7 +2524,7 @@ def get_argparser():
     argument('-af', '--area-factor', dest='factor', type=float, default=2,
              help='Factor to multiply the beam area to get target peak area')
     argument('-fov', '--fov-factor', dest='fov_factor', type=float, default=0.9,
-             help='Factor to multiply the field of view for rando points. i.e. 0.0-1.0')
+             help='Factor to multiply the field of view for random points. i.e. 0.0-1.0')
     argument('-tol', '--tolerance', dest='tolerance', type=float, default=0.2,
              help='Tolerance to cross-match sources in arcsec')
     argument('-as', '--all-source', dest='all', default=False, action='store_true',
