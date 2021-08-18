@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import Tigger
 import random
@@ -355,6 +356,41 @@ def _get_random_pixel_coord(num, sky_area, phase_centre=[0.0, -30.0]):
     random.shuffle(COORDs)
     return COORDs
 
+
+def get_image_products(images, mask):
+    """Get a product of images with a mask
+
+    Parameters
+    ----------
+    images: list
+        List of fits images to get product
+    mask: str
+        Mask to multiply the images
+
+    Returns
+    -------
+    prod_images: list
+        List of resulting fits images
+    """
+    LOGGER.info("Computing product...")
+    prod_images = []
+    msk = fitsio.open(mask)
+    msk_data = msk[0].data
+    for img in images:
+        outname = img.replace('.fits', '.prod.fits')
+        im = fitsio.open(img)
+        img_data = im[0].data
+        p_img_data = img_data * msk_data
+        LOGGER.info("Writing output images")
+        if os.path.exists(outname):
+            LOGGER.warning("Output image exists")
+            sys.exit(1)
+        else:
+            im[0].data = p_img_data
+            im.writeto(outname)
+            LOGGER.info(f"New image: {outname}")
+        prod_images.append(outname)
+    return prod_images
 
 def residual_image_stats(fitsname, test_normality=None, data_range=None,
                          threshold=None, chans=None, mask=None):
@@ -2756,7 +2792,10 @@ def main():
         sourcery = args.sourcery
         images_list = []
         for i, comp_ims in enumerate(images):
-            image1, image2 = comp_ims[0], comp_ims[1]
+            if args.mask:
+                image1, image2 = get_image_products(comp_ims, args.mask)
+            else:
+                image1, image2 = comp_ims[0], comp_ims[1]
             sf_params1 = get_sf_params(configfile)
             sf_params1[sourcery]['filename'] = image1
             out1 = source_finding(sf_params1, sourcery)
