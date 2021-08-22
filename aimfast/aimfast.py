@@ -2609,7 +2609,7 @@ def get_argparser():
              help='Number of decimal places to round off results')
     argument('-units', '--units', dest='units', default="jansky",
              choices=('jansky', 'milli', 'micro', 'nano'),
-             help='Number of decimal places to round off results')
+             help='Units to represent the results')
     argument('-fp', '--flux-plot', dest='fluxplot', default='log',
              choices=('log', 'snr', 'inout'),
              help='Type of plot for flux comparison of the two catalogs')
