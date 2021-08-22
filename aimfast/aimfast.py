@@ -998,7 +998,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
     # {"source_name: [shape_out=(maj, min, angle), shape_out_err=, shape_in=,
     #                 scale_out, scale_out_err, I_in, source_name]
     targets_scale = dict()         # recovered sources scale
-    deci = 3  # round off to this decimal places
+    deci = DECIMALS  # round off to this decimal places
     names = dict()
     for model1_source in model1_sources:
         I_out = 0.0
@@ -1259,7 +1259,7 @@ def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
         Sources from model 2 that have no match in model 1
 
     """
-    deci = 2  # round off to this decimal places
+    deci = DECIMALS  # round off to this decimal places
     units = flux_units
     targets_not_matching_a = dict()
     targets_not_matching_b = dict()
@@ -1595,7 +1595,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                     fill_color={"field": "phase_centre_dist",
                                                "transform": mapper})
             # Table with stats data
-            deci = 3  # Round off to this decimal places
+            deci = DECIMALS  # Round off to this decimal places
             cols = ["Stats", "Value"]
             stats = {"Stats": ["Slope",
                                f"Intercept ({FLUX_UNIT_SCALER[units][1]})",
@@ -1894,7 +1894,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                  fill_color={"field": "phase_centre_dist",
                                              "transform": mapper})
             # Table with stats data
-            deci = 3  # round off to this decimal places
+            deci = DECIMALS  # round off to this decimal places
             cols = ["Stats", "Value"]
             stats = {"Stats": ["Total sources",
                                "(RA, DEC) mean offset ['']",
@@ -2411,6 +2411,7 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
 def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
                         units='micro'):
     """Plot subimages and stats"""
+    output_dict = {}
     subplot_list = []
     plot_height = 300
     plot_width = 400
@@ -2419,29 +2420,37 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
         LOGGER.info(f"Making Subimage with centre pixels ({centre_coords[im]})")
         centre_coord = centre_coords[im]
         size = sizes[im]
-        for fitsname in fitsnames:
+        for n, fitsname in enumerate(fitsnames):
             subimage_data = get_subimage(fitsname, centre_coord, size)
             subimg_stats = image_stats(subimage_data, test_normality='normaltest')
-
+            centre_str = ','.join([str(cc) for cc in centre_coord])
+            sub_stats ={"RMS": round(subimg_stats['RMS'] * FLUX_UNIT_SCALER[units][0],
+                                     DECIMALS),
+                        "STDDev": round(subimg_stats['STDDev'] * FLUX_UNIT_SCALER[units][0],
+                                        DECIMALS),
+                        "MAD": round(subimg_stats['MAD'] * FLUX_UNIT_SCALER[units][0],
+                                     DECIMALS),
+                        "MIN": round(subimg_stats['MIN'] * FLUX_UNIT_SCALER[units][0],
+                                     DECIMALS),
+                        "MAX": round(subimg_stats['MAX'] * FLUX_UNIT_SCALER[units][0],
+                                     DECIMALS),
+                        "SUM_NEG": round(subimg_stats['SUM_NEG'] * FLUX_UNIT_SCALER[units][0],
+                                     DECIMALS),
+                        "SKEW": round(subimg_stats['SKEW'], DECIMALS),
+                        "KURT": round(subimg_stats['KURT'], DECIMALS),
+                        "NORM": round(subimg_stats['NORM'][0], DECIMALS),
+                        "UNITS": units}
+            output_dict[f"centre-{centre_str}-{n}"] = {fitsname: sub_stats}
             cols = ["Stats", f"Value ({FLUX_UNIT_SCALER[units][1]})"]
-            stats = {"Stats": ["RMS", "STDDev", "MAD", "MIN",
-                               "MAX", "*SKEW", "*KURT", "*NORM",
-                               "SUM_NEG"],
+            stats = {"Stats": ["RMS", "STDDev", "MAD", "MIN", "SUM_NEG",
+                               "MAX", "*SKEW", "*KURT", "*NORM"],
                      f"Value ({FLUX_UNIT_SCALER[units][1]})":
-                       [round(subimg_stats['RMS'] * FLUX_UNIT_SCALER[units][0],
-                              DECIMALS),
-                        round(subimg_stats['STDDev'] * FLUX_UNIT_SCALER[units][0],
-                              DECIMALS),
-                        round(subimg_stats['MAD'] * FLUX_UNIT_SCALER[units][0],
-                              DECIMALS),
-                        round(subimg_stats['MIN'] * FLUX_UNIT_SCALER[units][0],
-                              DECIMALS),
-                        round(subimg_stats['MAX'] * FLUX_UNIT_SCALER[units][0],
-                              DECIMALS),
-                        round(subimg_stats['SKEW'], DECIMALS),
-                        round(subimg_stats['KURT'], DECIMALS),
-                        round(subimg_stats['NORM'][0], DECIMALS),
-                        round(subimg_stats['SUM_NEG'], DECIMALS)]}
+                       [sub_stats['RMS'], sub_stats['STDDev'],
+                        sub_stats['MAD'], sub_stats['MIN'],
+                        sub_stats['SUM_NEG'], sub_stats['MAX'],
+                        sub_stats['SKEW'],
+                        sub_stats['KURT'],
+                        sub_stats['NORM']]}
 
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
@@ -2492,6 +2501,7 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
         subplot_list.append(column(row(im_subplot_list)))
     output_file(f"{htmlprefix}_subimage_stats.html", title="subimage plots and stats")
     save(column(subplot_list))
+    return output_dict
 
 
 def get_sf_params(configfile):
@@ -2597,6 +2607,9 @@ def get_argparser():
              help='Get stats of specified channels e.g. "10~20;100~1000"')
     argument('-deci', '--decimals', dest='deci', default=2,
              help='Number of decimal places to round off results')
+    argument('-units', '--units', dest='units', default="jansky",
+             choices=('jansky', 'milli', 'micro', 'nano'),
+             help='Units to represent the results')
     argument('-fp', '--flux-plot', dest='fluxplot', default='log',
              choices=('log', 'snr', 'inout'),
              help='Type of plot for flux comparison of the two catalogs')
@@ -2867,6 +2880,7 @@ def main():
 
     if args.subimage_noise:
         centre_coords = []
+        output_dict = {}
         sizes = []
         if args.centre_pix_size:
             for cps in args.centre_pix_size[0]:
@@ -2874,9 +2888,11 @@ def main():
                 centre_coords.append(centre_pix)
                 sizes.append(int(cps.split(',')[-1]))
 
-            plot_subimage_stats(args.subimage_noise[0], centre_coords, sizes,
-                                htmlprefix=(args.htmlprefix
-                                if args.htmlprefix else 'default'))
+            output_dict = plot_subimage_stats(args.subimage_noise[0],
+                                              centre_coords, sizes,
+                                              units=args.units,
+                                              htmlprefix=(args.htmlprefix
+                                              if args.htmlprefix else 'default'))
         else:
             LOGGER.error(f"{R}Provide Centre coordinates in pixels "
                          f"and size of subimage(s).{W}")
