@@ -962,7 +962,7 @@ def get_model(catalog):
 
 
 def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6.0,
-                                    all_sources=False, closest_only=False):
+                                    all_sources=False, closest_only=False, off_axis=None):
     """Extracts the output simulation sources properties.
 
     Parameters
@@ -1110,9 +1110,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
 
             RA0, DEC0 = model_lsm1.ra0, model_lsm1.dec0
             source2_name = model2_source.name
-            targets_flux[source2_name] = [I_out, I_out_err,
-                                          I_in, I_in_err,
-                                          (source1_name, source2_name)]
+
             if ra2 > np.pi:
                 ra2 -= 2.0*np.pi
             if ra1 > np.pi:
@@ -1126,20 +1124,32 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
                 delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
             else:
                 delta_phase_centre_arc_sec = None
-            targets_position[source1_name] = [delta_pos_angle_arc_sec,
-                                      rad2arcsec(ra2 - ra1),
-                                      rad2arcsec(dec2 - dec1),
-                                      delta_phase_centre_arc_sec, I_in,
-                                      rad2arcsec(ra_err2),
-                                      rad2arcsec(dec_err2),
-                                      (round(rad2deg(ra1), deci),
-                                       round(rad2deg(dec1), deci)),
-                                      (source1_name, source2_name)]
+
             src_scale = get_src_scale(model2_source.shape)
-            targets_scale[source1_name] = [shape_out, shape_out_err, shape_in,
-                                           src_scale[0], src_scale[1], I_in,
-                                           source2_name]
-            names[source1_name] = source2_name
+
+            if not off_axis:
+                off_axis = 360.0
+            if delta_phase_centre_arc_sec <= deg2arcsec(off_axis):
+                targets_flux[source2_name] = [I_out, I_out_err,
+                                              I_in, I_in_err,
+                                              (source1_name, source2_name)]
+
+                targets_position[source1_name] = [delta_pos_angle_arc_sec,
+                                                  rad2arcsec(ra2 - ra1),
+                                                  rad2arcsec(dec2 - dec1),
+                                                  delta_phase_centre_arc_sec, I_in,
+                                                  rad2arcsec(ra_err2),
+                                                  rad2arcsec(dec_err2),
+                                                  (round(rad2deg(ra1), deci),
+                                                  round(rad2deg(dec1), deci)),
+                                                  (source1_name, source2_name)]
+                targets_scale[source1_name] = [shape_out, shape_out_err, shape_in,
+                                               src_scale[0], src_scale[1], I_in,
+                                               source2_name]
+                names[source1_name] = source2_name
+            else:
+                LOGGER.info(f"Source {source1_name} will be unmatched "
+                             "due to greater distance from phase centre")
 
 
 
@@ -1157,7 +1167,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
 
 
 def compare_models(models, tolerance=0.2, plot=True, all_sources=False,
-                   closest_only=False, prefix=None, flux_plot='log'):
+                   off_axis=None, closest_only=False, prefix=None, flux_plot='log'):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -1199,7 +1209,7 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False,
         props = get_detected_sources_properties('{}'.format(input_model["path"]),
                                                 '{}'.format(output_model["path"]),
                                                 tolerance, all_sources,
-                                                closest_only)
+                                                closest_only, off_axis=off_axis)
         for i in range(len(props[0])):
             flux_prop = list(props[0].items())
             results[heading]['flux'].append(flux_prop[i][-1])
@@ -1315,7 +1325,7 @@ def get_source_overlay(sources1, sources2):
 
 
 def plot_photometry(models, label=None, tolerance=0.2, phase_centre=None,
-                    all_sources=False, flux_plot='log'):
+                    all_sources=False, flux_plot='log', off_axis=None):
     """Plot model-model fluxes from lsm.html/txt models
 
     Parameters
@@ -1338,12 +1348,12 @@ def plot_photometry(models, label=None, tolerance=0.2, phase_centre=None,
         _models.append([dict(label="{}-model_a_{}".format(label, i), path=model1),
                         dict(label="{}-model_b_{}".format(label, i), path=model2)])
         i += 1
-    results = compare_models(_models, tolerance, False, phase_centre, all_sources)
+    results = compare_models(_models, tolerance, False, phase_centre, all_sources, off_axis)
     _source_flux_plotter(results, _models, inline=True, plot_type=flux_plot)
 
 
 def plot_astrometry(models, label=None, tolerance=0.2, phase_centre=None,
-                    all_sources=False):
+                    all_sources=False, off_axis=None):
     """Plot model-model positions from lsm.html/txt models
 
     Parameters
@@ -1366,7 +1376,7 @@ def plot_astrometry(models, label=None, tolerance=0.2, phase_centre=None,
         _models.append([dict(label="{}-model_a_{}".format(label, i), path=model1),
                         dict(label="{}-model_b_{}".format(label, i), path=model2)])
         i += 1
-    results = compare_models(_models, tolerance, False, phase_centre, all_sources)
+    results = compare_models(_models, tolerance, False, phase_centre, all_sourcesi, off_axis)
     _source_astrometry_plotter(results, _models, inline=True)
 
 
@@ -1485,10 +1495,37 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             # Phase centre distance in degree
             z = np.array(phase_centre_dist)/3600.
             # Compute some fit stats of the two models being compared
-            flux_MSE = mean_squared_error(x, y)
-            reg = linregress(x, y)
-            flux_R_score = reg.rvalue
-            reg1 = linregress(x1, y1)
+            if plot_type in ['log', 'inout']:
+                flux_MSE = mean_squared_error(x1, y1)
+                reg1 = linregress(x1, y1)
+                flux_R_score = reg1.rvalue
+            elif plot_type in ['snr']:
+                mean_val = np.mean(y1)
+                median = np.median(y1)
+                std_val = np.std(y1)
+                mad_val = stats.median_abs_deviation(y1)
+                max_val = y1.max()
+                min_val = y1.min()
+            # Table with stats data
+            deci = DECIMALS  # Round off to this decimal places
+            cols = ["Stats", "Value"]
+            if plot_type in ['log', 'inout']:
+                stats = {"Stats": ["Slope",
+                                   f"Intercept ({FLUX_UNIT_SCALER[units][1]})",
+                                   f"RMS_Error ({FLUX_UNIT_SCALER[units][1]})",
+                                   "R2"],
+                         "Value": [f"{reg1.slope:.{deci}f}",
+                                   f"{reg1.intercept:.{deci}f}",
+                                   f"{np.sqrt(flux_MSE):.{deci}e}",
+                                   f"{flux_R_score:.{deci}f}"]}
+            elif plot_type in ['snr']:
+                stats = {"Stats": ["MAX", "MIN", "MEAN", "MAD", "MEDIAN", "STD"],
+                        "Value": [f"{max_val:.{deci}f}",
+                                  f"{min_val:.{deci}f}",
+                                  f"{mean_val:.{deci}f}",
+                                  f"{mad_val:.{deci}f}",
+                                  f"{median:.{deci}f}",
+                                  f"{std_val:.{deci}f}"]}
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
@@ -1594,17 +1631,6 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                     line_color=None,
                                     fill_color={"field": "phase_centre_dist",
                                                "transform": mapper})
-            # Table with stats data
-            deci = DECIMALS  # Round off to this decimal places
-            cols = ["Stats", "Value"]
-            stats = {"Stats": ["Slope",
-                               f"Intercept ({FLUX_UNIT_SCALER[units][1]})",
-                               f"RMS_Error ({FLUX_UNIT_SCALER[units][1]})",
-                               "R2"],
-                     "Value": [f"{reg.slope:.{deci}f}",
-                               f"{reg.intercept:.{deci}f}",
-                               f"{np.sqrt(flux_MSE):.{deci}e}",
-                               f"{flux_R_score:.{deci}f}"]}
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
@@ -2631,6 +2657,9 @@ def get_argparser():
              nargs='+', action='append',
              help='List of subimage centre pixels and their sizes to compute stats. \n'
                   'e.g. 500,500,20 200,10,5')
+    argument('-oa', '--only-off-axis', dest='off_axis', default=None,
+             help='Plot only cross-matched sources with distance from the phase centre'
+                  ' less than this value')
     argument('-fdr', '--fidelity-results', dest='json',
              help='aimfast fidelity results file (JSON format)')
     argument("--outfile",
@@ -2763,6 +2792,7 @@ def main():
                 )
             output_dict = compare_models(models_list,
                                          tolerance=args.tolerance,
+                                         off_axis = args.off_axis,
                                          all_sources=args.all,
                                          closest_only=args.closest_only,
                                          prefix=args.htmlprefix,
@@ -2822,6 +2852,7 @@ def main():
                       path=out2)])
         output_dict = compare_models(images_list,
                                      tolerance=args.tolerance,
+                                     off_axis=args.off_axis,
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix,
@@ -2873,6 +2904,7 @@ def main():
 
         output_dict = compare_models(images_list,
                                      tolerance=args.tolerance,
+                                     off_axis=args.off_axis,
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix,
