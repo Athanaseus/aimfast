@@ -1377,7 +1377,7 @@ def plot_astrometry(models, label=None, tolerance=0.2, phase_centre=None,
         _models.append([dict(label="{}-model_a_{}".format(label, i), path=model1),
                         dict(label="{}-model_b_{}".format(label, i), path=model2)])
         i += 1
-    results = compare_models(_models, tolerance, False, phase_centre, all_sourcesi, off_axis)
+    results = compare_models(_models, tolerance, False, phase_centre, all_sources, off_axis)
     _source_astrometry_plotter(results, _models, inline=True)
 
 
