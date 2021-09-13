@@ -13,6 +13,7 @@ import numpy as np
 from functools import partial
 from collections import OrderedDict
 
+import scipy
 from scipy import stats
 from scipy.stats import linregress
 from scipy.interpolate import interp1d
@@ -914,14 +915,14 @@ def get_model(catalog):
     tfile.close()
     ext = os.path.splitext(catalog)[-1]
     if ext in ['.html', '.txt']:
-        if 'catalog_table' in catalog:
+        if 'catalog_table' in catalog and not catalog.endswith('.html'):
             data = Table.read(catalog, format='ascii')
             for i, src in enumerate(data):
                 # Check which online catalog the source belongs to
                 # Prefix is in the name by default when created
-                if 'nvss' in catalog:
+                if 'nvss' in catalog and not catalog.endswith('.html'):
                     model.sources.append(tigger_src_nvss(src, i))
-                if 'sumss' in catalog:
+                if 'sumss' in catalog and not catalog.endswith('.html'):
                     model.sources.append(tigger_src_sumss(src, i))
             centre = _get_phase_centre(model)
             model.ra0, model.dec0 = map(np.deg2rad, centre)
@@ -1500,10 +1501,11 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 reg1 = linregress(x1, y1)
                 flux_R_score = reg1.rvalue
             elif plot_type in ['snr']:
+                reg1 = linregress(x1, y1)
                 mean_val = np.mean(y1)
                 median = np.median(y1)
                 std_val = np.std(y1)
-                mad_val = stats.median_abs_deviation(y1)
+                mad_val = scipy.stats.median_abs_deviation(y1)
                 max_val = y1.max()
                 min_val = y1.min()
             # Table with stats data
@@ -1586,23 +1588,20 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                      legend_label="Fit",
                                      color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
-                equal = plot_flux.line(np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
-                                       np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                min_val = min(x1) if min(x1) < min(y1) else min(y1)
+                max_val = max(y1) if max(y1) > max(x1) else max(x1)
+                equal = plot_flux.line(np.array([0 if 0 < min_val else min_val, max_val]),
+                                       np.array([0 if 0 < min_val else min_val, max_val]),
                                        legend_label=u"S1=S2",
                                        line_dash="dashed",
                                        color="gray")
             elif plot_type == 'snr':
                 fit_points = 100
-                slope = reg1.slope
-                intercept = reg1.intercept
                 # Regression fit plot
-                fit_xs = np.linspace(min(x1), max(x1), fit_points)
-                fit_ys = slope * fit_xs + intercept
-                fit = plot_flux.line(fit_xs, fit_ys,
-                                     legend_label="Fit",
-                                     color="blue")
+                min_val = min(x1) if max(x1) < 0 else 0
+                max_val = max(x1)
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
-                equal = plot_flux.line(np.array([min(x1), max(x1)]),
+                equal = plot_flux.line(np.array([min_val, max_val]),
                                        np.array([1, 1]),
                                        legend_label=u"S1/S2=1",
                                        line_dash="dashed",
@@ -1611,15 +1610,17 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 fit_points = 100
                 slope = reg1.slope
                 intercept = reg1.intercept
+                min_val = min(x1) if min(x1) < min(y1) else min(y1)
+                max_val = max(y1) if max(y1) > max(x1) else max(x1)
                 # Regression fit plot
-                fit_xs = np.linspace(min(x1), max(x1), fit_points)
+                fit_xs = np.linspace(min_val, max_val, fit_points)
                 fit_ys = slope * fit_xs + intercept
                 fit = plot_flux.line(fit_xs, fit_ys,
                                      legend_label="Fit",
                                      color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
-                equal = plot_flux.line(np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
-                                       np.array([0 if 0 < min(x1) else min(x1), max(x1)]),
+                equal = plot_flux.line(np.array([0 if 0 < min_val else min_val, max_val]),
+                                       np.array([0 if 0 < min_val else min_val, max_val]),
                                        legend_label=u"log(S1)=log(S2)",
                                        line_dash="dashed",
                                        color="gray")
@@ -1816,7 +1817,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             plot_position.title.text_font_size = '16pt'
             # Create an image overlay
             s1_ra_rad = [src[3] for src in overlays if src[-1] == 1]
-            s1_ra_deg = [rad2deg(s_ra) for s_ra in s1_ra_rad]
+            s1_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s1_ra_rad]
             s1_dec_rad = [src[5] for src in overlays if src[-1] == 1]
             s1_dec_deg = [rad2deg(s_dec) for s_dec in s1_dec_rad]
             s1_ra_err = [src[4] for src in overlays if src[-1] == 1]
@@ -1824,7 +1825,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             s1_labels = [src[0] for src in overlays if src[-1] == 1]
             s1_flux = [src[1] for src in overlays if src[-1] == 1]
             s2_ra_rad = [src[3] for src in overlays if src[-1] == 2]
-            s2_ra_deg = [rad2deg(s_ra) for s_ra in s2_ra_rad]
+            s2_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s2_ra_rad]
             s2_dec_rad = [src[5] for src in overlays if src[-1] == 2]
             s2_dec_deg = [rad2deg(s_dec) for s_dec in s2_dec_rad]
             s2_ra_err = [src[4] for src in overlays if src[-1] == 2]
@@ -2628,7 +2629,8 @@ def get_argparser():
     argument('-dp', '--data-points', dest='points',
              help='Data points to sample the residual/noise image')
     argument('-thresh', '--threshold', dest='thresh',
-             help='Get stats of channels with pixel flux above thresh in Jy/Beam')
+             help='Get stats of channels with pixel flux above thresh in Jy/Beam. \n'
+                  'Also this can be used to filter out sources from online catalog')
     argument('-chans', '--channels', dest='channels',
              help='Get stats of specified channels e.g. "10~20;100~1000"')
     argument('-deci', '--decimals', dest='deci', default=2,
@@ -2653,6 +2655,9 @@ def get_argparser():
              default="0:0:0, -30:0:0",
              help='Centre of online catalog to compare local image/model \n'
                   'in "RA hh:mm:ss, Dec deg:min:sec".')
+    argument('-w', '--width', dest='width',
+             help='Field of view width to querry online catalogi in degrees.'
+                   'e.g. -w 3.0d')
     argument('-cps', '--centre-pixels-size', dest='centre_pix_size',
              nargs='+', action='append',
              help='List of subimage centre pixels and their sizes to compute stats. \n'
@@ -2859,16 +2864,18 @@ def main():
                                      flux_plot=args.fluxplot)
 
     if args.online:
-        configfile = 'default_sf_config.yml'
-        generate_default_config(configfile)
         models = args.online
         sourcery = args.sourcery
+        threshold = args.thresh
+        width = args.width or '4.0d'
+        LOGGER.info(f'Using sky width of {width}')
         catalog_prefix = args.catalog_name or 'default'
         online_catalog = args.online_catalog
+        LOGGER.info(f'Quering {online_catalog} catalog')
         catalog_name = f"{catalog_prefix}_{online_catalog}_catalog_table.txt"
         images_list = []
 
-        if models[0][0].endswith('html'):
+        if models[0][0].endswith('.html'):
             Tigger_model = Tigger.load(models[0][0])
             centre_ra_deg, centre_dec_deg = _get_phase_centre(Tigger_model)
             centre_coord =  deg2ra(centre_ra_deg) + ',' + deg2dec(centre_dec_deg)
@@ -2884,13 +2891,15 @@ def main():
                 LOGGER.error('Please supply central coordinates using -ptc. See --help')
 
         get_online_catalog(catalog=online_catalog.upper(), centre_coord=centre_coord,
-                           width='1.0d', thresh=1.0,
+                           width='3.0d', thresh=threshold,
                            catalog_table=catalog_name)
 
 
         for i, ims in enumerate(models):
             image1 = ims[0]
-            if '.fits' in image1:
+            if image1.endswith('.fits'):
+                configfile = 'default_sf_config.yml'
+                generate_default_config(configfile)
                 sf_params1 = get_sf_params(configfile)
                 sf_params1[sourcery]['filename'] = image1
                 out1 = source_finding(sf_params1, sourcery)

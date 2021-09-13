@@ -250,9 +250,9 @@ def get_subimage(fitsname, centre_coord, size, padding=1):
     return subdata
 
 
-def get_online_catalog(catalog='NVSS', width='1d', thresh=1.0,
+def get_online_catalog(catalog='NVSS', width='3.0d', thresh=None,
                        centre_coord=['0:0:0', '-30:0:0'],
-                       catalog_table='sumss_catalog_table.txt'):
+                       catalog_table='nvss_catalog_table.txt'):
     """Query an online catalog to compare with local catalog
 
     Parameters
@@ -274,6 +274,8 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=1.0,
         Table with online catalog data
 
     """
+    print(centre_coord)
+    Vizier.ROW_LIMIT = -1
     C = Vizier.query_region(coord.SkyCoord(centre_coord[0], centre_coord[1],
                             unit=(u.hourangle, u.deg), frame='icrs'),
                             width=width, catalog=catalog)
@@ -291,13 +293,14 @@ def get_online_catalog(catalog='NVSS', width='1d', thresh=1.0,
             table['DEJ2000'][i] = ':'.join(table['DEJ2000'][i].split(' '))
             dec_deg.append(dec2deg(table['DEJ2000'][i]))
 
-        if catalog in ['NVSS']:
-            above_thresh = table['S1.4'] < thresh
-        if catalog in ['SUMSS']:
-            above_thresh = table['St'] < thresh
+        if thresh:
+            if catalog in ['NVSS']:
+                above_thresh = table['S1.4'] < thresh
+            if catalog in ['SUMSS']:
+                above_thresh = table['St'] < thresh
 
-    for i in range(1, len(table.colnames)):
-        table[table.colnames[i]][above_thresh] = np.nan
+            for i in range(1, len(table.colnames)):
+                table[table.colnames[i]][above_thresh] = np.nan
 
     table = Table(table, masked=True)
     ascii.write(table, catalog_table, overwrite=True)
