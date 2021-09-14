@@ -962,7 +962,7 @@ def get_model(catalog):
     return model
 
 
-def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6.0,
+def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0,
                                     all_sources=False, closest_only=False, off_axis=None):
     """Extracts the output simulation sources properties.
 
@@ -971,11 +971,9 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
     models_1 : file
         Tigger formatted or txt model 1 file
     models_2 : file
-        Tigger formatted or txt model 2 file
-    area_factor : float
-        Area factor to multiply the psf size around source
-    all_source: bool
         Compare all sources in the catalog (else only sources with maj<shape_limit)
+    tolerance : float
+        Tolerace to cross-match sources
     shape_limit: float
         Cross match only sources with maj-axis less than this value
     closest_only: bool
@@ -1000,6 +998,7 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
     #                 scale_out, scale_out_err, I_in, source_name]
     targets_scale = dict()         # recovered sources scale
     deci = DECIMALS  # round off to this decimal places
+    tolerance *= (np.pi / (3600.0 * 180))  # Convert to radians
     names = dict()
     for model1_source in model1_sources:
         I_out = 0.0
@@ -1011,7 +1010,6 @@ def get_detected_sources_properties(model_1, model_2, area_factor, shape_limit=6
         dec_err1 = model1_source.pos.dec_err
         I_in = model1_source.flux.I
         I_in_err = model1_source.flux.I_err if model1_source.flux.I_err else 0.0
-        tolerance = area_factor * (np.pi / (3600.0 * 180))
         model2_sources = model_lsm2.getSourcesNear(ra1, dec1, tolerance)
         if not model2_sources:
             continue
@@ -1209,8 +1207,10 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False,
         results[heading]['overlay'] = []
         props = get_detected_sources_properties('{}'.format(input_model["path"]),
                                                 '{}'.format(output_model["path"]),
-                                                tolerance, all_sources,
-                                                closest_only, off_axis=off_axis)
+                                                all_sources=all_sources,
+                                                tolerance=tolerance,
+                                                closest_only=closest_only,
+                                                off_axis=off_axis)
         for i in range(len(props[0])):
             flux_prop = list(props[0].items())
             results[heading]['flux'].append(flux_prop[i][-1])
@@ -2797,7 +2797,7 @@ def main():
                 )
             output_dict = compare_models(models_list,
                                          tolerance=args.tolerance,
-                                         off_axis = args.off_axis,
+                                         off_axis=args.off_axis,
                                          all_sources=args.all,
                                          closest_only=args.closest_only,
                                          prefix=args.htmlprefix,
