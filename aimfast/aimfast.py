@@ -792,9 +792,9 @@ def get_model(catalog):
         flux = ModelClasses.Polarization(float(src["S1.4"]/1000.), 0, 0, 0,
                                          I_err=float(src["e_S1.4"]/1000.))
         ra, ra_err = map(np.deg2rad, (float(ra2deg(src["RAJ2000"])),
-                                      float(src["e_RAJ2000"])))
+                                      float(src["e_RAJ2000"]/3600.)))
         dec, dec_err = map(np.deg2rad, (float(dec2deg(src["DEJ2000"])),
-                                        float(src["e_DEJ2000"])))
+                                        float(src["e_DEJ2000"]/3600.)))
         pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
         ex, ex_err = map(np.deg2rad, (float(src['MajAxis']), float(0.00)))
         ey, ey_err = map(np.deg2rad, (float(src['MinAxis']), float(0.00)))
@@ -818,9 +818,9 @@ def get_model(catalog):
         flux = ModelClasses.Polarization(float(src["St"]/1000.), 0, 0, 0,
                                          I_err=float(src["e_St1.4"]/1000.))
         ra, ra_err = map(np.deg2rad, (float(ra2deg(src["RAJ2000"])),
-                                      float(src["e_RAJ2000"])))
+                                      float(src["e_RAJ2000"]/3600.)))
         dec, dec_err = map(np.deg2rad, (float(dec2deg(src["DEJ2000"])),
-                                        float(src["e_DEJ2000"])))
+                                        float(src["e_DEJ2000"]/3600.)))
         pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
         ex, ex_err = map(np.deg2rad, (float(src['MajAxis']), float(0.00)))
         ey, ey_err = map(np.deg2rad, (float(src['MinAxis']), float(0.00)))
@@ -1826,16 +1826,16 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             s1_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s1_ra_rad]
             s1_dec_rad = [src[5] for src in overlays if src[-1] == 1]
             s1_dec_deg = [rad2deg(s_dec) for s_dec in s1_dec_rad]
-            s1_ra_err = [src[4] for src in overlays if src[-1] == 1]
-            s1_dec_err = [src[6] for src in overlays if src[-1] == 1]
+            s1_ra_err = [rad2deg(src[4]*3600.) for src in overlays if src[-1] == 1]
+            s1_dec_err = [rad2deg(src[6]*3600.) for src in overlays if src[-1] == 1]
             s1_labels = [src[0] for src in overlays if src[-1] == 1]
             s1_flux = [src[1] for src in overlays if src[-1] == 1]
             s2_ra_rad = [src[3] for src in overlays if src[-1] == 2]
             s2_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s2_ra_rad]
             s2_dec_rad = [src[5] for src in overlays if src[-1] == 2]
             s2_dec_deg = [rad2deg(s_dec) for s_dec in s2_dec_rad]
-            s2_ra_err = [src[4] for src in overlays if src[-1] == 2]
-            s2_dec_err = [src[6] for src in overlays if src[-1] == 2]
+            s2_ra_err = [rad2deg(src[4]*3600.) for src in overlays if src[-1] == 2]
+            s2_dec_err = [rad2deg(src[6]*3600.) for src in overlays if src[-1] == 2]
             s2_labels = [src[0] for src in overlays if src[-1] == 2]
             s2_flux = [src[1] for src in overlays if src[-1] == 2]
             overlay_source1 = ColumnDataSource(
@@ -1860,8 +1860,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                          "box_zoom,reset,save"))
             plot_overlay.ellipse('ra1', 'dec1',
                                  source=overlay_source1,
-                                 width=tolerance/3600.0,
-                                 height=tolerance/3600.0,
+                                 width=tolerance/3600.,
+                                 height=tolerance/3600.,
                                  line_color=None,
                                  color='#CAB2D6')
             plot_overlay_1 = plot_overlay.circle('ra1', 'dec1',
@@ -1957,7 +1957,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                  "(@flux_s1, @flux_s2)"),
                 ("(RA,DEC)", "(@ra_dec)"),
                 ("(RA_err,DEC_err)",
-                 "(@ra_err1, @dec_err1)"),
+                 "(@ra_err, @dec_err)"),
                 ("(RA_offset,DEC_offset)",
                  "(@ra_offset, @dec_offset)"),
                 ("Distance off-axis",
@@ -2881,7 +2881,7 @@ def main():
         LOGGER.info(f'Using sky width of {width}')
         catalog_prefix = args.catalog_name or 'default'
         online_catalog = args.online_catalog
-        LOGGER.info(f'Quering {online_catalog} catalog')
+        LOGGER.info(f'Quering the {online_catalog} catalog')
         catalog_name = f"{catalog_prefix}_{online_catalog}_catalog_table.txt"
         images_list = []
 
