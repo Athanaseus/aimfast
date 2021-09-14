@@ -978,6 +978,8 @@ def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0
         Cross match only sources with maj-axis less than this value
     closest_only: bool
         Returns the closest source only as the matching source
+    off_axis: float
+        Cross-match only sources within this distance from the centre
 
     Returns
     -------
@@ -1000,6 +1002,7 @@ def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0
     deci = DECIMALS  # round off to this decimal places
     tolerance *= (np.pi / (3600.0 * 180))  # Convert to radians
     names = dict()
+    closest_only = True
     for model1_source in model1_sources:
         I_out = 0.0
         I_out_err = 0.0
@@ -1165,7 +1168,7 @@ def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0
             sources_overlay)
 
 
-def compare_models(models, tolerance=0.2, plot=True, all_sources=False,
+def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_limit=6.0,
                    off_axis=None, closest_only=False, prefix=None, flux_plot='log'):
     """Plot model1 source properties against that of model2
 
@@ -1179,6 +1182,8 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False,
         Output html plot from which a png can be obtained.
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
+    shape_limit: float
+        Cross match only sources with maj-axis less than this value
     closest_only: bool
         Returns the closest source only as the matching source
     flux_plot: str
@@ -1326,7 +1331,8 @@ def get_source_overlay(sources1, sources2):
 
 
 def plot_photometry(models, label=None, tolerance=0.2, phase_centre=None,
-                    all_sources=False, flux_plot='log', off_axis=None):
+                    all_sources=False, flux_plot='log', off_axis=None,
+                    shape_limit=6.0):
     """Plot model-model fluxes from lsm.html/txt models
 
     Parameters
@@ -2635,6 +2641,8 @@ def get_argparser():
              help='Get stats of specified channels e.g. "10~20;100~1000"')
     argument('-deci', '--decimals', dest='deci', default=2,
              help='Number of decimal places to round off results')
+    argument('-sl', '--shape-limit', dest='shape_limit', default=6.0,
+             help='Cross-match only sources with a maj-axis equal or less than this value')
     argument('-units', '--units', dest='units', default="jansky",
              choices=('jansky', 'milli', 'micro', 'nano'),
              help='Units to represent the results')
@@ -2799,6 +2807,7 @@ def main():
                                          tolerance=args.tolerance,
                                          off_axis=args.off_axis,
                                          all_sources=args.all,
+                                         shape_limit=args.shape_limit,
                                          closest_only=args.closest_only,
                                          prefix=args.htmlprefix,
                                          flux_plot=args.fluxplot)
@@ -2858,6 +2867,7 @@ def main():
         output_dict = compare_models(images_list,
                                      tolerance=args.tolerance,
                                      off_axis=args.off_axis,
+                                     shape_limit=args.shape_limit,
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix,
@@ -2913,6 +2923,7 @@ def main():
 
         output_dict = compare_models(images_list,
                                      tolerance=args.tolerance,
+                                     shape_limit=args.shape_limit,
                                      off_axis=args.off_axis,
                                      all_sources=args.all,
                                      closest_only=args.closest_only,

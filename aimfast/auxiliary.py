@@ -149,6 +149,8 @@ def dec2deg(dec_dms):
         dec_dms = dec_dms.split('.')
         dec_dms = ':'.join(dec_dms[:3])
         dec_dms += f'.{dec_dms[-1]}'
+    irgument('-deci', '--decimals', dest='deci', default=2,
+             help='Number of decimal places to round off results')
     dec = dec_dms.split(':')
     dd = abs(float(dec[0]))
     mm = float(dec[1]) / 60
@@ -274,7 +276,6 @@ def get_online_catalog(catalog='NVSS', width='3.0d', thresh=None,
         Table with online catalog data
 
     """
-    print(centre_coord)
     Vizier.ROW_LIMIT = -1
     C = Vizier.query_region(coord.SkyCoord(centre_coord[0], centre_coord[1],
                             unit=(u.hourangle, u.deg), frame='icrs'),
@@ -396,7 +397,6 @@ def bdsf(image, kwargs, log):
     image = img_opts.pop('filename')
     filename = os.path.basename(image)
     outfile = write_opts.pop('outfile') or '{}-pybdsf.fits'.format(image[:-5])
-    print(outfile)
     img = bdsm.process_image(image, **img_opts, ncores=ncores)
     img.write_catalog(outfile=outfile, **write_opts)
     return outfile
