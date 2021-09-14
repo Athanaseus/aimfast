@@ -149,8 +149,6 @@ def dec2deg(dec_dms):
         dec_dms = dec_dms.split('.')
         dec_dms = ':'.join(dec_dms[:3])
         dec_dms += f'.{dec_dms[-1]}'
-    irgument('-deci', '--decimals', dest='deci', default=2,
-             help='Number of decimal places to round off results')
     dec = dec_dms.split(':')
     dd = abs(float(dec[0]))
     mm = float(dec[1]) / 60
