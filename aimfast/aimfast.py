@@ -2537,6 +2537,10 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
     return output_dict
 
 
+def plot_model_data(catalog_file):
+    pass
+
+
 def get_sf_params(configfile):
     import yaml
     with open(r'{}'.format(configfile)) as file:
@@ -2664,7 +2668,7 @@ def get_argparser():
              help='Centre of online catalog to compare local image/model \n'
                   'in "RA hh:mm:ss, Dec deg:min:sec".')
     argument('-w', '--width', dest='width',
-             help='Field of view width to querry online catalogi in degrees.'
+             help='Field of view width to querry online catalog in degrees.'
                    'e.g. -w 3.0d')
     argument('-cps', '--centre-pixels-size', dest='centre_pix_size',
              nargs='+', action='append',
