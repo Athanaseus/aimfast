@@ -2537,8 +2537,180 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
     return output_dict
 
 
-def plot_model_data(catalog_file):
-    pass
+def plot_model_data(catalog_file, units='milli'):
+    """Plotting source properties from the catalog"""
+    ra = []
+    dec = []
+    spi = []
+    flux = []
+    shape = []
+    ra_error = []
+    dec_error = []
+    spi_error = []
+    flux_error = []
+    shape_error = []
+    flux_ex = []
+    flux_ex_error = []
+    spi_ex = []
+    spi_ex_error = []
+    colors = []
+    name = []
+    position = []
+    dist_from_centre = []
+    model = get_model(catalog_file)
+    try:
+        ptc = rad2deg(model.ra0), rad2deg(model.dec0)
+    except:
+        ptc = _get_phase_centre(model)
+    for source in model.sources:
+        name.append(source.name)
+        flux.append(source.flux.I)
+        flux_error.append(source.flux.I_err)
+        position.append((source.pos.ra, source.pos.dec))
+        ra_deg = rad2deg(source.pos.ra)
+        ra.append(ra_deg)
+        ra_error.append(rad2deg(source.pos.ra_err))
+        dec_deg = rad2deg(source.pos.dec)
+        dec.append(dec_deg)
+        dec_error.append(rad2deg(source.pos.dec_err))
+        dist_from_centre.append(angular_dist_pos_angle(ptc[0], ptc[0],
+                                                       ra_deg, dec_deg)[0])
+
+        if source.shape:
+            shape.append((source.shape.ex, source.shape.ey, source.shape.pa))
+            shape_error.append((source.shape.ex_err, source.shape.ey_err,
+                                source.shape.pa_err))
+            colors.append('red')
+        else:
+            shape.append(None)
+            shape_error.append(None)
+            colors.append('blue')
+
+        if source.spectrum:
+            spi.append(source.spectrum.spi)
+            spi_error.append(source.get_attr('spi_error'))
+        else:
+            spi.append(None)
+            spi_error.append(None)
+
+    width, height = 400, 400
+    multiplier = FLUX_UNIT_SCALER[units][0]
+
+    # create the coordinates for the errorbars
+    err_xs1 = []
+    err_ys1 = []
+    err_xs2 = []
+    err_ys2 = []
+    for x, y, xerr, yerr in zip(flux, spi, flux_error, spi_error):
+        err_ys1.append((y,y))
+        err_xs2.append((x,x))
+        if xerr:
+            err_xs1.append((x - xerr, x + xerr))
+        else:
+            err_xs1.append((None, None))
+        if yerr:
+            err_ys2.append((y - yerr, y + yerr))
+        else:
+            err_ys2.append((None, None))
+    TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
+    bokeh_source = ColumnDataSource(data=dict(name=name, flux=flux,
+                                              ra=ra, dec=dec, spi=spi,
+                                              flux_error=flux_error,
+                                              ra_error=ra_error,
+                                              color=colors,
+                                              err_xs1=err_xs1,
+                                              err_ys1=err_ys1,
+                                              err_xs2=err_xs2,
+                                              err_ys2=err_ys2,
+                                              dec_error=dec_error,
+                                              spi_error=spi_error,
+                                              centre=dist_from_centre))
+
+    flux_spi_plotter = figure(x_axis_label=f"Flux density ({units})",
+                              y_axis_label="Spectral Index",
+                              plot_width=width, plot_height=height,
+                              tools=TOOLS,
+                              title='Source Flux-Spectral_Index')
+    flux_spi_plotter.scatter('flux', 'spi', source=bokeh_source,
+                             name='flux_spi', line_color='color')
+    flux_spi_plotter.multi_line('err_xs1', 'err_ys1',
+                                source=bokeh_source,
+                                line_color='color')
+    flux_spi_plotter.multi_line('err_xs2', 'err_ys2',
+                                source=bokeh_source,
+                                line_color='color')
+    hover = flux_spi_plotter.select(dict(type=HoverTool))
+    hover.names = ['flux_spi']
+    hover.tooltips = OrderedDict([
+       ("source", "@name"),
+       (f"flux [{units}]", "@flux±@flux_error"),
+       ("spi", "@spi±@spi_error"),
+       ("(ra, dec) [deg]", "(@ra±@ra_error, @dec±@dec_error)"),
+       ("distance off-axis [deg]", "@centre")])
+    flux_spi_plotter.title.align = 'center'
+
+    flux_ra_plotter = figure(x_axis_label=f"Flux density ({units})",
+                              y_axis_label="Right Ascension (deg)",
+                              plot_width=width, plot_height=height,
+                              tools="tap,pan,box_zoom,wheel_zoom,save,reset",
+                              title='Source Flux-RA')
+    flux_ra_plotter.scatter('flux', 'ra', source=bokeh_source,
+                            line_color='color')
+    flux_ra_plotter.title.align = 'center'
+
+    flux_dec_plotter = figure(x_axis_label=f"Flux density ({units})",
+                              y_axis_label="Declination (deg)",
+                              plot_width=width, plot_height=height,
+                              tools="tap,pan,box_zoom,wheel_zoom,save,reset",
+                              title='Source Flux-DEC')
+    flux_dec_plotter.scatter('flux', 'dec', source=bokeh_source,
+                             line_color='color')
+    flux_dec_plotter.title.align = 'center'
+
+    flux_dist_plotter = figure(x_axis_label="Distance from centre (deg)",
+                               y_axis_label=f"Flux density ({units})",
+                               plot_width=width, plot_height=height,
+                               tools="tap,pan,box_zoom,wheel_zoom,save,reset",
+                               title='Source Flux-Distance_from_centre')
+    flux_dist_plotter.scatter('centre', 'flux', source=bokeh_source,
+                               line_color='color')
+    flux_dist_plotter.title.align = 'center'
+
+    ra_dec_plotter = figure(x_axis_label="Right Ascension (deg)",
+                              y_axis_label="Declination (deg)",
+                              plot_width=width, plot_height=height,
+                              tools="tap,pan,box_zoom,wheel_zoom,save,reset",
+                              title='Source RA-DEC')
+    ra_dec_plotter.scatter('ra', 'dec', source=bokeh_source,
+                           line_color='color')
+    ra_dec_plotter.x_range.flipped = True
+    ra_dec_plotter.title.align = 'center'
+
+
+    columns = [TableColumn(field='name', title='Name'),
+               TableColumn(field='flux', title='Flux'),
+               TableColumn(field='flux_error', title='Flux Error'),
+               TableColumn(field='spi', title='Spi'),
+               TableColumn(field='spi_error', title='Spi Error'),
+               TableColumn(field='ra', title='RA'),
+               TableColumn(field='ra_error', title='RA Error'),
+               TableColumn(field='dec', title='DEC'),
+               TableColumn(field='dec_error', title='DEC Error'),
+               TableColumn(field='centre', title='Centre-Dist')]
+
+    dtab = DataTable(source=bokeh_source, columns=columns,
+                             width=400, max_width=400,
+                             height=370, max_height=400,
+                             sizing_mode='stretch_both')
+    table_title = Div(text="Sub-image Statistics")
+    table_title.align = "center"
+    source_table = column([table_title, dtab])
+
+    LOGGER.info(f"Total number of sources: {len(name)}")
+    output_file(f"{catalog_file.split('.')[0]}_source_properties.html")
+    save(row(column(source_table),# flux_ra_plotter),
+             column(ra_dec_plotter),# flux_dec_plotter),
+             column(flux_spi_plotter)))#, flux_dist_plotter)))
 
 
 def get_sf_params(configfile):
@@ -2587,8 +2759,8 @@ def get_argparser():
              version='{0:s} version {1:s}'.format(parser.prog, _version))
     argument('-c', '--config', dest='config',
                     help='Config file to run source finder of choice (YAML format)')
-    argument('--tigger-model', dest='model',
-             help='Name of the tigger model lsm.html file')
+    argument('-catalog', '--tigger-model', dest='model',
+             help='Name of the tigger model lsm.html file or any supported catalog')
     argument('--restored-image', dest='restored',
              help='Name of the restored image fits file')
     argument('-psf', '--psf-image', dest='psf',
@@ -2714,7 +2886,10 @@ def main():
         restored_label = args.restored
         model_label = args.model
 
-    if args.model and not args.noise:
+    if args.model:
+         plot_model_data(args.model, units=args.units)
+
+    if args.model and not args.noise and args.residual:
         if not args.residual:
             raise RuntimeError(f"{R}Please provide residual fits file{W}")
 
