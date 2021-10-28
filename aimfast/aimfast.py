@@ -2591,7 +2591,7 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None):
                          y_axis_label=y,
                          plot_width=width, plot_height=height,
                          #tools=TOOLS,
-                         title=f'Source {x.upper()}-{y.upper()}')
+                         title=f"{catalog_file.split('.')[0]} {x.upper()} vs {y.upper()}")
     x_y_plotter.scatter('x', 'y', source=bokeh_source,
                              name='x_y_data')
     LOGGER.info(f"Total number of sources: {len(col_x)}")
