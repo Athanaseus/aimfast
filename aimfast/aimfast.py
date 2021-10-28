@@ -2536,6 +2536,68 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
     save(column(subplot_list))
     return output_dict
 
+def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None):
+    """Plot catalog columns including their uncertainties"""
+    name = []
+    col_x = []
+    col_y = []
+    col_x_err = []
+    col_y_err = []
+    width, height = 400, 400
+    if 'lsm.html' in catalog_file:
+        model = get_model(catalog_file)
+        sources = model.sources
+        for source in sources:
+            if x in ['i', 'q', 'u', 'v', 'I', 'Q', 'U', 'V']:
+                if x.upper() in ['I']:
+                    col_x.append(source.flux.I)
+                elif x.upper() in ['Q']:
+                    col_x.append(source.flux.Q)
+                elif x.upper() in ['U']:
+                    col_x.append(source.flux.U)
+                elif x.upper() in ['V']:
+                    col_x.append(source.flux.V)
+            if y in ['i', 'q', 'u', 'v', 'I', 'Q', 'U', 'V']:
+                if y.upper() in ['I']:
+                    col_y.append(source.flux.I)
+                elif y.upper() in ['Q']:
+                    col_y.append(source.flux.Q)
+                elif y.upper() in ['U']:
+                    col_y.append(source.flux.U)
+                elif y.upper() in ['V']:
+                    col_y.append(source.flux.V)
+            if x.lower() in ['ra']:
+                col_x.append(source.pos.ra)
+            if y.lower() in ['ra']:
+                col_y.append(source.pos.ra)
+            if x.lower() in ['dec']:
+                col_x.append(source.pos.dec)
+            if y.lower() in ['dec']:
+                col_y.append(source.pos.dec)
+            if x.lower() in ['spi']:
+                col_x.append(source.spectrum.spi)
+            if y.lower() in ['spi']:
+                col_y.append(source.spectrum.spi)
+    else:
+        data = Table.read(catalog_file)
+        for src in data:
+            col_x.append(src[x])
+            col_y.append(src[y])
+    bokeh_source = ColumnDataSource(data=dict(
+                                              x=col_x,
+                                              y=col_y,
+                                              ))
+    x_y_plotter = figure(x_axis_label=x,
+                         y_axis_label=y,
+                         plot_width=width, plot_height=height,
+                         #tools=TOOLS,
+                         title=f'Source {x.upper()}-{y.upper()}')
+    x_y_plotter.scatter('x', 'y', source=bokeh_source,
+                             name='x_y_data')
+    LOGGER.info(f"Total number of sources: {len(col_x)}")
+    output_file(f"{catalog_file.split('.')[0]}_column_properties.html")
+    save(x_y_plotter)
+
 
 def plot_model_data(catalog_file, units='milli'):
     """Plotting source properties from the catalog"""
@@ -2708,9 +2770,9 @@ def plot_model_data(catalog_file, units='milli'):
 
     LOGGER.info(f"Total number of sources: {len(name)}")
     output_file(f"{catalog_file.split('.')[0]}_source_properties.html")
-    save(row(column(source_table),# flux_ra_plotter),
-             column(ra_dec_plotter),# flux_dec_plotter),
-             column(flux_spi_plotter)))#, flux_dist_plotter)))
+    save(row(column(source_table, flux_ra_plotter),
+             column(ra_dec_plotter, flux_dec_plotter),
+             column(flux_spi_plotter, flux_dist_plotter)))
 
 
 def get_sf_params(configfile):
@@ -2851,6 +2913,10 @@ def get_argparser():
                   ' less than this value')
     argument('-fdr', '--fidelity-results', dest='json',
              help='aimfast fidelity results file (JSON format)')
+    argument('-x', '--x-col-data', dest='x_col',
+             help='Catalog column name to plot on the x-axis')
+    argument('-y', '--y-col-data', dest='y_col',
+             help='Catalog column name to plot on the y-axis')
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
     return parser
@@ -2886,8 +2952,10 @@ def main():
         restored_label = args.restored
         model_label = args.model
 
-    if args.model:
-         plot_model_data(args.model, units=args.units)
+    if args.model and not args.x_col and not args.y_col:
+        plot_model_data(args.model, units=args.units)
+    elif args.model and args.x_col and args.y_col:
+        plot_model_columns(args.model, args.x_col, args.y_col)
 
     if args.model and not args.noise and args.residual:
         if not args.residual:
