@@ -2599,7 +2599,7 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None):
     save(x_y_plotter)
 
 
-def plot_model_data(catalog_file, units='milli'):
+def plot_model_data(catalog_file, units='milli', html_prefix=''):
     """Plotting source properties from the catalog"""
     ra = []
     dec = []
@@ -2767,9 +2767,13 @@ def plot_model_data(catalog_file, units='milli'):
     table_title = Div(text="Sub-image Statistics")
     table_title.align = "center"
     source_table = column([table_title, dtab])
+    if html_prefix:
+        outfile_name = f"{html_prefix}.html"
+    else:
+        outfile_name = f"{catalog_file.split('.')[0]}_source_properties.html"
 
     LOGGER.info(f"Total number of sources: {len(name)}")
-    output_file(f"{catalog_file.split('.')[0]}_source_properties.html")
+    output_file(outfile_name)
     save(row(column(source_table, flux_ra_plotter),
              column(ra_dec_plotter, flux_dec_plotter),
              column(flux_spi_plotter, flux_dist_plotter)))
@@ -2953,7 +2957,8 @@ def main():
         model_label = args.model
 
     if args.model and not args.x_col and not args.y_col:
-        plot_model_data(args.model, units=args.units)
+        plot_model_data(args.model, units=args.units,
+                        html_prefix=args.htmlprefix)
     elif args.model and args.x_col and args.y_col:
         plot_model_columns(args.model, args.x_col, args.y_col)
 
