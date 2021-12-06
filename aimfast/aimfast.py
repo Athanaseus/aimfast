@@ -1169,7 +1169,8 @@ def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0
 
 
 def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_limit=6.0,
-                   off_axis=None, closest_only=False, prefix=None, flux_plot='log'):
+                   off_axis=None, closest_only=False, prefix=None, flux_plot='log',
+                   fxlabels=None, fylabels=None, ftitles=None):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -1190,6 +1191,12 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
         The type of output flux comparison plot (options:log,snr,inout)
     prefix : str
         Prefix for output htmls
+    fxlabels : str[]
+        X-axis labels for the flux comparison plots
+    fylabels : str[]
+        Y-axis labels for the flux comparison plots
+    fylabels : str[]
+        Title labels for the flux comparison plots
 
     Returns
     -------
@@ -1236,7 +1243,8 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
             results[heading]['overlay'].append(no_match_prop2[i][-1])
         results[heading]['tolerance'] = tolerance
     if plot:
-        _source_flux_plotter(results, models, prefix=prefix, plot_type=flux_plot)
+        _source_flux_plotter(results, models, prefix=prefix, plot_type=flux_plot,
+                             titles=ftitles, xlabels=fxlabels, ylabels=fylabels)
         _source_astrometry_plotter(results, models, prefix=prefix)
     return results
 
@@ -1415,7 +1423,8 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
 
 
 def _source_flux_plotter(results, all_models, inline=False, units='milli',
-                         prefix=None, plot_type='log'):
+                         prefix=None, plot_type='log', titles=None,
+                         xlabels=None, ylabels=None):
     """Plot flux results and save output as html file.
 
     Parameters
@@ -1430,11 +1439,16 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         Allow inline plotting inside a notebook.
     units : str
         Data points and axis label units
-    prefix : str
-        Prefix for output htmls
     plot_type: str
         The type of output flux comparison plot (options:log,snr,inout)
-
+    prefix : str
+        Prefix for output htmls
+    fxlabels : str[]
+        X-axis labels for the flux comparison plots
+    fylabels : str[]
+        Y-axis labels for the flux comparison plots
+    fylabels : str[]
+        Title labels for the flux comparison plots
     """
     if prefix:
         outfile = f'{prefix}-FluxOffset.html'
@@ -1442,7 +1456,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         outfile = 'FluxOffset.html'
     output_file(outfile)
     flux_plot_list = []
-    for model_pair in all_models:
+    for pair, model_pair in enumerate(all_models):
         heading = model_pair[0]['label']
         name_labels = []
         flux_in_data = []
@@ -1482,21 +1496,24 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 y1 = y
                 xerr1 = xerr
                 yerr1 = yerr
-                axis_labels = [f"{model_1_name} S1 ({FLUX_UNIT_SCALER[units][1]})",
-                               f"{model_2_name} S2 ({FLUX_UNIT_SCALER[units][1]})"]
+                axis_labels = [f"{model_1_name} S1 ({FLUX_UNIT_SCALER[units][1]})"
+                               if not xlabels else xlabels[pair],
+                               f"{model_2_name} S2 ({FLUX_UNIT_SCALER[units][1]})"
+                               if not ylabels else ylabels[pair]]
             elif plot_type == 'log':
                 x1 = np.log(x)
                 y1 = np.log(y)
                 xerr1 = np.log(xerr)
                 yerr1 = np.log(yerr)
-                axis_labels = [f"log S1: {model_1_name}",
-                               f"log S2: {model_2_name}"]
+                axis_labels = [f"log S1: {model_1_name}" if not xlabels else xlabels[pair],
+                               f"log S2: {model_2_name}" if not ylabels else ylabels[pair]]
             elif plot_type == 'snr':
                 x1 = np.log(x)
                 y1 = (x/y)
                 xerr1 = xerr
                 yerr1 = yerr
-                axis_labels = ['log S1', 'S1/S2']
+                axis_labels = ['log S1' if not xlabels else xlabels[pair],
+                               'S1/S2' if not ylabels else ylabels[pair]]
             # RA and Dec with a cross-match in deg:arcmin:arcsec
             position_ra_dec = [(deg2ra(ra), deg2dec(dec)) for (ra, dec) in positions_in_out]
             # Phase centre distance in degree
@@ -1543,7 +1560,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                   phase_centre_dist=z,
                                   ra_dec=position_ra_dec,
                                   label=name_labels))
-            text = "Flux Offset"
+            text = "Flux Offset" if not titles else titles[pair]
             # Create a plot object
             plot_flux = figure(title=text,
                                x_axis_label=axis_labels[0],
@@ -2764,7 +2781,7 @@ def plot_model_data(catalog_file, units='milli', html_prefix=''):
                              width=400, max_width=400,
                              height=370, max_height=400,
                              sizing_mode='stretch_both')
-    table_title = Div(text="Sub-image Statistics")
+    table_title = Div(text="Source Table")
     table_title.align = "center"
     source_table = column([table_title, dtab])
     if html_prefix:
@@ -2921,6 +2938,12 @@ def get_argparser():
              help='Catalog column name to plot on the x-axis')
     argument('-y', '--y-col-data', dest='y_col',
              help='Catalog column name to plot on the y-axis')
+    argument('-fx', '--flux-xlabels', dest='fxlabels', nargs='+',
+             help="x-axis labels for the Flux plots")
+    argument('-fy', '--flux-ylabels', dest='fylabels', nargs='+',
+             help="y-axis labels for the Flux plots")
+    argument('-ftitle', '--flux-plot-title', dest='ftitles', nargs='+',
+             help="Title labels for the Flux plots")
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
     return parser
@@ -3062,7 +3085,10 @@ def main():
                                          shape_limit=args.shape_limit,
                                          closest_only=args.closest_only,
                                          prefix=args.htmlprefix,
-                                         flux_plot=args.fluxplot)
+                                         flux_plot=args.fluxplot,
+                                         ftitles=args.ftitles,
+                                         fxlabels=args.fxlabels,
+                                         fylabels=args.fylabels)
 
     if args.noise:
         residuals = args.noise
@@ -3123,7 +3149,10 @@ def main():
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix,
-                                     flux_plot=args.fluxplot)
+                                     flux_plot=args.fluxplot,
+                                     ftitles=args.ftitles,
+                                     fxlabels=args.fxlabels,
+                                     fylabels=args.fylabels)
 
     if args.online:
         models = args.online
@@ -3180,7 +3209,10 @@ def main():
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix,
-                                     flux_plot=args.fluxplot)
+                                     flux_plot=args.fluxplot,
+                                     ftitles=args.ftitles,
+                                     fxlabels=args.fxlabels,
+                                     fylabels=args.fylabels)
 
     if args.subimage_noise:
         centre_coords = []
