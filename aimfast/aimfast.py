@@ -1894,6 +1894,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                                  #line_color=None,
                                                  color='red')
             plot_position.title.text_font_size = '16pt'
+            plot_overlay.title.text_font_size = '16pt'
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
