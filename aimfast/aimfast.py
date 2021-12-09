@@ -2618,8 +2618,7 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None,
     bokeh_source = ColumnDataSource(data=source_properties)
     x_y_plotter = figure(x_axis_label=x if not x_label else x_label,
                          y_axis_label=y if not y_label else y_label,
-                         plot_width=width,
-                         plot_height=height,
+                         plot_width=width, plot_height=height,
                          #tools=TOOLS,
                          title=f"{catalog_file.split('.')[0]} {x.upper()} vs {y.upper()}"
                                if not title else title)
