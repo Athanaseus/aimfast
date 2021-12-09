@@ -2554,247 +2554,157 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
     save(column(subplot_list))
     return output_dict
 
-def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None):
+
+def get_source_properties_from_catalog(catalog_file):
+    model = get_model(catalog_file)
+    sources = model.sources
+    source_properties = {}
+    for source in sources:
+        if 'name' not in source_properties.keys():
+            source_properties['name'] = [source.name]
+        else:
+            source_properties['name'].append(source.name)
+        fluxes = source.get_attr('flux').strAttributes().split(',')
+        for flux in fluxes:
+            prop = flux.split('=')[0]
+            val = float(flux.split('=')[1])
+            if prop not in source_properties.keys():
+                source_properties[prop] = [val]
+            else:
+                source_properties[prop].append(val)
+        positions = source.get_attr('pos').strAttributes().split(',')
+        for pos in positions:
+            prop = pos.split('=')[0]
+            if prop not in source_properties.keys():
+                source_properties[prop] = [rad2deg(getattr(source.pos, prop))]
+            else:
+                source_properties[prop].append(rad2deg(getattr(source.pos, prop)))
+        try:
+            shapes = source.get_attr('shape').strAttributes().split(',')
+        except AttributeError:
+            shapes = ['ex=0', 'ey=0', 'pa=0',
+                        'ex_err=0', 'ey_err=0', 'pa_err=0']
+        for shape in shapes:
+            prop = shape.split('=')[0]
+            val = float(shape.split('=')[1])
+            if prop not in source_properties.keys():
+                source_properties[prop] = [val]
+            else:
+                source_properties[prop].append(val)
+        try:
+            spectrums = source.get_attr('spectrum').strAttributes().split(',')
+            spectrums.append(f"spi_err={source.spi_error}")
+        except AttributeError:
+            spectrums = ['spi=999', 'spi_err=999', 'freq0=999']
+        for spectrum in spectrums:
+            prop = spectrum.split('=')[0]
+            val = float(spectrum.split('=')[1])
+            if prop not in source_properties.keys():
+                source_properties[prop] = [val]
+            else:
+                source_properties[prop].append(val)
+    return source_properties
+
+
+def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None,
+                       x_label=None, y_label=None, title=None, html_prefix=None):
     """Plot catalog columns including their uncertainties"""
-    name = []
-    col_x = []
-    col_y = []
-    col_x_err = []
-    col_y_err = []
-    width, height = 400, 400
+    width, height = 800, 800
     if 'lsm.html' in catalog_file:
-        model = get_model(catalog_file)
-        sources = model.sources
-        for source in sources:
-            if x in ['i', 'q', 'u', 'v', 'I', 'Q', 'U', 'V']:
-                if x.upper() in ['I']:
-                    col_x.append(source.flux.I)
-                elif x.upper() in ['Q']:
-                    col_x.append(source.flux.Q)
-                elif x.upper() in ['U']:
-                    col_x.append(source.flux.U)
-                elif x.upper() in ['V']:
-                    col_x.append(source.flux.V)
-            if y in ['i', 'q', 'u', 'v', 'I', 'Q', 'U', 'V']:
-                if y.upper() in ['I']:
-                    col_y.append(source.flux.I)
-                elif y.upper() in ['Q']:
-                    col_y.append(source.flux.Q)
-                elif y.upper() in ['U']:
-                    col_y.append(source.flux.U)
-                elif y.upper() in ['V']:
-                    col_y.append(source.flux.V)
-            if x.lower() in ['ra']:
-                col_x.append(source.pos.ra)
-            if y.lower() in ['ra']:
-                col_y.append(source.pos.ra)
-            if x.lower() in ['dec']:
-                col_x.append(source.pos.dec)
-            if y.lower() in ['dec']:
-                col_y.append(source.pos.dec)
-            if x.lower() in ['spi']:
-                col_x.append(source.spectrum.spi)
-            if y.lower() in ['spi']:
-                col_y.append(source.spectrum.spi)
+        source_properties = get_source_properties_from_catalog(catalog_file)
     else:
         data = Table.read(catalog_file)
-        for src in data:
-            col_x.append(src[x])
-            col_y.append(src[y])
-    bokeh_source = ColumnDataSource(data=dict(
-                                              x=col_x,
-                                              y=col_y,
-                                              ))
-    x_y_plotter = figure(x_axis_label=x,
-                         y_axis_label=y,
-                         plot_width=width, plot_height=height,
+        print('Model not yet supported')
+    bokeh_source = ColumnDataSource(data=source_properties)
+    x_y_plotter = figure(x_axis_label=x if not x_label else x_label,
+                         y_axis_label=y if not y_label else y_label,
+                         plot_width=width,
+                         plot_height=height,
                          #tools=TOOLS,
-                         title=f"{catalog_file.split('.')[0]} {x.upper()} vs {y.upper()}")
-    x_y_plotter.scatter('x', 'y', source=bokeh_source,
+                         title=f"{catalog_file.split('.')[0]} {x.upper()} vs {y.upper()}"
+                               if not title else title)
+    x_y_plotter.scatter(x, y, source=bokeh_source,
                              name='x_y_data')
-    LOGGER.info(f"Total number of sources: {len(col_x)}")
-    output_file(f"{catalog_file.split('.')[0]}_column_properties.html")
-    save(x_y_plotter)
-
-
-def plot_model_data(catalog_file, units='milli', html_prefix=''):
-    """Plotting source properties from the catalog"""
-    ra = []
-    dec = []
-    spi = []
-    flux = []
-    shape = []
-    ra_error = []
-    dec_error = []
-    spi_error = []
-    flux_error = []
-    shape_error = []
-    flux_ex = []
-    flux_ex_error = []
-    spi_ex = []
-    spi_ex_error = []
-    colors = []
-    name = []
-    position = []
-    dist_from_centre = []
-    model = get_model(catalog_file)
-    try:
-        ptc = rad2deg(model.ra0), rad2deg(model.dec0)
-    except:
-        ptc = _get_phase_centre(model)
-    for source in model.sources:
-        name.append(source.name)
-        flux.append(source.flux.I)
-        flux_error.append(source.flux.I_err)
-        position.append((source.pos.ra, source.pos.dec))
-        ra_deg = rad2deg(source.pos.ra)
-        ra.append(ra_deg)
-        ra_error.append(rad2deg(source.pos.ra_err))
-        dec_deg = rad2deg(source.pos.dec)
-        dec.append(dec_deg)
-        dec_error.append(rad2deg(source.pos.dec_err))
-        dist_from_centre.append(angular_dist_pos_angle(ptc[0], ptc[0],
-                                                       ra_deg, dec_deg)[0])
-
-        if source.shape:
-            shape.append((source.shape.ex, source.shape.ey, source.shape.pa))
-            shape_error.append((source.shape.ex_err, source.shape.ey_err,
-                                source.shape.pa_err))
-            colors.append('red')
-        else:
-            shape.append(None)
-            shape_error.append(None)
-            colors.append('blue')
-
-        if source.spectrum:
-            spi.append(source.spectrum.spi)
-            spi_error.append(source.get_attr('spi_error'))
-        else:
-            spi.append(None)
-            spi_error.append(None)
-
-    width, height = 400, 400
-    multiplier = FLUX_UNIT_SCALER[units][0]
-
+    x_y_plotter.title.align = 'center'
+    x_y_plotter.title.text_font_size = '16pt'
+    x_y_plotter.xaxis.axis_label_text_font_size = "12pt"
+    x_y_plotter.yaxis.axis_label_text_font_size = "12pt"
+    if x in ['RA', 'ra']:
+        x_y_plotter.x_range.flipped = True
+    elif y in ['RA', 'ra']:
+        x_y_plotter.y_range.flipped = True
+    # Attaching the hover object with labels
+    tool_values = []
+    for p in source_properties.keys():
+        tool_values.append((p, f'@{p}'))
+    x_y_plotter.add_tools(HoverTool(tooltips=tool_values))
     # create the coordinates for the errorbars
-    err_xs1 = []
-    err_ys1 = []
-    err_xs2 = []
-    err_ys2 = []
-    for x, y, xerr, yerr in zip(flux, spi, flux_error, spi_error):
-        err_ys1.append((y,y))
-        err_xs2.append((x,x))
-        if xerr:
-            err_xs1.append((x - xerr, x + xerr))
-        else:
-            err_xs1.append((None, None))
-        if yerr:
-            err_ys2.append((y - yerr, y + yerr))
-        else:
-            err_ys2.append((None, None))
-    TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
-    bokeh_source = ColumnDataSource(data=dict(name=name, flux=flux,
-                                              ra=ra, dec=dec, spi=spi,
-                                              flux_error=flux_error,
-                                              ra_error=ra_error,
-                                              color=colors,
-                                              err_xs1=err_xs1,
-                                              err_ys1=err_ys1,
-                                              err_xs2=err_xs2,
-                                              err_ys2=err_ys2,
-                                              dec_error=dec_error,
-                                              spi_error=spi_error,
-                                              centre=dist_from_centre))
-
-    flux_spi_plotter = figure(x_axis_label=f"Flux density ({units})",
-                              y_axis_label="Spectral Index",
-                              plot_width=width, plot_height=height,
-                              tools=TOOLS,
-                              title='Source Flux-Spectral_Index')
-    flux_spi_plotter.scatter('flux', 'spi', source=bokeh_source,
-                             name='flux_spi', line_color='color')
-    flux_spi_plotter.multi_line('err_xs1', 'err_ys1',
-                                source=bokeh_source,
-                                line_color='color')
-    flux_spi_plotter.multi_line('err_xs2', 'err_ys2',
-                                source=bokeh_source,
-                                line_color='color')
-    hover = flux_spi_plotter.select(dict(type=HoverTool))
-    hover.names = ['flux_spi']
-    hover.tooltips = OrderedDict([
-       ("source", "@name"),
-       (f"flux [{units}]", "@flux±@flux_error"),
-       ("spi", "@spi±@spi_error"),
-       ("(ra, dec) [deg]", "(@ra±@ra_error, @dec±@dec_error)"),
-       ("distance off-axis [deg]", "@centre")])
-    flux_spi_plotter.title.align = 'center'
-
-    flux_ra_plotter = figure(x_axis_label=f"Flux density ({units})",
-                              y_axis_label="Right Ascension (deg)",
-                              plot_width=width, plot_height=height,
-                              tools="tap,pan,box_zoom,wheel_zoom,save,reset",
-                              title='Source Flux-RA')
-    flux_ra_plotter.scatter('flux', 'ra', source=bokeh_source,
-                            line_color='color')
-    flux_ra_plotter.title.align = 'center'
-
-    flux_dec_plotter = figure(x_axis_label=f"Flux density ({units})",
-                              y_axis_label="Declination (deg)",
-                              plot_width=width, plot_height=height,
-                              tools="tap,pan,box_zoom,wheel_zoom,save,reset",
-                              title='Source Flux-DEC')
-    flux_dec_plotter.scatter('flux', 'dec', source=bokeh_source,
-                             line_color='color')
-    flux_dec_plotter.title.align = 'center'
-
-    flux_dist_plotter = figure(x_axis_label="Distance from centre (deg)",
-                               y_axis_label=f"Flux density ({units})",
-                               plot_width=width, plot_height=height,
-                               tools="tap,pan,box_zoom,wheel_zoom,save,reset",
-                               title='Source Flux-Distance_from_centre')
-    flux_dist_plotter.scatter('centre', 'flux', source=bokeh_source,
-                               line_color='color')
-    flux_dist_plotter.title.align = 'center'
-
-    ra_dec_plotter = figure(x_axis_label="Right Ascension (deg)",
-                              y_axis_label="Declination (deg)",
-                              plot_width=width, plot_height=height,
-                              tools="tap,pan,box_zoom,wheel_zoom,save,reset",
-                              title='Source RA-DEC')
-    ra_dec_plotter.scatter('ra', 'dec', source=bokeh_source,
-                           line_color='color')
-    ra_dec_plotter.x_range.flipped = True
-    ra_dec_plotter.title.align = 'center'
-
-
-    columns = [TableColumn(field='name', title='Name'),
-               TableColumn(field='flux', title='Flux'),
-               TableColumn(field='flux_error', title='Flux Error'),
-               TableColumn(field='spi', title='Spi'),
-               TableColumn(field='spi_error', title='Spi Error'),
-               TableColumn(field='ra', title='RA'),
-               TableColumn(field='ra_error', title='RA Error'),
-               TableColumn(field='dec', title='DEC'),
-               TableColumn(field='dec_error', title='DEC Error'),
-               TableColumn(field='centre', title='Centre-Dist')]
-
-    dtab = DataTable(source=bokeh_source, columns=columns,
-                             width=400, max_width=400,
-                             height=370, max_height=400,
+    err_xs = []
+    err_ys = []
+    xs = source_properties[x]
+    ys = source_properties[y]
+    if x_err:
+        xerrs = source_properties[x_err]
+        for x, y, xerr in zip(xs, ys, xerrs):
+            err_xs.append((x - xerr, x + xerr))
+            err_ys.append((y, y))
+        x_y_plotter.multi_line(err_xs, err_ys, color='red')
+    if y_err:
+        yerrs = source_properties[y_err]
+        for x, y, yerr in zip(xs, ys, yerrs):
+            err_xs.append((x, x))
+            err_ys.append((y - yerr, y + yerr))
+        x_y_plotter.multi_line(err_xs, err_ys, color='red')
+    column_list = source_properties.keys()
+    bokeh_source_table = ColumnDataSource(data=source_properties)
+    columns = [TableColumn(field=col, title=col) for col in column_list]
+    dtab = DataTable(source=bokeh_source_table, columns=columns,
+                             width=width, max_width=width + 50,
+                             height=height, max_height=width + 50,
                              sizing_mode='stretch_both')
     table_title = Div(text="Source Table")
     table_title.align = "center"
     source_table = column([table_title, dtab])
-    if html_prefix:
-        outfile_name = f"{html_prefix}.html"
-    else:
-        outfile_name = f"{catalog_file.split('.')[0]}_source_properties.html"
 
-    LOGGER.info(f"Total number of sources: {len(name)}")
-    output_file(outfile_name)
-    save(row(column(source_table, flux_ra_plotter),
-             column(ra_dec_plotter, flux_dec_plotter),
-             column(flux_spi_plotter, flux_dist_plotter)))
+    LOGGER.info(f"Total number of sources: {len(source_properties['name'])}")
+    print(html_prefix)
+    if not html_prefix:
+        output_file_name = f"{catalog_file.split('.')[0]}_column_properties.html"
+    else:
+        output_file_name = f"{html_prefix}.html"
+    LOGGER.info(f"Saving results in {output_file_name}")
+    output_file(output_file_name)
+    save(row(source_table, x_y_plotter))
+
+
+def plot_model_data(catalog_file, html_prefix=''):
+    """Plotting catalog table"""
+    width, height = 1000, 2000
+    if 'lsm.html' in catalog_file:
+        source_properties = get_source_properties_from_catalog(catalog_file)
+    else:
+        data = Table.read(catalog_file)
+        print('Model not yet supported')
+    column_list = source_properties.keys()
+    bokeh_source_table = ColumnDataSource(data=source_properties)
+    columns = [TableColumn(field=col, title=col) for col in column_list]
+    dtab = DataTable(source=bokeh_source_table, columns=columns,
+                             width=width, max_width=width + 50,
+                             height=height, max_height=width + 50,
+                             sizing_mode='stretch_both')
+    table_title = Div(text="Source Table")
+    table_title.align = "center"
+    source_table = column([table_title, dtab])
+
+    LOGGER.info(f"Total number of sources: {len(source_properties['name'])}")
+    print(html_prefix)
+    if not html_prefix:
+        output_file_name = f"{catalog_file.split('.')[0]}_column_properties.html"
+    else:
+        output_file_name = f"{html_prefix}.html"
+    LOGGER.info(f"Saving results in {output_file_name}")
+    output_file(output_file_name)
+    save(source_table)
 
 
 def get_sf_params(configfile):
@@ -2939,6 +2849,16 @@ def get_argparser():
              help='Catalog column name to plot on the x-axis')
     argument('-y', '--y-col-data', dest='y_col',
              help='Catalog column name to plot on the y-axis')
+    argument('-x-err', '--x-col-err-data', dest='x_col_err',
+             help='Catalog column name to plot error data on the x-axis')
+    argument('-y-err', '--y-col-err-data', dest='y_col_err',
+             help='Catalog column name to plot error data on the y-axis')
+    argument('-x-label', '--x-label', dest='x_label',
+             help='x-axis labels for the plot')
+    argument('-y-label', '--y-label', dest='y_label',
+             help='y-axis labels for the plots')
+    argument('-title', '--plot-title', dest='title',
+             help="Title label for the plot")
     argument('-fx', '--flux-xlabels', dest='fxlabels', nargs='+',
              help="x-axis labels for the Flux plots")
     argument('-fy', '--flux-ylabels', dest='fylabels', nargs='+',
@@ -2981,10 +2901,12 @@ def main():
         model_label = args.model
 
     if args.model and not args.x_col and not args.y_col:
-        plot_model_data(args.model, units=args.units,
-                        html_prefix=args.htmlprefix)
+        plot_model_data(args.model, html_prefix=args.htmlprefix)
     elif args.model and args.x_col and args.y_col:
-        plot_model_columns(args.model, args.x_col, args.y_col)
+        plot_model_columns(args.model, args.x_col, args.y_col,
+                           args.x_col_err, args.y_col_err,
+                           args.x_label, args.y_label, args.title,
+                           html_prefix=args.htmlprefix)
 
     if args.model and not args.noise and args.residual:
         if not args.residual:
