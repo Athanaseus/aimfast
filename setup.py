@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 pkg = 'aimfast'
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 build_root = os.path.dirname(__file__)
 
 def readme():
