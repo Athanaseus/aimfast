@@ -1169,7 +1169,8 @@ def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0
 
 
 def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_limit=6.0,
-                   off_axis=None, closest_only=False, prefix=None, flux_plot='log'):
+                   off_axis=None, closest_only=False, prefix=None, flux_plot='log',
+                   fxlabels=None, fylabels=None, ftitles=None):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -1190,6 +1191,12 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
         The type of output flux comparison plot (options:log,snr,inout)
     prefix : str
         Prefix for output htmls
+    fxlabels : str[]
+        X-axis labels for the flux comparison plots
+    fylabels : str[]
+        Y-axis labels for the flux comparison plots
+    fylabels : str[]
+        Title labels for the flux comparison plots
 
     Returns
     -------
@@ -1236,7 +1243,8 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
             results[heading]['overlay'].append(no_match_prop2[i][-1])
         results[heading]['tolerance'] = tolerance
     if plot:
-        _source_flux_plotter(results, models, prefix=prefix, plot_type=flux_plot)
+        _source_flux_plotter(results, models, prefix=prefix, plot_type=flux_plot,
+                             titles=ftitles, xlabels=fxlabels, ylabels=fylabels)
         _source_astrometry_plotter(results, models, prefix=prefix)
     return results
 
@@ -1415,7 +1423,8 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
 
 
 def _source_flux_plotter(results, all_models, inline=False, units='milli',
-                         prefix=None, plot_type='log'):
+                         prefix=None, plot_type='log', titles=None,
+                         xlabels=None, ylabels=None):
     """Plot flux results and save output as html file.
 
     Parameters
@@ -1430,11 +1439,16 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         Allow inline plotting inside a notebook.
     units : str
         Data points and axis label units
-    prefix : str
-        Prefix for output htmls
     plot_type: str
         The type of output flux comparison plot (options:log,snr,inout)
-
+    prefix : str
+        Prefix for output htmls
+    fxlabels : str[]
+        X-axis labels for the flux comparison plots
+    fylabels : str[]
+        Y-axis labels for the flux comparison plots
+    fylabels : str[]
+        Title labels for the flux comparison plots
     """
     if prefix:
         outfile = f'{prefix}-FluxOffset.html'
@@ -1442,7 +1456,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         outfile = 'FluxOffset.html'
     output_file(outfile)
     flux_plot_list = []
-    for model_pair in all_models:
+    for pair, model_pair in enumerate(all_models):
         heading = model_pair[0]['label']
         name_labels = []
         flux_in_data = []
@@ -1482,21 +1496,24 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 y1 = y
                 xerr1 = xerr
                 yerr1 = yerr
-                axis_labels = [f"{model_1_name} S1 ({FLUX_UNIT_SCALER[units][1]})",
-                               f"{model_2_name} S2 ({FLUX_UNIT_SCALER[units][1]})"]
+                axis_labels = [f"{model_1_name} S1 ({FLUX_UNIT_SCALER[units][1]})"
+                               if not xlabels else xlabels[pair],
+                               f"{model_2_name} S2 ({FLUX_UNIT_SCALER[units][1]})"
+                               if not ylabels else ylabels[pair]]
             elif plot_type == 'log':
                 x1 = np.log(x)
                 y1 = np.log(y)
                 xerr1 = np.log(xerr)
                 yerr1 = np.log(yerr)
-                axis_labels = [f"log S1: {model_1_name}",
-                               f"log S2: {model_2_name}"]
+                axis_labels = [f"log S1: {model_1_name}" if not xlabels else xlabels[pair],
+                               f"log S2: {model_2_name}" if not ylabels else ylabels[pair]]
             elif plot_type == 'snr':
                 x1 = np.log(x)
                 y1 = (x/y)
                 xerr1 = xerr
                 yerr1 = yerr
-                axis_labels = ['log S1', 'S1/S2']
+                axis_labels = ['log S1' if not xlabels else xlabels[pair],
+                               'S1/S2' if not ylabels else ylabels[pair]]
             # RA and Dec with a cross-match in deg:arcmin:arcsec
             position_ra_dec = [(deg2ra(ra), deg2dec(dec)) for (ra, dec) in positions_in_out]
             # Phase centre distance in degree
@@ -1543,7 +1560,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                   phase_centre_dist=z,
                                   ra_dec=position_ra_dec,
                                   label=name_labels))
-            text = "Flux Offset"
+            text = "Flux Offset" if not titles else titles[pair]
             # Create a plot object
             plot_flux = figure(title=text,
                                x_axis_label=axis_labels[0],
@@ -1877,6 +1894,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                                  #line_color=None,
                                                  color='red')
             plot_position.title.text_font_size = '16pt'
+            plot_overlay.title.text_font_size = '16pt'
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
@@ -2537,6 +2555,157 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
     return output_dict
 
 
+def get_source_properties_from_catalog(catalog_file):
+    model = get_model(catalog_file)
+    sources = model.sources
+    source_properties = {}
+    for source in sources:
+        if 'name' not in source_properties.keys():
+            source_properties['name'] = [source.name]
+        else:
+            source_properties['name'].append(source.name)
+        fluxes = source.get_attr('flux').strAttributes().split(',')
+        for flux in fluxes:
+            prop = flux.split('=')[0]
+            val = float(flux.split('=')[1])
+            if prop not in source_properties.keys():
+                source_properties[prop] = [val]
+            else:
+                source_properties[prop].append(val)
+        positions = source.get_attr('pos').strAttributes().split(',')
+        for pos in positions:
+            prop = pos.split('=')[0]
+            if prop not in source_properties.keys():
+                source_properties[prop] = [rad2deg(getattr(source.pos, prop))]
+            else:
+                source_properties[prop].append(rad2deg(getattr(source.pos, prop)))
+        try:
+            shapes = source.get_attr('shape').strAttributes().split(',')
+        except AttributeError:
+            shapes = ['ex=0', 'ey=0', 'pa=0',
+                        'ex_err=0', 'ey_err=0', 'pa_err=0']
+        for shape in shapes:
+            prop = shape.split('=')[0]
+            val = float(shape.split('=')[1])
+            if prop not in source_properties.keys():
+                source_properties[prop] = [val]
+            else:
+                source_properties[prop].append(val)
+        try:
+            spectrums = source.get_attr('spectrum').strAttributes().split(',')
+            spectrums.append(f"spi_err={source.spi_error}")
+        except AttributeError:
+            spectrums = ['spi=999', 'spi_err=999', 'freq0=999']
+        for spectrum in spectrums:
+            prop = spectrum.split('=')[0]
+            val = float(spectrum.split('=')[1])
+            if prop not in source_properties.keys():
+                source_properties[prop] = [val]
+            else:
+                source_properties[prop].append(val)
+    return source_properties
+
+
+def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None,
+                       x_label=None, y_label=None, title=None, html_prefix=None):
+    """Plot catalog columns including their uncertainties"""
+    width, height = 800, 800
+    if 'lsm.html' in catalog_file:
+        source_properties = get_source_properties_from_catalog(catalog_file)
+    else:
+        data = Table.read(catalog_file)
+        print('Model not yet supported')
+    bokeh_source = ColumnDataSource(data=source_properties)
+    x_y_plotter = figure(x_axis_label=x if not x_label else x_label,
+                         y_axis_label=y if not y_label else y_label,
+                         plot_width=width, plot_height=height,
+                         #tools=TOOLS,
+                         title=f"{catalog_file.split('.')[0]} {x.upper()} vs {y.upper()}"
+                               if not title else title)
+    x_y_plotter.scatter(x, y, source=bokeh_source,
+                             name='x_y_data')
+    x_y_plotter.title.align = 'center'
+    x_y_plotter.title.text_font_size = '16pt'
+    x_y_plotter.xaxis.axis_label_text_font_size = "12pt"
+    x_y_plotter.yaxis.axis_label_text_font_size = "12pt"
+    if x in ['RA', 'ra']:
+        x_y_plotter.x_range.flipped = True
+    elif y in ['RA', 'ra']:
+        x_y_plotter.y_range.flipped = True
+    # Attaching the hover object with labels
+    tool_values = []
+    for p in source_properties.keys():
+        tool_values.append((p, f'@{p}'))
+    x_y_plotter.add_tools(HoverTool(tooltips=tool_values))
+    # create the coordinates for the errorbars
+    err_xs = []
+    err_ys = []
+    xs = source_properties[x]
+    ys = source_properties[y]
+    if x_err:
+        xerrs = source_properties[x_err]
+        for x, y, xerr in zip(xs, ys, xerrs):
+            err_xs.append((x - xerr, x + xerr))
+            err_ys.append((y, y))
+        x_y_plotter.multi_line(err_xs, err_ys, color='red')
+    if y_err:
+        yerrs = source_properties[y_err]
+        for x, y, yerr in zip(xs, ys, yerrs):
+            err_xs.append((x, x))
+            err_ys.append((y - yerr, y + yerr))
+        x_y_plotter.multi_line(err_xs, err_ys, color='red')
+    column_list = source_properties.keys()
+    bokeh_source_table = ColumnDataSource(data=source_properties)
+    columns = [TableColumn(field=col, title=col) for col in column_list]
+    dtab = DataTable(source=bokeh_source_table, columns=columns,
+                             width=width, max_width=width + 50,
+                             height=height, max_height=width + 50,
+                             sizing_mode='stretch_both')
+    table_title = Div(text="Source Table")
+    table_title.align = "center"
+    source_table = column([table_title, dtab])
+
+    LOGGER.info(f"Total number of sources: {len(source_properties['name'])}")
+    print(html_prefix)
+    if not html_prefix:
+        output_file_name = f"{catalog_file.split('.')[0]}_column_properties.html"
+    else:
+        output_file_name = f"{html_prefix}.html"
+    LOGGER.info(f"Saving results in {output_file_name}")
+    output_file(output_file_name)
+    save(row(source_table, x_y_plotter))
+
+
+def plot_model_data(catalog_file, html_prefix=''):
+    """Plotting catalog table"""
+    width, height = 1000, 2000
+    if 'lsm.html' in catalog_file:
+        source_properties = get_source_properties_from_catalog(catalog_file)
+    else:
+        data = Table.read(catalog_file)
+        print('Model not yet supported')
+    column_list = source_properties.keys()
+    bokeh_source_table = ColumnDataSource(data=source_properties)
+    columns = [TableColumn(field=col, title=col) for col in column_list]
+    dtab = DataTable(source=bokeh_source_table, columns=columns,
+                             width=width, max_width=width + 50,
+                             height=height, max_height=width + 50,
+                             sizing_mode='stretch_both')
+    table_title = Div(text="Source Table")
+    table_title.align = "center"
+    source_table = column([table_title, dtab])
+
+    LOGGER.info(f"Total number of sources: {len(source_properties['name'])}")
+    print(html_prefix)
+    if not html_prefix:
+        output_file_name = f"{catalog_file.split('.')[0]}_column_properties.html"
+    else:
+        output_file_name = f"{html_prefix}.html"
+    LOGGER.info(f"Saving results in {output_file_name}")
+    output_file(output_file_name)
+    save(source_table)
+
+
 def get_sf_params(configfile):
     import yaml
     with open(r'{}'.format(configfile)) as file:
@@ -2583,8 +2752,8 @@ def get_argparser():
              version='{0:s} version {1:s}'.format(parser.prog, _version))
     argument('-c', '--config', dest='config',
                     help='Config file to run source finder of choice (YAML format)')
-    argument('--tigger-model', dest='model',
-             help='Name of the tigger model lsm.html file')
+    argument('-catalog', '--tigger-model', dest='model',
+             help='Name of the tigger model lsm.html file or any supported catalog')
     argument('--restored-image', dest='restored',
              help='Name of the restored image fits file')
     argument('-psf', '--psf-image', dest='psf',
@@ -2664,7 +2833,7 @@ def get_argparser():
              help='Centre of online catalog to compare local image/model \n'
                   'in "RA hh:mm:ss, Dec deg:min:sec".')
     argument('-w', '--width', dest='width',
-             help='Field of view width to querry online catalogi in degrees.'
+             help='Field of view width to querry online catalog in degrees.'
                    'e.g. -w 3.0d')
     argument('-cps', '--centre-pixels-size', dest='centre_pix_size',
              nargs='+', action='append',
@@ -2675,6 +2844,26 @@ def get_argparser():
                   ' less than this value')
     argument('-fdr', '--fidelity-results', dest='json',
              help='aimfast fidelity results file (JSON format)')
+    argument('-x', '--x-col-data', dest='x_col',
+             help='Catalog column name to plot on the x-axis')
+    argument('-y', '--y-col-data', dest='y_col',
+             help='Catalog column name to plot on the y-axis')
+    argument('-x-err', '--x-col-err-data', dest='x_col_err',
+             help='Catalog column name to plot error data on the x-axis')
+    argument('-y-err', '--y-col-err-data', dest='y_col_err',
+             help='Catalog column name to plot error data on the y-axis')
+    argument('-x-label', '--x-label', dest='x_label',
+             help='x-axis labels for the plot')
+    argument('-y-label', '--y-label', dest='y_label',
+             help='y-axis labels for the plots')
+    argument('-title', '--plot-title', dest='title',
+             help="Title label for the plot")
+    argument('-fx', '--flux-xlabels', dest='fxlabels', nargs='+',
+             help="x-axis labels for the Flux plots")
+    argument('-fy', '--flux-ylabels', dest='fylabels', nargs='+',
+             help="y-axis labels for the Flux plots")
+    argument('-ftitle', '--flux-plot-title', dest='ftitles', nargs='+',
+             help="Title labels for the Flux plots")
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
     return parser
@@ -2710,7 +2899,15 @@ def main():
         restored_label = args.restored
         model_label = args.model
 
-    if args.model and not args.noise:
+    if args.model and not args.x_col and not args.y_col:
+        plot_model_data(args.model, html_prefix=args.htmlprefix)
+    elif args.model and args.x_col and args.y_col:
+        plot_model_columns(args.model, args.x_col, args.y_col,
+                           args.x_col_err, args.y_col_err,
+                           args.x_label, args.y_label, args.title,
+                           html_prefix=args.htmlprefix)
+
+    if args.model and not args.noise and args.residual:
         if not args.residual:
             raise RuntimeError(f"{R}Please provide residual fits file{W}")
 
@@ -2810,7 +3007,10 @@ def main():
                                          shape_limit=args.shape_limit,
                                          closest_only=args.closest_only,
                                          prefix=args.htmlprefix,
-                                         flux_plot=args.fluxplot)
+                                         flux_plot=args.fluxplot,
+                                         ftitles=args.ftitles,
+                                         fxlabels=args.fxlabels,
+                                         fylabels=args.fylabels)
 
     if args.noise:
         residuals = args.noise
@@ -2871,7 +3071,10 @@ def main():
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix,
-                                     flux_plot=args.fluxplot)
+                                     flux_plot=args.fluxplot,
+                                     ftitles=args.ftitles,
+                                     fxlabels=args.fxlabels,
+                                     fylabels=args.fylabels)
 
     if args.online:
         models = args.online
@@ -2928,7 +3131,10 @@ def main():
                                      all_sources=args.all,
                                      closest_only=args.closest_only,
                                      prefix=args.htmlprefix,
-                                     flux_plot=args.fluxplot)
+                                     flux_plot=args.fluxplot,
+                                     ftitles=args.ftitles,
+                                     fxlabels=args.fxlabels,
+                                     fylabels=args.fylabels)
 
     if args.subimage_noise:
         centre_coords = []
