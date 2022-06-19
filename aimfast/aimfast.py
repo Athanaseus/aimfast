@@ -19,6 +19,8 @@ from scipy.stats import linregress
 from scipy.interpolate import interp1d
 from scipy.ndimage import measurements as measure
 
+from bokeh.io import export_svgs
+
 from bokeh.transform import transform
 
 from bokeh.models.widgets import Div, PreText
@@ -33,7 +35,7 @@ from bokeh.models import LogColorMapper, LogTicker, LinearColorMapper
 from bokeh.layouts import row, column, gridplot, grid
 from bokeh.plotting import figure, output_file, show, save, ColumnDataSource
 
-from astLib.astWCS import WCS
+from atropy.wcs import WCS
 from astropy.table import Table
 from astropy.io import fits as fitsio
 
@@ -256,7 +258,7 @@ def get_box(wcs, radec, w):
         RA and DEC in degrees.
     w : int
         Width of box.
-    wcs : astLib.astWCS.WCS instance
+    wcs : atropy.wcs instance
         World Coordinate System.
 
     Returns
@@ -1423,7 +1425,7 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
 
 
 def _source_flux_plotter(results, all_models, inline=False, units='milli',
-                         prefix=None, plot_type='log', titles=None,
+                         prefix=None, plot_type='log', titles=None, svg=False,
                          xlabels=None, ylabels=None):
     """Plot flux results and save output as html file.
 
@@ -1566,6 +1568,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                x_axis_label=axis_labels[0],
                                y_axis_label=axis_labels[1],
                                tools=TOOLS)
+            plot_flux.output_backend='svg'
             plot_flux.title.text_font_size = '16pt'
             # Create a color bar and size objects
             color_bar_height = 100
@@ -1577,13 +1580,13 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             color_bar = ColorBar(color_mapper=mapper,
                                  ticker=plot_flux.xaxis.ticker,
                                  formatter=plot_flux.xaxis.formatter,
-                                 location=(0, 0), orientation='horizontal')
-            color_bar_plot = figure(title="Distance off-axis (deg)",
-                                    title_location="below",
-                                    height=color_bar_height,
-                                    toolbar_location=None,
-                                    outline_line_color=None,
-                                    min_border=0)
+                                 orientation='horizontal')
+            #color_bar_plot = figure(title="Distance off-axis (deg)",
+            #                        title_location="below",
+            #                        height=color_bar_height,
+            #                        toolbar_location=None,
+            #                        outline_line_color=None,
+            #                        min_border=0)
             # Get errors from the input/output fluxes
             for xval, yval, xerr, yerr in zip(x1, y1,
                                   np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
@@ -1721,14 +1724,14 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             plot_flux.title.align = "center"
             plot_flux.legend.click_policy = "hide"
             # Colorbar position
-            color_bar_plot.add_layout(color_bar, "below")
-            color_bar_plot.title.align = "center"
+            plot_flux.add_layout(color_bar, "below")
+            #color_bar_plot.add_layout(color_bar, "below")
+            #color_bar_plot.title.align = "center"
             # Append all plots
             flux_plot_list.append(column(row(plot_flux,
                                              column(stats_table,
                                                     stats_table1,
-                                                    stats_table2)),
-                                         color_bar_plot))
+                                                    stats_table2))))
         else:
             LOGGER.warn('No photometric plot created for {}'.format(model_pair[1]["path"]))
     if flux_plot_list:
@@ -1736,10 +1739,15 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         flux_plots = column(flux_plot_list)
         # Save the plot (html)
         save(flux_plots, title=outfile)
+        svg = True
+        if svg:
+            prefix = '.'.join(outfile.split('.')[:-1])
+            export_svgs(flux_plots, filename=f"{prefix}.svg")
         LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
 
 
-def _source_astrometry_plotter(results, all_models, inline=False, units='', prefix=None):
+def _source_astrometry_plotter(results, all_models, inline=False, units='',
+                               prefix=None, svg=False):
     """Plot astrometry results and save output as html file.
 
     Parameters
@@ -1909,13 +1917,14 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             color_bar = ColorBar(color_mapper=mapper,
                                  ticker=plot_position.xaxis.ticker,
                                  formatter=plot_position.xaxis.formatter,
-                                 location=(0, 0), orientation='horizontal')
-            color_bar_plot = figure(title="Distance off-axis (deg)",
-                                    title_location="below",
-                                    height=color_bar_height,
-                                    toolbar_location=None,
-                                    outline_line_color=None,
-                                    min_border=0)
+                                 orientation='horizontal')
+
+            #color_bar_plot = figure(title="Distance off-axis (deg)",
+            #                        title_location="below",
+            #                        height=color_bar_height,
+            #                        toolbar_location=None,
+            #                        outline_line_color=None,
+            #                        min_border=0)
             # Get errors from the output positions
             err_xs1 = []
             err_ys1 = []
@@ -2001,12 +2010,20 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             plot_position.legend.click_policy = "hide"
             plot_position.title.align = "center"
             # Colorbar position
-            color_bar_plot.add_layout(color_bar, "below")
-            color_bar_plot.title.align = "center"
+            plot_position.add_layout(color_bar, "below")
+            #color_bar_plot.add_layout(color_bar, "below")
+            #color_bar_plot.title.align = "center"
+            svg=True
+            if svg:
+                plot_overlay.output_backend = "svg"
+                plot_position.output_backend = "svg"
+                prefix = '.'.join(outfile.split('.')[:-1])
+                export_svgs(column(plot_overlay), filename=f"{prefix}_1.svg")
+                export_svgs(column(plot_position), filename=f"{prefix}_2.svg")
             # Append object to plot list
             position_plot_list.append(column(row(plot_position, plot_overlay,
-                                                 column(stats_table)),
-                                             color_bar_plot))
+                                                 column(stats_table))))
+
         else:
             LOGGER.warn('No plot astrometric created for {}'.format(model_pair[1]["path"]))
     if position_plot_list:
@@ -2014,6 +2031,10 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         position_plots = column(position_plot_list)
         # Save the plot (html)
         save(position_plots, title=outfile)
+        #if svg:
+        #    import IPython; IPython.embed()
+        #    prefix = '.'.join(outfile.split('.')[:-1])
+        #    export_svgs(position_plots, filename=f"{prefix}.svg")
         LOGGER.info('Saving astrometry comparisons in {}'.format(outfile))
 
 
@@ -2133,6 +2154,11 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.title.align = "center"
             # Add object to plot list
             residual_plot_list.append(row(plot_residual, column(stats_table)))
+            svg=True
+            if svg:
+                plot_residual.output_backend = "svg"
+                prefix = '.'.join(outfile.split('.')[:-1])
+                export_svgs(column(plot_residual), filename=f"{prefix}.svg")
         else:
             LOGGER.warn('No plot created. Found 0 or 1 data point in {}'.format(res_image))
     if residual_plot_list:
@@ -2460,7 +2486,7 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
 
 
 def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
-                        units='micro'):
+                        units='micro', svg=False):
     """Plot subimages and stats"""
     output_dict = {}
     subplot_list = []
@@ -2528,6 +2554,7 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
                                  tooltips=[("(x, y)", "($x, $y)"),
                                            (f"value ({FLUX_UNIT_SCALER[units][1]})",
                                            "@image")])
+
             # must give a vector of images
             subimage = subimage_data[0,0,:,:]
             subplot.image(image=[subimage * FLUX_UNIT_SCALER[units][0]],
@@ -2547,6 +2574,12 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
             color_bar_plot.title.align="center"
             color_bar_plot.title.text_font_size = '10pt'
             #subplot.add_layout(color_bar, 'right')
+            svg=True
+            if svg:
+                subplot.output_backend = "svg"
+                prefix = '.'.join(fitsname.split('.')[:-1])
+                import IPython; IPython.embed()
+                export_svgs(column(subplot), filename=f"{prefix}.svg")
             im_subplot_list.append(subplot)
             im_subplot_list.append(stats_table)
         subplot_list.append(column(row(im_subplot_list)))
@@ -2606,7 +2639,7 @@ def get_source_properties_from_catalog(catalog_file):
     return source_properties
 
 
-def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None,
+def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None, svg=False,
                        x_label=None, y_label=None, title=None, html_prefix=None):
     """Plot catalog columns including their uncertainties"""
     width, height = 800, 800
@@ -2674,6 +2707,11 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None,
     LOGGER.info(f"Saving results in {output_file_name}")
     output_file(output_file_name)
     save(row(source_table, x_y_plotter))
+    svg = True
+    if svg:
+        x_y_plotter.output_backend = "svg"
+        prefix = '.'.join(output_file_name.split('.')[:-1])
+        export_svgs(x_y_plotter, filename=f"{prefix}.svg")
 
 
 def plot_model_data(catalog_file, html_prefix=''):
@@ -2904,7 +2942,9 @@ def main():
     elif args.model and args.x_col and args.y_col:
         plot_model_columns(args.model, args.x_col, args.y_col,
                            args.x_col_err, args.y_col_err,
-                           args.x_label, args.y_label, args.title,
+                           x_label=args.x_label,
+                           y_label=args.y_label,
+                           title=args.title,
                            html_prefix=args.htmlprefix)
 
     if args.model and not args.noise and args.residual:
