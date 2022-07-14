@@ -19,7 +19,6 @@ from scipy.stats import linregress
 from scipy.interpolate import interp1d
 from scipy.ndimage import measurements as measure
 
-import matplotlib.pyplot as plt
 from bokeh.io import export_svgs
 
 from bokeh.transform import transform
