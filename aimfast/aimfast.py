@@ -19,6 +19,7 @@ from scipy.stats import linregress
 from scipy.interpolate import interp1d
 from scipy.ndimage import measurements as measure
 
+import matplotlib.pyplot as plt
 from bokeh.io import export_svgs
 
 from bokeh.transform import transform
@@ -35,7 +36,7 @@ from bokeh.models import LogColorMapper, LogTicker, LinearColorMapper
 from bokeh.layouts import row, column, gridplot, grid
 from bokeh.plotting import figure, output_file, show, save, ColumnDataSource
 
-from atropy.wcs import WCS
+from astropy.wcs import WCS
 from astropy.table import Table
 from astropy.io import fits as fitsio
 
@@ -1568,7 +1569,6 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                x_axis_label=axis_labels[0],
                                y_axis_label=axis_labels[1],
                                tools=TOOLS)
-            plot_flux.output_backend='svg'
             plot_flux.title.text_font_size = '16pt'
             # Create a color bar and size objects
             color_bar_height = 100
@@ -1741,6 +1741,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         save(flux_plots, title=outfile)
         svg = True
         if svg:
+            plot_flux.output_backend='svg'
             prefix = '.'.join(outfile.split('.')[:-1])
             export_svgs(flux_plots, filename=f"{prefix}.svg")
         LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
@@ -2573,13 +2574,6 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
             color_bar_plot.add_layout(color_bar, 'right')
             color_bar_plot.title.align="center"
             color_bar_plot.title.text_font_size = '10pt'
-            #subplot.add_layout(color_bar, 'right')
-            svg=True
-            if svg:
-                subplot.output_backend = "svg"
-                prefix = '.'.join(fitsname.split('.')[:-1])
-                import IPython; IPython.embed()
-                export_svgs(column(subplot), filename=f"{prefix}.svg")
             im_subplot_list.append(subplot)
             im_subplot_list.append(stats_table)
         subplot_list.append(column(row(im_subplot_list)))
