@@ -1172,7 +1172,8 @@ def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0
 
 def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_limit=6.0,
                    off_axis=None, closest_only=False, prefix=None, flux_plot='log',
-                   fxlabels=None, fylabels=None, ftitles=None, svg=False):
+                   fxlabels=None, fylabels=None, ftitles=None, svg=False,
+                   title_size='16pt', x_label_size='12pt', y_label_size='12pt'):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -1247,8 +1248,11 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
     if plot:
         _source_flux_plotter(results, models, prefix=prefix, plot_type=flux_plot,
                              titles=ftitles, xlabels=fxlabels, ylabels=fylabels,
-                             svg=svg)
-        _source_astrometry_plotter(results, models, prefix=prefix, svg=svg)
+                             svg=svg, title_size=title_size, x_label_size=x_label_size,
+                             y_label_size=y_label_size)
+        _source_astrometry_plotter(results, models, prefix=prefix, svg=svg,
+                                   title_size=title_size, x_label_size=x_label_size,
+                                   y_label_size=y_label_size)
     return results
 
 
@@ -1427,7 +1431,8 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
 
 def _source_flux_plotter(results, all_models, inline=False, units='milli',
                          prefix=None, plot_type='log', titles=None, svg=False,
-                         xlabels=None, ylabels=None):
+                         xlabels=None, ylabels=None, title_size='16pt',
+                         x_label_size='12pt', y_label_size='12pt'):
     """Plot flux results and save output as html file.
 
     Parameters
@@ -1569,7 +1574,9 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                x_axis_label=axis_labels[0],
                                y_axis_label=axis_labels[1],
                                tools=TOOLS)
-            plot_flux.title.text_font_size = '16pt'
+            plot_flux.title.text_font_size = title_size
+            plot_flux.xaxis.axis_label_text_font_size = x_label_size
+            plot_flux.yaxis.axis_label_text_font_size = y_label_size
             # Create a color bar and size objects
             color_bar_height = 100
             mapper_opts = dict(palette="Viridis256",
@@ -1747,7 +1754,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
 
 
 def _source_astrometry_plotter(results, all_models, inline=False, units='',
-                               prefix=None, svg=False):
+                               prefix=None, svg=False, title_size='16pt',
+                               x_label_size='12pt', y_label_size='12pt'):
     """Plot astrometry results and save output as html file.
 
     Parameters
@@ -1845,7 +1853,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
                                    y_axis_label='DEC offset ({:s})'.format(
                                        POSITION_UNIT_SCALER['arcsec'][1]),
                                    tools=TOOLS)
-            plot_position.title.text_font_size = '16pt'
+            plot_position.title.text_font_size = title_size
+            plot_position.xaxis.axis_label_text_font_size = x_label_size
+            plot_position.yaxis.axis_label_text_font_size = y_label_size
             # Create an image overlay
             s1_ra_rad = [src[3] for src in overlays if src[-1] == 1]
             s1_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s1_ra_rad]
@@ -1901,8 +1911,12 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
                                                  source=overlay_source2,
                                                  #line_color=None,
                                                  color='red')
-            plot_position.title.text_font_size = '16pt'
-            plot_overlay.title.text_font_size = '16pt'
+            plot_position.title.text_font_size = title_size
+            plot_position.xaxis.axis_label_text_font_size = x_label_size
+            plot_position.yaxis.axis_label_text_font_size = y_label_size
+            plot_overlay.title.text_font_size = title_size
+            plot_overlay.axis_label_text_font_size = x_label_size
+            plot_overlay.yaxis.axis_label_text_font_size = y_label_size
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
@@ -2034,7 +2048,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
 
 
 def _residual_plotter(res_noise_images, points=None, results=None,
-                      inline=False, prefix=None):
+                      inline=False, prefix=None, title_size='16pt',
+                      x_label_size='12pt', y_label_size='12pt'):
     """Plot ratios of random residuals and noise
 
     Parameters
@@ -2119,7 +2134,9 @@ def _residual_plotter(res_noise_images, points=None, results=None,
                                                   source=source,
                                                   color='green',
                                                   legend_label='res1-to-res2')
-            plot_residual.title.text_font_size = '16pt'
+            plot_residual.title.text_font_size = title_size
+            plot_residual.xaxis.axis_label_text_font_size = x_label_size
+            plot_residual.yaxis.axis_label_text_font_size = y_label_size
             # Table with stats data
             cols = ["Stats", "Value"]
             stats = {"Stats": [f"{text1} ({FLUX_UNIT_SCALER['micro'][1]})",
@@ -2628,7 +2645,8 @@ def get_source_properties_from_catalog(catalog_file):
 
 
 def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None, svg=False,
-                       x_label=None, y_label=None, title=None, html_prefix=None):
+                       x_label=None, y_label=None, title=None, html_prefix=None,
+                       title_size='16pt', x_label_size='12pt', y_label_size='12pt'):
     """Plot catalog columns including their uncertainties"""
     width, height = 800, 800
     if 'lsm.html' in catalog_file:
@@ -2646,9 +2664,9 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None, svg=False,
     x_y_plotter.scatter(x, y, source=bokeh_source,
                              name='x_y_data')
     x_y_plotter.title.align = 'center'
-    x_y_plotter.title.text_font_size = '16pt'
-    x_y_plotter.xaxis.axis_label_text_font_size = "12pt"
-    x_y_plotter.yaxis.axis_label_text_font_size = "12pt"
+    x_y_plotter.title.text_font_size = title_size
+    x_y_plotter.xaxis.axis_label_text_font_size = x_label_size
+    x_y_plotter.yaxis.axis_label_text_font_size = y_label_size
     if x in ['RA', 'ra']:
         x_y_plotter.x_range.flipped = True
     elif y in ['RA', 'ra']:
@@ -2766,7 +2784,8 @@ def get_argparser():
                      "- The Dynamic range in restored image \n"
                      "- Comparing the fits images by running source finder \n"
                      "- Comparing the tigger models and online catalogs (NVSS, SUMSS) \n"
-                     "- Comparing the on source/random residuals to noise"))
+                     "- Comparing the on source/random residuals to noise \n"
+                     "- Comparing residual stats from sub-images"))
     subparser = parser.add_subparsers(dest='subcommand')
     sf = subparser.add_parser('source-finder')
     sf.add_argument('-c', '--config', dest='config',
@@ -2776,36 +2795,7 @@ def get_argparser():
     argument = partial(parser.add_argument)
     argument('-v', "--version", action='version',
              version='{0:s} version {1:s}'.format(parser.prog, _version))
-    argument('-c', '--config', dest='config',
-                    help='Config file to run source finder of choice (YAML format)')
-    argument('-catalog', '--tigger-model', dest='model',
-             help='Name of the tigger model lsm.html file or any supported catalog')
-    argument('--restored-image', dest='restored',
-             help='Name of the restored image fits file')
-    argument('-psf', '--psf-image', dest='psf',
-             help='Name of the point spread function file or psf size in arcsec')
-    argument('--residual-image', dest='residual',
-             help='Name of the residual image fits file')
-    argument('--mask-image', dest='mask',
-             help='Name of the mask image fits file')
-    argument('--normality-test', dest='test_normality',
-             choices=('shapiro', 'normaltest'),
-             help='Name of model to use for normality testing. \n'
-                  'options: [shapiro, normaltest] \n'
-                  'NB: normaltest is the D`Agostino')
-    argument('-dr', '--data-range', dest='data_range',
-             help='Data range to perform normality testing')
-    argument('-af', '--area-factor', dest='factor', type=float, default=2,
-             help='Factor to multiply the beam area to get target peak area')
-    argument('-fov', '--fov-factor', dest='fov_factor', type=float, default=0.9,
-             help='Factor to multiply the field of view for random points. i.e. 0.0-1.0')
-    argument('-tol', '--tolerance', dest='tolerance', type=float, default=0.2,
-             help='Tolerance to cross-match sources in arcsec')
-    argument('-as', '--all-source', dest='all', default=False, action='store_true',
-             help='Compare all sources irrespective of shape, otherwise only '
-                  'point-like sources are compared')
-    argument('-closest', '--closest', dest='closest_only', default=False, action='store_true',
-             help='Use the closest source only when cross matching sources')
+    # Inputs to analyse
     argument('--compare-models', dest='models', nargs=2, action='append',
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html model2.lsm.html')
@@ -2824,31 +2814,25 @@ def get_argparser():
              nargs='+', action='append',
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals residual1.fits residual2.fits')
+    argument('-catalog', '--tigger-model', dest='model',
+             help='Name of the tigger model lsm.html file or any supported catalog')
+    argument('--restored-image', dest='restored',
+             help='Name of the restored image fits file')
+    argument('-psf', '--psf-image', dest='psf',
+             help='Name of the point spread function file or psf size in arcsec')
+    argument('--residual-image', dest='residual',
+             help='Name of the residual image fits file')
+    argument('--mask-image', dest='mask',
+             help='Name of the mask image fits file')
+    argument('-fdr', '--fidelity-results', dest='json',
+             help='aimfast fidelity results file (JSON format)')
+    # Source finding
+    argument('-c', '--config', dest='config',
+             help='Config file to run source finder of choice (YAML format)')
     argument('-sf', '--source-finder', dest='sourcery',
              choices=('aegean', 'pybdsf'), default='pybdsf',
              help='Source finder to run if comparing restored images')
-    argument('-dp', '--data-points', dest='points',
-             help='Data points to sample the residual/noise image')
-    argument('-thresh', '--threshold', dest='thresh',
-             help='Get stats of channels with pixel flux above thresh in Jy/Beam. \n'
-                  'Also this can be used to filter out sources from online catalog')
-    argument('-chans', '--channels', dest='channels',
-             help='Get stats of specified channels e.g. "10~20;100~1000"')
-    argument('-deci', '--decimals', dest='deci', default=2,
-             help='Number of decimal places to round off results')
-    argument('-sl', '--shape-limit', dest='shape_limit', default=6.0,
-             help='Cross-match only sources with a maj-axis equal or less than this value')
-    argument('-units', '--units', dest='units', default="jansky",
-             choices=('jansky', 'milli', 'micro', 'nano'),
-             help='Units to represent the results')
-    argument('-fp', '--flux-plot', dest='fluxplot', default='log',
-             choices=('log', 'snr', 'inout'),
-             help='Type of plot for flux comparison of the two catalogs')
-    argument("--label",
-             help='Use this label instead of the FITS image path when saving '
-                  'data as JSON file')
-    argument("--html-prefix", dest='htmlprefix',
-             help='Prefix of output html files. Default: None.')
+    # Online catalog query
     argument("--online-catalog-name", dest='catalog_name',
              help='Prefix of output catalog file name')
     argument('-oc', '--online-catalog', dest='online_catalog',
@@ -2861,15 +2845,54 @@ def get_argparser():
     argument('-w', '--width', dest='width',
              help='Field of view width to querry online catalog in degrees.'
                    'e.g. -w 3.0d')
+    # Image stats parameters
+    argument('--normality-test', dest='test_normality',
+             choices=('shapiro', 'normaltest'),
+             help='Name of model to use for normality testing. \n'
+                  'options: [shapiro, normaltest] \n'
+                  'NB: normaltest is the D`Agostino')
+    argument('-dr', '--data-range', dest='data_range',
+             help='Data range to perform normality testing')
+    argument('-thresh', '--threshold', dest='thresh',
+             help='Get stats of channels with pixel flux above thresh in Jy/Beam. \n'
+                  'Also this can be used to filter out sources from online catalog')
+    argument('-chans', '--channels', dest='channels',
+             help='Get stats of specified channels e.g. "10~20;100~1000"')
     argument('-cps', '--centre-pixels-size', dest='centre_pix_size',
              nargs='+', action='append',
              help='List of subimage centre pixels and their sizes to compute stats. \n'
                   'e.g. 500,500,20 200,10,5')
+    # Formatting
+    argument('-dp', '--data-points', dest='points',
+             help='Data points to sample the residual/noise image')
+    argument('-fp', '--flux-plot', dest='fluxplot', default='log',
+             choices=('log', 'snr', 'inout'),
+             help='Type of plot for flux comparison of the two catalogs')
+    argument('-units', '--units', dest='units', default="jansky",
+             choices=('jansky', 'milli', 'micro', 'nano'),
+             help='Units to represent the results')
+    argument('-deci', '--decimals', dest='deci', default=2,
+             help='Number of decimal places to round off results')
     argument('-oa', '--only-off-axis', dest='off_axis', default=None,
              help='Plot only cross-matched sources with distance from the phase centre'
                   ' less than this value')
-    argument('-fdr', '--fidelity-results', dest='json',
-             help='aimfast fidelity results file (JSON format)')
+    argument('-af', '--area-factor', dest='factor', type=float, default=2,
+             help='Factor to multiply the beam area to get target peak area')
+    argument('-fov', '--fov-factor', dest='fov_factor', type=float, default=0.9,
+             help='Factor to multiply the field of view for random points. i.e. 0.0-1.0')
+    argument('-tol', '--tolerance', dest='tolerance', type=float, default=0.2,
+             help='Tolerance to cross-match sources in arcsec')
+    argument('-as', '--all-source', dest='all', default=False, action='store_true',
+             help='Compare all sources irrespective of shape, otherwise only '
+                  'point-like sources are compared')
+    argument('-closest', '--closest', dest='closest_only', default=False, action='store_true',
+             help='Use the closest source only when cross matching sources')
+    argument('-sl', '--shape-limit', dest='shape_limit', default=6.0,
+             help='Cross-match only sources with a maj-axis equal or less than this value')
+    argument("--label",
+             help='Use this label instead of the FITS image path when saving '
+                  'data as JSON file')
+    # Plot labelling for basic catalog plotting
     argument('-x', '--x-col-data', dest='x_col',
              help='Catalog column name to plot on the x-axis')
     argument('-y', '--y-col-data', dest='y_col',
@@ -2883,13 +2906,37 @@ def get_argparser():
     argument('-y-label', '--y-label', dest='y_label',
              help='y-axis labels for the plots')
     argument('-title', '--plot-title', dest='title',
-             help="Title label for the plot")
+             help="Title label for the basic catalog plot")
+    # Plot labelling for the flux comparison plotting
     argument('-fx', '--flux-xlabels', dest='fxlabels', nargs='+',
              help="x-axis labels for the Flux plots")
     argument('-fy', '--flux-ylabels', dest='fylabels', nargs='+',
              help="y-axis labels for the Flux plots")
     argument('-ftitle', '--flux-plot-title', dest='ftitles', nargs='+',
              help="Title labels for the Flux plots")
+    # Plot labelling for the position (comparison & overlay) plotting
+    argument('-px1', '--position-xlabels1', dest='pxlabels1', nargs='+',
+             help="x-axis labels for the position plots")
+    argument('-py1', '--position-ylabels1', dest='pylabels1', nargs='+',
+             help="y-axis labels for the comparison position plots")
+    argument('-ptitle1', '--position-plot-title1', dest='ptitles1', nargs='+',
+             help="Title labels for the comparison position  plots")
+    argument('-px2', '--position-xlabels2', dest='pxlabels2', nargs='+',
+             help="x-axis labels for the overlay position plots")
+    argument('-py2', '--position-ylabels2', dest='pylabels2', nargs='+',
+             help="y-axis labels for the overlay position plots")
+    argument('-ptitle2', '--position-plot-title2', dest='ptitles2', nargs='+',
+             help="Title labels for the overlay position plots")
+    # Plot labelling sizes for all plots
+    argument('-x-size', '--xlabels-size', dest='xsize', default='14pt',
+             help="x-axis label size for plots")
+    argument('-y-size', '--ylabels-size', dest='ysize', default='14pt',
+             help="y-axis label size for plots")
+    argument('-title-size', '--plot-title-size', dest='tsize', default='18pt',
+             help="Title label size for plots")
+    # Outputs
+    argument("--html-prefix", dest='htmlprefix',
+             help='Prefix of output html files. Default: None.')
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
     argument('-svg', '--save-svg', dest='svg', default=True, action='store_true',
@@ -2937,6 +2984,9 @@ def main():
                            x_label=args.x_label,
                            y_label=args.y_label,
                            title=args.title,
+                           title_size=args.tsize,
+                           x_label_size=args.xsize,
+                           y_label_size=args.ysize,
                            html_prefix=args.htmlprefix)
 
     if args.model and not args.noise and args.residual:
@@ -3043,6 +3093,9 @@ def main():
                                          ftitles=args.ftitles,
                                          fxlabels=args.fxlabels,
                                          fylabels=args.fylabels,
+                                         title_size=args.tsize,
+                                         x_label=args.xsize,
+                                         y_label=args.ysize,
                                          svg=svg)
 
     if args.noise:
@@ -3108,6 +3161,9 @@ def main():
                                      ftitles=args.ftitles,
                                      fxlabels=args.fxlabels,
                                      fylabels=args.fylabels,
+                                     title_size=args.tsize,
+                                     x_label=args.xsize,
+                                     y_label=args.ysize,
                                      svg=svg)
 
     if args.online:
@@ -3169,6 +3225,9 @@ def main():
                                      ftitles=args.ftitles,
                                      fxlabels=args.fxlabels,
                                      fylabels=args.fylabels,
+                                     title_size=args.tsize,
+                                     x_label=args.xsize,
+                                     y_label=args.ysize,
                                      svg=svg)
 
     if args.subimage_noise:
