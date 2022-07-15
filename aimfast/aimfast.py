@@ -1172,7 +1172,7 @@ def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0
 
 def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_limit=6.0,
                    off_axis=None, closest_only=False, prefix=None, flux_plot='log',
-                   fxlabels=None, fylabels=None, ftitles=None):
+                   fxlabels=None, fylabels=None, ftitles=None, svg=False):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -1246,8 +1246,9 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
         results[heading]['tolerance'] = tolerance
     if plot:
         _source_flux_plotter(results, models, prefix=prefix, plot_type=flux_plot,
-                             titles=ftitles, xlabels=fxlabels, ylabels=fylabels)
-        _source_astrometry_plotter(results, models, prefix=prefix)
+                             titles=ftitles, xlabels=fxlabels, ylabels=fylabels,
+                             svg=svg)
+        _source_astrometry_plotter(results, models, prefix=prefix, svg=svg)
     return results
 
 
@@ -1738,7 +1739,6 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         flux_plots = column(flux_plot_list)
         # Save the plot (html)
         save(flux_plots, title=outfile)
-        svg = True
         if svg:
             plot_flux.output_backend='svg'
             prefix = '.'.join(outfile.split('.')[:-1])
@@ -2013,7 +2013,6 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
             plot_position.add_layout(color_bar, "below")
             #color_bar_plot.add_layout(color_bar, "below")
             #color_bar_plot.title.align = "center"
-            svg=True
             if svg:
                 plot_overlay.output_backend = "svg"
                 plot_position.output_backend = "svg"
@@ -2031,10 +2030,6 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
         position_plots = column(position_plot_list)
         # Save the plot (html)
         save(position_plots, title=outfile)
-        #if svg:
-        #    import IPython; IPython.embed()
-        #    prefix = '.'.join(outfile.split('.')[:-1])
-        #    export_svgs(position_plots, filename=f"{prefix}.svg")
         LOGGER.info('Saving astrometry comparisons in {}'.format(outfile))
 
 
@@ -2897,6 +2892,9 @@ def get_argparser():
              help="Title labels for the Flux plots")
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
+    argument('-svg', '--save-svg', dest='svg', default=True, action='store_true',
+             help='Compare all sources irrespective of shape, otherwise only '
+                  'point-like sources are compared')
     return parser
 
 
@@ -2908,6 +2906,7 @@ def main():
     parser = get_argparser()
     args = parser.parse_args()
     DECIMALS = args.deci
+    svg = args.svg
     if args.subcommand:
         if args.config:
             source_finding(get_sf_params(args.config))
@@ -3043,7 +3042,8 @@ def main():
                                          flux_plot=args.fluxplot,
                                          ftitles=args.ftitles,
                                          fxlabels=args.fxlabels,
-                                         fylabels=args.fylabels)
+                                         fylabels=args.fylabels,
+                                         svg=svg)
 
     if args.noise:
         residuals = args.noise
@@ -3107,7 +3107,8 @@ def main():
                                      flux_plot=args.fluxplot,
                                      ftitles=args.ftitles,
                                      fxlabels=args.fxlabels,
-                                     fylabels=args.fylabels)
+                                     fylabels=args.fylabels,
+                                     svg=svg)
 
     if args.online:
         models = args.online
@@ -3167,7 +3168,8 @@ def main():
                                      flux_plot=args.fluxplot,
                                      ftitles=args.ftitles,
                                      fxlabels=args.fxlabels,
-                                     fylabels=args.fylabels)
+                                     fylabels=args.fylabels,
+                                     svg=svg)
 
     if args.subimage_noise:
         centre_coords = []
