@@ -2582,8 +2582,8 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
                     import matplotlib.pyplot as plt
                     fig, ax = plt.subplots()
                     shw = ax.imshow([subimage *  FLUX_UNIT_SCALER[units][0]],
-                                    extent=[rx_0, rx_0+size, ry_0, ry_0+size],
-                                    vmin=-0.1, vmax=1)
+                                     extent=[rx_0, rx_0+size, ry_0, ry_0+size],
+                                     vmin=-0.1, vmax=1)
                     outname = fitsname.split('.fits')[0]
                     bar = plt.colorbar(shw)
                     plt.xlabel('Right Ascension (deg)')
