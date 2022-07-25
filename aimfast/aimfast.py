@@ -175,7 +175,7 @@ def fitsInfo(fitsname=None):
     dec = hdr['CRVAL2']
     ddec = abs(hdr['CDELT2'])
     decPix = hdr['CRPIX2']
-    wcs = WCS(hdr, mode='pyfits')
+    wcs = WCS(hdr)
     numPix = hdr['NAXIS1']
     try:
         beam_size = (hdr['BMAJ'], hdr['BMIN'], hdr['BPA'])
@@ -2507,8 +2507,10 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
     for im in range(len(centre_coords)):
         im_subplot_list = []
         LOGGER.info(f"Making Subimage with centre pixels ({centre_coords[im]})")
-        centre_coord = centre_coords[im]
         size = sizes[im]
+        centre_coord = centre_coords[im]
+        rx, ry = centre_coord[0], centre_coord[1]
+        rx_0, ry_0 = int(rx-size/2), int(ry-size/2)
         for n, fitsname in enumerate(fitsnames):
             subimage_data = get_subimage(fitsname, centre_coord, size)
             subimg_stats = image_stats(subimage_data, test_normality='normaltest')
@@ -2555,13 +2557,18 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
             if len(im_subplot_list) > 0:
                 s1 = im_subplot_list[0]
                 subplot = figure(title=plot_title,
+                                 x_axis_label='Right Ascension (deg)',
+                                 y_axis_label='Declination (deg)',
                                  width=plot_width, height=plot_height,
                                  x_range=s1.x_range, y_range=s1.y_range,
                                  tooltips=[("(x, y)", "($x, $y)"),
                                            (f"value ({FLUX_UNIT_SCALER[units][1]})",
                                            "@image")])
             else:
+                # Initial column 1 plot
                 subplot = figure(title=plot_title,
+                                 x_axis_label='Right Ascension (deg)',
+                                 y_axis_label='Declination (deg)',
                                  width=plot_width, height=plot_height,
                                  tooltips=[("(x, y)", "($x, $y)"),
                                            (f"value ({FLUX_UNIT_SCALER[units][1]})",
@@ -2569,8 +2576,26 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
 
             # must give a vector of images
             subimage = subimage_data[0,0,:,:]
-            subplot.image(image=[subimage * FLUX_UNIT_SCALER[units][0]],
-                          x=0, y=0, dw=size, dh=size,
+            if svg:
+                # Save subimages as svg
+                try:
+                    import matplotlib.pyplot as plt
+                    fig, ax = plt.subplots()
+                    shw = ax.imshow([subimage *  FLUX_UNIT_SCALER[units][0]],
+                                    extent=[rx_0, rx_0+size, ry_0, ry_0+size],
+                                    vmin=-0.1, vmax=1)
+                    outname = fitsname.split('.fits')[0]
+                    bar = plt.colorbar(shw)
+                    plt.xlabel('Right Ascension (deg)')
+                    plt.ylabel('Declination (deg)')
+                    bar.set_label(f"Flux density ({FLUX_UNIT_SCALER[units][1]})")
+                    plt.savefig(f"{outname}.svg")
+                except ImportError:
+                    LOGGER.warn("SVGs are requested but matplotlib is not installed")
+                    LOGGER.warn("RUN: pip install aimfast[svg_images]")
+
+            subplot.image(image=subimage * FLUX_UNIT_SCALER[units][0],
+                          x=rx_0, y=ry_0, dw=size, dh=size,
                           palette="Plasma11", level="image")
             color_mapper = LinearColorMapper(palette="Plasma11",
                                              low=subimage.min() * FLUX_UNIT_SCALER[units][0],
@@ -3239,10 +3264,11 @@ def main():
                 centre_pix = (int(cps.split(',')[0]), int(cps.split(',')[1]))
                 centre_coords.append(centre_pix)
                 sizes.append(int(cps.split(',')[-1]))
-
+            print(args.svg)
             output_dict = plot_subimage_stats(args.subimage_noise[0],
                                               centre_coords, sizes,
                                               units=args.units,
+                                              svg=args.svg,
                                               htmlprefix=(args.htmlprefix
                                               if args.htmlprefix else 'default'))
         else:
