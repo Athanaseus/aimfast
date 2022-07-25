@@ -2581,7 +2581,7 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
                 try:
                     import matplotlib.pyplot as plt
                     fig, ax = plt.subplots()
-                    shw = ax.imshow([subimage *  FLUX_UNIT_SCALER[units][0]],
+                    shw = ax.imshow(subimage *  FLUX_UNIT_SCALER[units][0],
                                      extent=[rx_0, rx_0+size, ry_0, ry_0+size],
                                      vmin=-0.1, vmax=1)
                     outname = fitsname.split('.fits')[0]
@@ -2594,7 +2594,7 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
                     LOGGER.warn("SVGs are requested but matplotlib is not installed")
                     LOGGER.warn("RUN: pip install aimfast[svg_images]")
 
-            subplot.image(image=subimage * FLUX_UNIT_SCALER[units][0],
+            subplot.image(image=[subimage * FLUX_UNIT_SCALER[units][0]],
                           x=rx_0, y=ry_0, dw=size, dh=size,
                           palette="Plasma11", level="image")
             color_mapper = LinearColorMapper(palette="Plasma11",
