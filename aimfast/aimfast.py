@@ -36,8 +36,10 @@ from bokeh.layouts import row, column, gridplot, grid
 from bokeh.plotting import figure, output_file, show, save, ColumnDataSource
 
 from astropy.wcs import WCS
+from astropy import units as u
 from astropy.table import Table
 from astropy.io import fits as fitsio
+from astropy.coordinates import Angle, SkyCoord
 
 from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
@@ -267,7 +269,8 @@ def get_box(wcs, radec, w):
         A box centred at radec.
 
     """
-    raPix, decPix = wcs.wcs2pix(*radec)
+    radec_pix = SkyCoord(*radec,unit='deg').to_pixel(wcs)
+    raPix, decPix = radec_pix[0] , radec_pix[1]
     raPix = int(raPix)
     decPix = int(decPix)
     box = (slice(decPix - int(w / 2), decPix + int(w / 2)),
@@ -633,9 +636,8 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     RA = rad2deg(peak_source_flux.pos.ra)
     DEC = rad2deg(peak_source_flux.pos.dec)
     # Get source region and slice
-    wcs = WCS(residual_hdu[0].header, mode="pyfits")
     width = int(beam_size * area_factor)
-    imslice = get_box(wcs, (RA, DEC), width)
+    imslice = get_box(fitsinfo(fitsname)['wcs'], (RA, DEC), width)
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
     local_std = source_res_area.std()
@@ -2170,7 +2172,7 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             if svg:
                 plot_residual.output_backend = "svg"
                 prefix = '.'.join(outfile.split('.')[:-1])
-                export_svgs(column(plot_residual), filename=f"{prefix}.svg")
+                export_svgs(plot_residual, filename=f"{prefix}.svg")
         else:
             LOGGER.warn('No plot created. Found 0 or 1 data point in {}'.format(res_image))
     if residual_plot_list:
@@ -2498,7 +2500,8 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
 
 
 def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
-                        units='micro', svg=False):
+                        title_size='12pt', x_label='10pt', y_label='10pt',
+                        bar_label='15pt', units='micro', svg=False):
     """Plot subimages and stats"""
     output_dict = {}
     subplot_list = []
@@ -2582,16 +2585,20 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
                 try:
                     import matplotlib.pyplot as plt
                     wcs = fitsinfo['wcs']
-                    ax = plt.subplot(111, projection=wcs, slices=('x', 'y',0,0))
+                    ax = plt.subplot(111, projection=wcs, slices=('x','y',0,0))
                     shw = plt.imshow(subimage *  FLUX_UNIT_SCALER[units][0],
                                      extent=[rx_0, rx_0+size, ry_0, ry_0+size],
                                      vmin=-0.1, vmax=1)
                     outname = fitsname.split('.fits')[0]
                     bar = plt.colorbar(shw)
-                    plt.xlabel('Right Ascension (hours)')
-                    plt.ylabel('Declination (deg)')
-                    bar.set_label(f"Flux density ({FLUX_UNIT_SCALER[units][1]})")
+                    plt.xlabel('Right Ascension (hours)',
+                               fontsize=float(x_label.split('pt')[0]))
+                    plt.ylabel('Declination (deg)',
+                               fontsize=float(y_label.split('pt')[0]))
+                    bar.set_label(f"Flux density ({FLUX_UNIT_SCALER[units][1]})",
+                                  fontsize=float(bar_label.split('pt')[0]))
                     plt.savefig(f"{outname}.svg")
+                    print(f"{outname}.svg")
                 except ImportError:
                     LOGGER.warn("SVGs are requested but matplotlib is not installed")
                     LOGGER.warn("RUN: pip install aimfast[svg_images]")
@@ -3271,6 +3278,9 @@ def main():
                                               centre_coords, sizes,
                                               units=args.units,
                                               svg=args.svg,
+                                              title_size=args.tsize,
+                                              x_label=args.xsize,
+                                              y_label=args.ysize,
                                               htmlprefix=(args.htmlprefix
                                               if args.htmlprefix else 'default'))
         else:
