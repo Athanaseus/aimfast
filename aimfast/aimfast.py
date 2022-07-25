@@ -2175,6 +2175,7 @@ def _residual_plotter(res_noise_images, points=None, results=None,
                 export_svgs(plot_residual, filename=f"{prefix}.svg")
         else:
             LOGGER.warn('No plot created. Found 0 or 1 data point in {}'.format(res_image))
+
     if residual_plot_list:
         # Make the plots in a column layout
         residual_plots = column(residual_plot_list)
@@ -2500,8 +2501,8 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
 
 
 def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
-                        title_size='12pt', x_label='10pt', y_label='10pt',
-                        bar_label='15pt', units='micro', svg=False):
+                        title_size='12pt', x_label_size='10pt', y_label_size='10pt',
+                        bar_label_size='15pt', units='micro', svg=False):
     """Plot subimages and stats"""
     output_dict = {}
     subplot_list = []
@@ -2592,11 +2593,11 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
                     outname = fitsname.split('.fits')[0]
                     bar = plt.colorbar(shw)
                     plt.xlabel('Right Ascension (hours)',
-                               fontsize=float(x_label.split('pt')[0]))
+                               fontsize=float(x_label_size.split('pt')[0]))
                     plt.ylabel('Declination (deg)',
-                               fontsize=float(y_label.split('pt')[0]))
+                               fontsize=float(y_label_size.split('pt')[0]))
                     bar.set_label(f"Flux density ({FLUX_UNIT_SCALER[units][1]})",
-                                  fontsize=float(bar_label.split('pt')[0]))
+                                  fontsize=float(bar_label_size.split('pt')[0]))
                     plt.savefig(f"{outname}.svg")
                     print(f"{outname}.svg")
                 except ImportError:
@@ -2962,6 +2963,8 @@ def get_argparser():
     argument('-ptitle2', '--position-plot-title2', dest='ptitles2', nargs='+',
              help="Title labels for the overlay position plots")
     # Plot labelling sizes for all plots
+    argument('-bar-size', '--colorbar-labels-size', dest='barsize', default='14pt',
+             help="x-axis label size for plots")
     argument('-x-size', '--xlabels-size', dest='xsize', default='14pt',
              help="x-axis label size for plots")
     argument('-y-size', '--ylabels-size', dest='ysize', default='14pt',
@@ -3128,8 +3131,8 @@ def main():
                                          fxlabels=args.fxlabels,
                                          fylabels=args.fylabels,
                                          title_size=args.tsize,
-                                         x_label=args.xsize,
-                                         y_label=args.ysize,
+                                         x_label_size=args.xsize,
+                                         y_label_size=args.ysize,
                                          svg=svg)
 
     if args.noise:
@@ -3196,8 +3199,8 @@ def main():
                                      fxlabels=args.fxlabels,
                                      fylabels=args.fylabels,
                                      title_size=args.tsize,
-                                     x_label=args.xsize,
-                                     y_label=args.ysize,
+                                     x_label_size=args.xsize,
+                                     y_label_size=args.ysize,
                                      svg=svg)
 
     if args.online:
@@ -3260,8 +3263,8 @@ def main():
                                      fxlabels=args.fxlabels,
                                      fylabels=args.fylabels,
                                      title_size=args.tsize,
-                                     x_label=args.xsize,
-                                     y_label=args.ysize,
+                                     x_label_size=args.xsize,
+                                     y_label_size=args.ysize,
                                      svg=svg)
 
     if args.subimage_noise:
@@ -3279,8 +3282,9 @@ def main():
                                               units=args.units,
                                               svg=args.svg,
                                               title_size=args.tsize,
-                                              x_label=args.xsize,
-                                              y_label=args.ysize,
+                                              x_label_size=args.xsize,
+                                              y_label_size=args.ysize,
+                                              bar_label_size=arg.barsize,
                                               htmlprefix=(args.htmlprefix
                                               if args.htmlprefix else 'default'))
         else:
