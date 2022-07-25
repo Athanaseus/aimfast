@@ -2512,6 +2512,7 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
         rx, ry = centre_coord[0], centre_coord[1]
         rx_0, ry_0 = int(rx-size/2), int(ry-size/2)
         for n, fitsname in enumerate(fitsnames):
+            fitsinfo = fitsInfo(fitsname)
             subimage_data = get_subimage(fitsname, centre_coord, size)
             subimg_stats = image_stats(subimage_data, test_normality='normaltest')
             centre_str = ','.join([str(cc) for cc in centre_coord])
@@ -2580,13 +2581,14 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
                 # Save subimages as svg
                 try:
                     import matplotlib.pyplot as plt
-                    fig, ax = plt.subplots()
-                    shw = ax.imshow(subimage *  FLUX_UNIT_SCALER[units][0],
+                    wcs = fitsinfo['wcs']
+                    ax = plt.subplot(111, projection=wcs, slices=('x', 'y',0,0))
+                    shw = plt.imshow(subimage *  FLUX_UNIT_SCALER[units][0],
                                      extent=[rx_0, rx_0+size, ry_0, ry_0+size],
                                      vmin=-0.1, vmax=1)
                     outname = fitsname.split('.fits')[0]
                     bar = plt.colorbar(shw)
-                    plt.xlabel('Right Ascension (deg)')
+                    plt.xlabel('Right Ascension (hours)')
                     plt.ylabel('Declination (deg)')
                     bar.set_label(f"Flux density ({FLUX_UNIT_SCALER[units][1]})")
                     plt.savefig(f"{outname}.svg")
