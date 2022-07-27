@@ -1175,7 +1175,8 @@ def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0
 def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_limit=6.0,
                    off_axis=None, closest_only=False, prefix=None, flux_plot='log',
                    fxlabels=None, fylabels=None, ftitles=None, svg=False,
-                   title_size='16pt', x_label_size='12pt', y_label_size='12pt'):
+                   title_size='16pt', x_label_size='12pt', y_label_size='12pt',
+                   legend_size='10pt', xmajor_size='8pt', ymajor_size='8pt'):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -1251,23 +1252,38 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
         _source_flux_plotter(results, models, prefix=prefix, plot_type=flux_plot,
                              titles=ftitles, xlabels=fxlabels, ylabels=fylabels,
                              svg=svg, title_size=title_size, x_label_size=x_label_size,
-                             y_label_size=y_label_size)
+                             y_label_size=y_label_size, legend_size=legend_size,
+                             xmajor_size=xmajor_size, ymajor_size=ymajor_size)
         _source_astrometry_plotter(results, models, prefix=prefix, svg=svg,
                                    title_size=title_size, x_label_size=x_label_size,
-                                   y_label_size=y_label_size)
+                                   y_label_size=y_label_size, legend_size=legend_size,
+                                   xmajor_size=xmajor_size, ymajor_size=ymajor_size)
     return results
 
 
 def compare_residuals(residuals, skymodel=None, points=None,
                       inline=False, area_factor=None,
-                      prefix=None, fov_factor=None):
+                      prefix=None, fov_factor=None,
+                      units='micro',
+                      title_size='14pt',
+                      xmajor_size='6pt',
+                      ymajor_size='6pt',
+                      legend_size='10pt',
+                      x_label_size='12pt',
+                      y_label_size='12pt'):
     if skymodel:
         res = _source_residual_results(residuals, skymodel, area_factor)
     else:
         res = _random_residual_results(residuals, points,
                                        fov_factor, area_factor)
     _residual_plotter(residuals, results=res, points=points,
-                      inline=inline, prefix=prefix)
+                      inline=inline, prefix=prefix, units=units,
+                      title_size=title_size,
+                      legend_size=legend_size,
+                      xmajor_size=xmajor_size,
+                      ymajor_size=ymajor_size,
+                      x_label_size=x_label_size,
+                      y_label_size=y_label_size)
     return res
 
 def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
@@ -1434,7 +1450,9 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
 def _source_flux_plotter(results, all_models, inline=False, units='milli',
                          prefix=None, plot_type='log', titles=None, svg=False,
                          xlabels=None, ylabels=None, title_size='16pt',
-                         x_label_size='12pt', y_label_size='12pt'):
+                         x_label_size='12pt', y_label_size='12pt',
+                         legend_size='10pt', xmajor_size='8pt',
+                         ymajor_size='8pt'):
     """Plot flux results and save output as html file.
 
     Parameters
@@ -1459,6 +1477,18 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         Y-axis labels for the flux comparison plots
     fylabels : str[]
         Title labels for the flux comparison plots
+    title_size : str
+        Title label size for the flux comparison plots
+    x_label_size : str
+        X-axis  label size for the flux comparison plots
+    y_label_size : str
+        Y-axis label size for the flux comparison plots
+    legend_size : str
+        Legend label size for the flux comparison plots
+    xmajor_size : str
+        X-axis major label size for the flux comparison plots
+    ymajor_size : str
+        Y-axis major label size for the flux comparison plots
     """
     if prefix:
         outfile = f'{prefix}-FluxOffset.html'
@@ -1576,26 +1606,29 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                x_axis_label=axis_labels[0],
                                y_axis_label=axis_labels[1],
                                tools=TOOLS)
+            # PLot title font sizes
             plot_flux.title.text_font_size = title_size
             plot_flux.xaxis.axis_label_text_font_size = x_label_size
             plot_flux.yaxis.axis_label_text_font_size = y_label_size
+            plot_flux.xaxis.major_label_text_font_size = xmajor_size
+            plot_flux.yaxis.major_label_text_font_size = ymajor_size
             # Create a color bar and size objects
             color_bar_height = 100
-            mapper_opts = dict(palette="Viridis256",
+            mapper_opts = dict(palette="Plasma11",
                                low=min(z),
                                high=max(z))
-            mapper = LinearColorMapper(**mapper_opts)
             flux_mapper = LinearColorMapper(**mapper_opts)
-            color_bar = ColorBar(color_mapper=mapper,
+            color_bar = ColorBar(color_mapper=flux_mapper,
                                  ticker=plot_flux.xaxis.ticker,
                                  formatter=plot_flux.xaxis.formatter,
                                  orientation='horizontal')
-            #color_bar_plot = figure(title="Distance off-axis (deg)",
-            #                        title_location="below",
-            #                        height=color_bar_height,
-            #                        toolbar_location=None,
-            #                        outline_line_color=None,
-            #                        min_border=0)
+            color_bar_plot = figure(title="Distance off-axis (deg)",
+                                    title_location="below",
+                                    height=color_bar_height,
+                                    toolbar_location=None,
+                                    outline_line_color='red',
+                                    min_border=0)
+            color_bar_plot.title.text_font_size = '100pt'
             # Get errors from the input/output fluxes
             for xval, yval, xerr, yerr in zip(x1, y1,
                                   np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
@@ -1666,7 +1699,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                     source=source,
                                     line_color=None,
                                     fill_color={"field": "phase_centre_dist",
-                                               "transform": mapper})
+                                               "transform": flux_mapper})
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
@@ -1728,14 +1761,15 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 ("(S_err1, S_err2)"," (@flux_1_err, @flux_2_err)"),
                 ("(RA,DEC)", "@ra_dec"),
                 ("Distance off-axis", "@phase_centre_dist")])
-            # Legend position and title align
+            # Legend position, size and title align
             plot_flux.legend.location = "top_left"
+            plot_flux.legend.label_text_font_size = legend_size
             plot_flux.title.align = "center"
             plot_flux.legend.click_policy = "hide"
             # Colorbar position
             plot_flux.add_layout(color_bar, "below")
-            #color_bar_plot.add_layout(color_bar, "below")
-            #color_bar_plot.title.align = "center"
+            color_bar_plot.add_layout(color_bar, "below")
+            color_bar_plot.title.align = "center"
             # Append all plots
             flux_plot_list.append(column(row(plot_flux,
                                              column(stats_table,
@@ -1746,18 +1780,20 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
     if flux_plot_list:
         # Make the plots in a column layout
         flux_plots = column(flux_plot_list)
-        # Save the plot (html)
-        save(flux_plots, title=outfile)
         if svg:
             plot_flux.output_backend='svg'
             prefix = '.'.join(outfile.split('.')[:-1])
             export_svgs(flux_plots, filename=f"{prefix}.svg")
+        # Save the plot (html)
+        save(flux_plots, title=outfile)
         LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
 
 
 def _source_astrometry_plotter(results, all_models, inline=False, units='',
                                prefix=None, svg=False, title_size='16pt',
-                               x_label_size='12pt', y_label_size='12pt'):
+                               x_label_size='12pt', y_label_size='12pt',
+                               legend_size='10pt', xmajor_size='6pt',
+                               ymajor_size='6pt', bar_label_size='8pt'):
     """Plot astrometry results and save output as html file.
 
     Parameters
@@ -1916,31 +1952,37 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
             plot_position.title.text_font_size = title_size
             plot_position.xaxis.axis_label_text_font_size = x_label_size
             plot_position.yaxis.axis_label_text_font_size = y_label_size
+            plot_position.xaxis.major_label_text_font_size = xmajor_size
+            plot_position.yaxis.major_label_text_font_size = ymajor_size
             plot_overlay.title.text_font_size = title_size
-            plot_overlay.axis_label_text_font_size = x_label_size
+            plot_overlay.xaxis.axis_label_text_font_size = x_label_size
             plot_overlay.yaxis.axis_label_text_font_size = y_label_size
+            plot_overlay.legend.label_text_font_size = legend_size
+            plot_overlay.xaxis.major_label_text_font_size = xmajor_size
+            plot_overlay.yaxis.major_label_text_font_size = ymajor_size
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
             color_bar_height = 100
             plot_overlay.x_range.flipped = True
             # Colorbar Mapper
-            mapper_opts = dict(palette="Viridis256",
+            mapper_opts = dict(palette="Plasma11",
                                low=min(z),
                                high=max(z))
-            mapper = LinearColorMapper(**mapper_opts)
-            flux_mapper = LinearColorMapper(**mapper_opts)
-            color_bar = ColorBar(color_mapper=mapper,
+            position_mapper = LinearColorMapper(**mapper_opts)
+            color_bar = ColorBar(color_mapper=position_mapper,
                                  ticker=plot_position.xaxis.ticker,
                                  formatter=plot_position.xaxis.formatter,
+                                 location=(0,0),
                                  orientation='horizontal')
 
-            #color_bar_plot = figure(title="Distance off-axis (deg)",
-            #                        title_location="below",
-            #                        height=color_bar_height,
-            #                        toolbar_location=None,
-            #                        outline_line_color=None,
-            #                        min_border=0)
+            color_bar_plot = figure(title="Distance off-axis (deg)",
+                                    title_location="below",
+                                    height=color_bar_height,
+                                    toolbar_location=None,
+                                    outline_line_color=None,
+                                    min_border=0)
+            color_bar_plot.title.text_font_size = '10pt'
             # Get errors from the output positions
             err_xs1 = []
             err_ys1 = []
@@ -1968,7 +2010,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
                                  line_color=None,
                                  legend_label='Data',
                                  fill_color={"field": "phase_centre_dist",
-                                             "transform": mapper})
+                                             "transform": position_mapper})
             # Table with stats data
             deci = DECIMALS  # round off to this decimal places
             cols = ["Stats", "Value"]
@@ -2027,8 +2069,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
             plot_position.title.align = "center"
             # Colorbar position
             plot_position.add_layout(color_bar, "below")
-            #color_bar_plot.add_layout(color_bar, "below")
-            #color_bar_plot.title.align = "center"
+            plot_position.legend.label_text_font_size = legend_size
+            color_bar_plot.add_layout(color_bar, "below")
+            color_bar_plot.title.align = "center"
             if svg:
                 plot_overlay.output_backend = "svg"
                 plot_position.output_backend = "svg"
@@ -2051,7 +2094,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
 
 def _residual_plotter(res_noise_images, points=None, results=None,
                       inline=False, prefix=None, title_size='16pt',
-                      x_label_size='12pt', y_label_size='12pt'):
+                      x_label_size='12pt', y_label_size='12pt',
+                      legend_size='10pt', xmajor_size='6pt',
+                      ymajor_size='6pt', units='micro'):
     """Plot ratios of random residuals and noise
 
     Parameters
@@ -2069,13 +2114,13 @@ def _residual_plotter(res_noise_images, points=None, results=None,
 
     """
     if points:
-        title = "Random residual noise"
+        title = "Random Residual Noise"
         if prefix:
             outfile = f'{prefix}-RandomResidualNoiseRatio.html'
         else:
             outfile = 'RandomResidualNoiseRatio.html'
     else:
-        title = "Source residual noise"
+        title = "Source Residual Noise"
         if prefix:
             outfile = f'{prefix}-SourceResidualNoiseRatio.html'
         else:
@@ -2097,8 +2142,8 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             name_labels.append(res_src[4])
         if len(name_labels) > 1:
             # Get sigma value of residuals
-            res1 = np.array(residuals1) * FLUX_UNIT_SCALER['micro'][0]
-            res2 = np.array(residuals2) * FLUX_UNIT_SCALER['micro'][0]
+            res1 = np.array(residuals1) * FLUX_UNIT_SCALER[units][0]
+            res2 = np.array(residuals2) * FLUX_UNIT_SCALER[units][0]
             # Get ratio data
             y1 = np.array(res_noise_ratio)
             x1 = np.array(range(len(res_noise_ratio)))
@@ -2106,16 +2151,18 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
                         data=dict(x=x1, y=y1, res1=res1, res2=res2, label=name_labels))
-            text1 = residual_pair[0]["path"].split("/")[-1].split('.')[0]
-            text2 = residual_pair[1]["path"].split("/")[-1].split('.')[0]
+            text1 = residual_pair[0]["path"].split("/")[-1].split('.fits')[0]
+            text2 = residual_pair[1]["path"].split("/")[-1].split('.fits')[0]
             # Get y2 label and range
-            y2_label = "Flux ({})".format(FLUX_UNIT_SCALER['micro'][1])
+            y2_label = "Flux density ({})".format(FLUX_UNIT_SCALER[units][1])
             y_max = max(res1) if max(res1) > max(res2) else max(res2)
             y_min = min(res1) if min(res1) < min(res2) else min(res2)
             # Create a plot objects and set axis limits
             plot_residual = figure(title=title,
                                    x_axis_label='Sources',
                                    y_axis_label='Res1-to-Res2',
+                                   #sizing_mode='stretch_both',
+                                   plot_width=1200, plot_height=800,
                                    tools=TOOLS)
             plot_residual.y_range = Range1d(start=min(y1) - .01, end=max(y1) + .01)
             plot_residual.extra_y_ranges = {y2_label: Range1d(start=y_min - .01 * abs(y_min),
@@ -2123,6 +2170,7 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.add_layout(LinearAxis(y_range_name=y2_label,
                                                 axis_label=y2_label),
                                      'right')
+            plot_residual.axis.axis_label_text_font_style = 'bold'
             res1_object = plot_residual.line(x1, res1,
                                              color='red',
                                              legend_label=f'res1: {text1}',
@@ -2139,13 +2187,16 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.title.text_font_size = title_size
             plot_residual.xaxis.axis_label_text_font_size = x_label_size
             plot_residual.yaxis.axis_label_text_font_size = y_label_size
+            plot_residual.legend.label_text_font_size = legend_size
+            plot_residual.xaxis.major_label_text_font_size = xmajor_size
+            plot_residual.yaxis.major_label_text_font_size = ymajor_size
             # Table with stats data
             cols = ["Stats", "Value"]
-            stats = {"Stats": [f"{text1} ({FLUX_UNIT_SCALER['micro'][1]})",
-                               f"{text2} ({FLUX_UNIT_SCALER['micro'][1]})",
+            stats = {"Stats": [f"{text1} ({FLUX_UNIT_SCALER[units][1]})",
+                               f"{text2} ({FLUX_UNIT_SCALER[units][1]})",
                                "Res1-to-Res2"],
-                     "Value": [np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
-                               np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
+                     "Value": [np.mean(residuals1) * FLUX_UNIT_SCALER[units][0],
+                               np.mean(residuals2) * FLUX_UNIT_SCALER[units][0],
                                np.mean(residuals2) / np.mean(residuals1)]}
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
@@ -2610,7 +2661,7 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
             color_mapper = LinearColorMapper(palette="Plasma11",
                                              low=subimage.min() * FLUX_UNIT_SCALER[units][0],
                                              high=subimage.max() * FLUX_UNIT_SCALER[units][0])
-            color_bar = ColorBar(color_mapper=color_mapper, width=8, label_standoff=4,
+            color_bar = ColorBar(color_mapper=color_mapper, width=80, label_standoff=4,
                                  location=(0, 0), orientation='vertical')
             color_bar_plot = figure(title=f"Flux Density ({FLUX_UNIT_SCALER[units][1]})",
                                     title_location="right",
@@ -2969,6 +3020,12 @@ def get_argparser():
              help="x-axis label size for plots")
     argument('-y-size', '--ylabels-size', dest='ysize', default='14pt',
              help="y-axis label size for plots")
+    argument('-x-maj-size', '--x-major-labels-size', dest='xmaj_size', default='6pt',
+             help="x-axis major label size for plots")
+    argument('-y-maj-size', '--y-mojar-labels-size', dest='ymaj_size', default='6pt',
+             help="y-axis major label size for plots")
+    argument('-legend-size', '--legend-font-size', dest='legsize', default='18pt',
+             help="Label size for legends on the plots")
     argument('-title-size', '--plot-title-size', dest='tsize', default='18pt',
              help="Title label size for plots")
     # Outputs
@@ -2986,6 +3043,8 @@ def main():
     """Main function."""
     LOGGER.info("Welcome to AIMfast")
     LOGGER.info(f"Version: {_version}")
+    _command = ' '.join(sys.argv)
+    LOGGER.info(f"Command: {_command}")
     output_dict = dict()
     parser = get_argparser()
     args = parser.parse_args()
@@ -3133,6 +3192,9 @@ def main():
                                          title_size=args.tsize,
                                          x_label_size=args.xsize,
                                          y_label_size=args.ysize,
+                                         legend_size=args.legsize,
+                                         xmajor_size=args.xmaj_size,
+                                         ymajor_size=args.ymaj_size,
                                          svg=svg)
 
     if args.noise:
@@ -3153,6 +3215,13 @@ def main():
             if args.model:
                 output_dict = compare_residuals(residuals_list,
                                                 args.model,
+                                                units=args.units,
+                                                title_size=args.tsize,
+                                                legend_size=args.legsize,
+                                                xmajor_size=args.xmaj_size,
+                                                ymajor_size=args.ymaj_size,
+                                                x_label_size=args.xsize,
+                                                y_label_size=args.ysize,
                                                 area_factor=args.factor,
                                                 prefix=args.htmlprefix)
             else:
@@ -3160,6 +3229,13 @@ def main():
                     residuals_list,
                     area_factor=args.factor,
                     fov_factor=args.fov_factor,
+                    units=args.units,
+                    title_size=args.tsize,
+                    xmajor_size=args.xmaj_size,
+                    ymajor_size=args.ymaj_size,
+                    legend_size=args.legsize,
+                    x_label_size=args.xsize,
+                    y_label_size=args.ysize,
                     prefix=args.htmlprefix,
                     points=int(args.points) if args.points else 100)
 
@@ -3201,6 +3277,9 @@ def main():
                                      title_size=args.tsize,
                                      x_label_size=args.xsize,
                                      y_label_size=args.ysize,
+                                     legend_size=args.legsize,
+                                     xmajor_size=args.xmaj_size,
+                                     ymajor_size=args.ymaj_size,
                                      svg=svg)
 
     if args.online:
@@ -3265,6 +3344,9 @@ def main():
                                      title_size=args.tsize,
                                      x_label_size=args.xsize,
                                      y_label_size=args.ysize,
+                                     legend_size=args.legsize,
+                                     xmajor_size=args.xmaj_size,
+                                     ymajor_size=args.ymaj_size,
                                      svg=svg)
 
     if args.subimage_noise:
@@ -3284,7 +3366,7 @@ def main():
                                               title_size=args.tsize,
                                               x_label_size=args.xsize,
                                               y_label_size=args.ysize,
-                                              bar_label_size=arg.barsize,
+                                              bar_label_size=args.barsize,
                                               htmlprefix=(args.htmlprefix
                                               if args.htmlprefix else 'default'))
         else:
