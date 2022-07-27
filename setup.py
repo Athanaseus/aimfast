@@ -44,7 +44,7 @@ setup(name=pkg,
                       'pybdsf': ["bdsf", "matplotlib"],
                       'source_finders': ["bdsf", "matplotlib",
                                          "AegeanTools"],
-                      'svg_images': ["matplotlib"]},
+                      'svg_images': ["matplotlib", "selenium"]},
       python_requires='>=3.6',
       include_package_data=True,
       scripts=['aimfast/bin/aimfast'])
