@@ -2732,7 +2732,9 @@ def get_source_properties_from_catalog(catalog_file):
 
 def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None, svg=False,
                        x_label=None, y_label=None, title=None, html_prefix=None,
-                       title_size='16pt', x_label_size='12pt', y_label_size='12pt'):
+                       title_size='16pt', x_label_size='12pt', y_label_size='12pt',
+                       legend_size='10pt', xmajor_size='6pt', ymajor_size='6pt',
+                       units='micro'):
     """Plot catalog columns including their uncertainties"""
     width, height = 800, 800
     if 'lsm.html' in catalog_file:
@@ -2753,6 +2755,10 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None, svg=False,
     x_y_plotter.title.text_font_size = title_size
     x_y_plotter.xaxis.axis_label_text_font_size = x_label_size
     x_y_plotter.yaxis.axis_label_text_font_size = y_label_size
+    #x_y_plotter.legend.label_text_font_size = legend_size
+    x_y_plotter.xaxis.major_label_text_font_size = xmajor_size
+    x_y_plotter.yaxis.major_label_text_font_size = ymajor_size
+    x_y_plotter.axis.axis_label_text_font_style = 'normal'
     if x in ['RA', 'ra']:
         x_y_plotter.x_range.flipped = True
     elif y in ['RA', 'ra']:
@@ -2791,7 +2797,6 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None, svg=False,
     source_table = column([table_title, dtab])
 
     LOGGER.info(f"Total number of sources: {len(source_properties['name'])}")
-    print(html_prefix)
     if not html_prefix:
         output_file_name = f"{catalog_file.split('.')[0]}_column_properties.html"
     else:
@@ -3048,6 +3053,8 @@ def main():
     output_dict = dict()
     parser = get_argparser()
     args = parser.parse_args()
+    # Print default args
+    LOGGER.info(' '.join(f'{k}={v}' for k, v in vars(args).items()))
     DECIMALS = args.deci
     svg = args.svg
     if args.subcommand:
@@ -3083,6 +3090,10 @@ def main():
                            title_size=args.tsize,
                            x_label_size=args.xsize,
                            y_label_size=args.ysize,
+                           legend_size=args.legsize,
+                           xmajor_size=args.xmaj_size,
+                           ymajor_size=args.ymaj_size,
+                           units=args.units,
                            html_prefix=args.htmlprefix)
 
     if args.model and not args.noise and args.residual:
