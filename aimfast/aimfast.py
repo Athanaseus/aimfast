@@ -637,7 +637,7 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     DEC = rad2deg(peak_source_flux.pos.dec)
     # Get source region and slice
     width = int(beam_size * area_factor)
-    imslice = get_box(fitsinfo(fitsname)['wcs'], (RA, DEC), width)
+    imslice = get_box(fitsInfo(fitsname)['wcs'], (RA, DEC), width)
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
     local_std = source_res_area.std()
