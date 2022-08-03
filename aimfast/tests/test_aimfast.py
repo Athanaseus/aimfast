@@ -38,7 +38,7 @@ class TestClass(object):
         """Test fitsInfo method"""
         input_value = 'aimfast/tests/files/cube1.fits'
         output_value = aimfast.fitsInfo(input_value)
-        from astLib import astWCS
+        from astropy.wcs import WCS
         expected = {'b_size': (0.00154309340472658,
                                0.00136912246542523,
                                159.801295045408),
