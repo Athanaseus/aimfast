@@ -51,7 +51,7 @@ class TestClass(object):
                     'ra': 0.0,
                     'raPix': 10,
                     'skyArea': 3.0864197530864246e-05,
-                    'wcs': astWCS.WCS}
+                    'wcs': WCS}
         for param, value in expected.items():
             val = output_value[param]
             if param == 'wcs':
