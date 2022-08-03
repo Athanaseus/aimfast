@@ -198,7 +198,7 @@ class TestClass(object):
         output_value = aimfast.model_dynamic_range(model_path, res_path,
                                                    area_factor=1)
         expected_value = {"deepest_negative"  : 130.40011268142158,
-                          "local_rms"         : 286.64778198522015,
+                          "local_rms"         : 224.29535518140233,
                           "global_rms"        : 174.74979385790667}
         assert expected_value == output_value
 
