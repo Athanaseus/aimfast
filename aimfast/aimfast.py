@@ -1176,7 +1176,8 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
                    off_axis=None, closest_only=False, prefix=None, flux_plot='log',
                    fxlabels=None, fylabels=None, ftitles=None, svg=False,
                    title_size='16pt', x_label_size='12pt', y_label_size='12pt',
-                   legend_size='10pt', xmajor_size='8pt', ymajor_size='8pt'):
+                   legend_size='10pt', xmajor_size='8pt', ymajor_size='8pt',
+                   bar_size='12pt', bar_major_size='8pt'):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -1253,11 +1254,13 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
                              titles=ftitles, xlabels=fxlabels, ylabels=fylabels,
                              svg=svg, title_size=title_size, x_label_size=x_label_size,
                              y_label_size=y_label_size, legend_size=legend_size,
-                             xmajor_size=xmajor_size, ymajor_size=ymajor_size)
+                             xmajor_size=xmajor_size, ymajor_size=ymajor_size,
+                             bar_size=bar_size, bar_major_size=bar_major_size)
         _source_astrometry_plotter(results, models, prefix=prefix, svg=svg,
                                    title_size=title_size, x_label_size=x_label_size,
                                    y_label_size=y_label_size, legend_size=legend_size,
-                                   xmajor_size=xmajor_size, ymajor_size=ymajor_size)
+                                   xmajor_size=xmajor_size, ymajor_size=ymajor_size,
+                                   bar_size=bar_size, bar_major_size=bar_major_size)
     return results
 
 
@@ -1452,7 +1455,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                          xlabels=None, ylabels=None, title_size='16pt',
                          x_label_size='12pt', y_label_size='12pt',
                          legend_size='10pt', xmajor_size='8pt',
-                         ymajor_size='8pt'):
+                         ymajor_size='8pt', bar_size='12pt',
+                         bar_major_size='8pt'):
     """Plot flux results and save output as html file.
 
     Parameters
@@ -1489,6 +1493,12 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         X-axis major label size for the flux comparison plots
     ymajor_size : str
         Y-axis major label size for the flux comparison plots
+    bar_size : str
+        Colorbar text font size
+    bar_major_size : str
+        Colorbar major axis text font size
+    svg : bool
+        Whether to save svg plots in addition to the standard html
     """
     if prefix:
         outfile = f'{prefix}-FluxOffset.html'
@@ -1606,7 +1616,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                x_axis_label=axis_labels[0],
                                y_axis_label=axis_labels[1],
                                tools=TOOLS)
-            # PLot title font sizes
+            # Plot title font sizes
             plot_flux.title.text_font_size = title_size
             plot_flux.xaxis.axis_label_text_font_size = x_label_size
             plot_flux.yaxis.axis_label_text_font_size = y_label_size
@@ -1621,14 +1631,18 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             color_bar = ColorBar(color_mapper=flux_mapper,
                                  ticker=plot_flux.xaxis.ticker,
                                  formatter=plot_flux.xaxis.formatter,
+                                 title='Distance off-axis (deg)',
+                                 title_text_font_size=bar_size,
+                                 title_text_align='center',
+                                 major_label_text_font_size=bar_major_size,
                                  orientation='horizontal')
-            color_bar_plot = figure(title="Distance off-axis (deg)",
-                                    title_location="below",
-                                    height=color_bar_height,
-                                    toolbar_location=None,
-                                    outline_line_color='red',
-                                    min_border=0)
-            color_bar_plot.title.text_font_size = '100pt'
+            #color_bar_plot = figure(title="Distance off-axis (deg)",
+                                    #title_location="below",
+                                    #height=color_bar_height,
+                                    #toolbar_location=None,
+                                    #outline_line_color='red',
+                                    #min_border=0)
+            #color_bar_plot.title.text_font_size = '20pt'
             # Get errors from the input/output fluxes
             for xval, yval, xerr, yerr in zip(x1, y1,
                                   np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
@@ -1768,8 +1782,8 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             plot_flux.legend.click_policy = "hide"
             # Colorbar position
             plot_flux.add_layout(color_bar, "below")
-            color_bar_plot.add_layout(color_bar, "below")
-            color_bar_plot.title.align = "center"
+            #color_bar_plot.add_layout(color_bar, "below")
+            #color_bar_plot.title.align = "center"
             # Append all plots
             flux_plot_list.append(column(row(plot_flux,
                                              column(stats_table,
@@ -1793,7 +1807,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
                                prefix=None, svg=False, title_size='16pt',
                                x_label_size='12pt', y_label_size='12pt',
                                legend_size='10pt', xmajor_size='6pt',
-                               ymajor_size='6pt', bar_label_size='8pt'):
+                               ymajor_size='6pt', bar_size='8pt',
+                               bar_major_size='8pt'):
     """Plot astrometry results and save output as html file.
 
     Parameters
@@ -1810,6 +1825,24 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
         Data points and axis label units
     prefix : str
         Prefix for output htmls
+    svg : bool
+        Whether to save svg plots in addition to the standard html
+    title_size : str
+        Title label size for the flux comparison plots
+    x_label_size : str
+        X-axis  label size for the flux comparison plots
+    y_label_size : str
+        Y-axis label size for the flux comparison plots
+    legend_size : str
+        Legend label size for the flux comparison plots
+    xmajor_size : str
+        X-axis major label size for the flux comparison plots
+    ymajor_size : str
+        Y-axis major label size for the flux comparison plots
+    bar_size : str
+        Colorbar text font size
+    bar_major_size : str
+        Colorbar major axis text font size
 
     """
     if prefix:
@@ -1954,12 +1987,14 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
             plot_position.yaxis.axis_label_text_font_size = y_label_size
             plot_position.xaxis.major_label_text_font_size = xmajor_size
             plot_position.yaxis.major_label_text_font_size = ymajor_size
+            plot_position.axis.axis_label_text_font_style = 'normal'
             plot_overlay.title.text_font_size = title_size
             plot_overlay.xaxis.axis_label_text_font_size = x_label_size
             plot_overlay.yaxis.axis_label_text_font_size = y_label_size
             plot_overlay.legend.label_text_font_size = legend_size
             plot_overlay.xaxis.major_label_text_font_size = xmajor_size
             plot_overlay.yaxis.major_label_text_font_size = ymajor_size
+            plot_overlay.axis.axis_label_text_font_style = 'normal'
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
@@ -1974,15 +2009,19 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
                                  ticker=plot_position.xaxis.ticker,
                                  formatter=plot_position.xaxis.formatter,
                                  location=(0,0),
+                                 title='Distance off-axis (deg)',
+                                 title_text_font_size=bar_size,
+                                 title_text_align='center',
+                                 major_label_text_font_size=bar_major_size,
                                  orientation='horizontal')
 
-            color_bar_plot = figure(title="Distance off-axis (deg)",
-                                    title_location="below",
-                                    height=color_bar_height,
-                                    toolbar_location=None,
-                                    outline_line_color=None,
-                                    min_border=0)
-            color_bar_plot.title.text_font_size = '10pt'
+#            color_bar_plot = figure(title="Distance off-axis (deg)",
+#                                    title_location="below",
+#                                    height=color_bar_height,
+#                                    toolbar_location=None,
+#                                    outline_line_color=None,
+#                                    min_border=0)
+#            color_bar_plot.title.text_font_size = '10pt'
             # Get errors from the output positions
             err_xs1 = []
             err_ys1 = []
@@ -2070,8 +2109,8 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
             # Colorbar position
             plot_position.add_layout(color_bar, "below")
             plot_position.legend.label_text_font_size = legend_size
-            color_bar_plot.add_layout(color_bar, "below")
-            color_bar_plot.title.align = "center"
+  #          color_bar_plot.add_layout(color_bar, "below")
+  #          color_bar_plot.title.align = "center"
             if svg:
                 plot_overlay.output_backend = "svg"
                 plot_position.output_backend = "svg"
@@ -2369,7 +2408,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
     LOGGER.info("Plotting ratios of source residuals and noise")
     # Dictinary to store results
     results = dict()
-    # Get beam size otherwise use default (5``).
+    # Get beam size otherwise use default (6``).
     beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
     for images in res_noise_images:
         # Get label
@@ -2383,7 +2422,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
         fits_info = fitsInfo(res_image1)
         # Get beam size otherwise use default (~6``).
         beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
-        # In case the images was not deconvloved aslo use default beam
+        # In case the images was not deconvloved also use default beam
         if beam_deg == (0.0, 0.0, 0.0):
             beam_deg = beam_default
         # Open residual images header
@@ -3019,6 +3058,8 @@ def get_argparser():
     argument('-ptitle2', '--position-plot-title2', dest='ptitles2', nargs='+',
              help="Title labels for the overlay position plots")
     # Plot labelling sizes for all plots
+    argument('-bar-major-size', '--colorbar-major-labels-size', dest='bar_major_size', default='6pt',
+             help="x-axis label size for plots")
     argument('-bar-size', '--colorbar-labels-size', dest='barsize', default='14pt',
              help="x-axis label size for plots")
     argument('-x-size', '--xlabels-size', dest='xsize', default='14pt',
@@ -3029,7 +3070,7 @@ def get_argparser():
              help="x-axis major label size for plots")
     argument('-y-maj-size', '--y-mojar-labels-size', dest='ymaj_size', default='6pt',
              help="y-axis major label size for plots")
-    argument('-legend-size', '--legend-font-size', dest='legsize', default='18pt',
+    argument('-legend-size', '--legend-font-size', dest='legsize', default='14pt',
              help="Label size for legends on the plots")
     argument('-title-size', '--plot-title-size', dest='tsize', default='18pt',
              help="Title label size for plots")
@@ -3206,6 +3247,8 @@ def main():
                                          legend_size=args.legsize,
                                          xmajor_size=args.xmaj_size,
                                          ymajor_size=args.ymaj_size,
+                                         bar_size=args.barsize,
+                                         bar_major_size=args.bar_major_size,
                                          svg=svg)
 
     if args.noise:
