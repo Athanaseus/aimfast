@@ -76,7 +76,7 @@ class TestClass(object):
         output_value = aimfast.residual_image_stats(
             input_value, test_normality='normaltest')
         expected_value = {'NORM': (10.276033206715848, 0.005869319364736688),
-                          'SKEW': 0.186153,
+                          'SKEW': -0.341298,
                           'KURT': 2.870047,
                           'RMS': 3.1e-05,
                           'MAD': 2.2e-05,
