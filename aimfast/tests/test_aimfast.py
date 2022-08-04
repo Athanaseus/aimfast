@@ -121,7 +121,7 @@ class TestClass(object):
         output_value = aimfast.residual_image_stats(
             input_value,
             threshold=0.00005)
-        expected_value = {'SKEW': -0.341298,
+        expected_value = {'SKEW': 0.186153,
                           'KURT': 2.870047,
                           'RMS': 3.1e-05,
                           'MAD': 2.2e-05,
