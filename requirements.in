@@ -1,0 +1,12 @@
+astLib==0.10.0
+astropy
+astroquery
+astro-tigger
+bokeh
+jsonschema
+mock
+numpy
+numpydoc
+pyyaml
+scikit-learn
+scipy
