@@ -155,7 +155,7 @@ appended to the same json file.
 
     $ cat fidelity_results.json
     $ {"cube.residual.fits": {"SKEW": 0.124, "KURT": 3.825, "STDDev": 5.5e-05,
-                              "MEAN": 4.747e-07, "MAD": 5e-05},
+                              "MEAN": 4.747e-07, "MAD": 5e-05, "RMS": 5.5e-05},
            "cube.image.fits": {"DR": 35.39, "deepest_negative": 10.48,
                                "local_rms": 30.09, "global_rms": 35.39}}
 
@@ -167,28 +167,70 @@ z-score and p-value respectively.
 
     $ aimfast --residual-image cube.residual.fits --normality-model normaltest
 
+Many astronomical catalogues consist of numerous columns of source information, and often times there is an existing connection between corresponding pairs. `aimfast` allows visualising these relationships by generating interactive plots that can be easily distributed and only requires a modern web browser. A handful number of catalogue formats are supported; currently, this includes FITS, LSM and ASCII.
+
+.. code-block:: bash
+
+    $ aimfast -catalog PictorA_1-MFS-IQUV.image.pybdsm.lsm.html -x I -y spi -x-err I_err -y-err spi_err -x-label 'Flux Density (Jy)' -y-label 'SPI' -title 'Catalog Flux vs Spectral Index' -title-size 30pt -x-size 26pt -y-size 26pt -x-maj-size 18pt -y-maj-size 18pt  --html-prefix pica-hot-flux
+    $ aimfast -catalog PictorA_1-MFS-IQUV.image.pybdsm.lsm.html -x ra -y dec -x-err ra_err -y-err dec_err -x-label 'Right Ascension (deg)' -y-label 'Declination (deg)' -title 'Catalog RA vs DEC' -title-size 30pt -x-size 26pt -y-size 26pt -x-maj-size 18pt -y-maj-size 18pt  --html-prefix pica-hot-pos
+
+The results are as follows:
+
+   .. figure:: https://user-images.githubusercontent.com/16665629/186126161-31fea64b-a73d-49d7-80b9-4a0090e8917b.png
+    :width: 90%
+    :align: center
+    :alt: alternate text
+    :figclass: align-center
+    
+    Figure 3: Example of 2D plots showing source properties from a catalogue. Left: Source RA vs Dec. Right Source flux density vs Spectral Index}
+
 Furthermore, a comparison of residual images can be performed as follows: To get random residual flux measurements in `residual1.fits` and `residual2.fits` images
 
 .. code-block:: bash
 
-    $ aimfast --compare-residuals residual1.fits residual2.fits --area-factor 2 -dp 100 
+    $ aimfast --compare-residuals residual1.fits residual2.fits --area-factor 2 -dp 1590  --html-prefix cluster1 --units milli -x-size 34pt -y-size 34pt -title-size 36pt -legend-size 25pt -x-maj-size 24pt -y-maj-size 24pt -units micro
 
-where --area-factor is the number to multiply the beam size to get area and -dp is the number of data points to sample. In case the beam information is missing from the image header use --psf-image | -psf, the point spread function file or psf size in arcsec, otherwise a default of 5 arcsec will be used. To get on source residual flux measurements in a `residual1.fits` and `residual2.fits` images
+where --area-factor is the number to multiply the beam size to get area and -dp is the number of data points to sample. In case the beam information is missing from the image header use --psf-image | -psf, the point spread function file or psf size in arcsec, otherwise a default of 5 arcsec will be used. To get the on source residual flux measurements in a `residual1.fits` and `residual2.fits` images
 
 .. code-block:: bash
 
-    $ aimfast --compare-residuals residual1.fits residual2.fits --tigger-model model.lsm.html
+    $ aimfast --compare-residuals  residual1.fits residual2.fits -catalog model.lsm.html  --html-prefix cluster1 --units milli -x-size 34pt -y-size 34pt -title-size 36pt -legend-size 25pt -x-maj-size 24pt -y-maj-size 24pt -units micro
 
-where --tigger-model is the name of the model or catalog file to locate exact source residuals.
+where -catalog is the catalog file name with source detections to locate exact source residuals.
 For random or on source residual noise comparisons, the plot on the left shows the residuals on image 1 and image 2 overlayed and the plot on the right shows the ratios. The colorbar shows the distance of the sources from the phase centre.
 
-   .. figure:: https://user-images.githubusercontent.com/16665629/49431465-3fb90a00-f7b6-11e8-929a-c80633b6fe73.png
-    :width: 60%
-    :align: center
-    :alt: alternate text
-    :figclass: align-center
+    .. |image1| figure:: https://user-images.githubusercontent.com/16665629/186117860-27c1548e-7ab8-4323-9873-d6d8662397f9.png
+     :width: 49%
+     :align: left
+     :alt: alternate text
+     :figclass: align-left
 
-    Figure 3. The random/source residual-to-residual/noise ratio measurements
+    .. |image2| figure:: https://user-images.githubusercontent.com/16665629/186124790-444dc5db-6f83-4606-b1d1-aa9c86424966.png
+     :width: 49%
+     :align: right
+     :alt: alternate text
+     :figclass: align-right
+
+ +---------+-----------+
+ | |image1|  +  |image2|  +
+ +---------+-----------+
+     Figure 4. The random/source residual-to-residual ratio measurements
+
+A comparison of residual images can also be performed by generating random locations on the image and calculating the statics, and overlying the results to distinguish the two images in question.
+
+.. code-block:: bash
+
+    $ aimfast --compare-residual-subimages residual1.fits residual2.fits -cps 1004,4960,320 --html-prefix cluster --units milli -x-size 15pt -y-size 15pt -bar-size 15pt
+
+Generated sub-images with corresposnding statistics:
+
+    .. figure:: https://user-images.githubusercontent.com/16665629/186131372-e32fce2e-0d69-404d-b14e-3649aebdfdb1.png
+     :width: 100%
+     :align: center
+     :alt: alternate text
+     :figclass: align-center
+     
+     Figure 5: A comparison of (320x320 Pixels) images of corrected residual data. Left: Direction-Independent corrections.  Right: Direction-Dependent corrections.}
 
 Moreover aimfast allows you to swiftly compare two (input-output) model catalogs. Currently source flux density and astrometry are examined.
 It returns an interactive html correlation plots, from which a `.png` file can be easily downloaded.
@@ -214,27 +256,27 @@ After the first run attempt one of the outputs is source_finder.yml file, which 
 .. code-block:: bash
 
     $ aimfast source-finder -gc my-source-finder.yml
-    $ aimfast --compare-images image1.fits image2.fits --config my-source-finder.yml -sf pybdsf -tol 5
+    $ aimfast --compare-images image1.fits image2.fits --html-prefix cluster --units milli -x-size 16pt -y-size 16pt -title-size 28pt -legend-size 16pt -x-maj-size 16pt -y-maj-size 16pt -bar-size 16pt -bar-major-size 14pt -units micro
 
 For Flux density, the more the data points rest on the y=x (or I_out=I_in), the more correlated the two models are.
 
-   .. figure:: https://user-images.githubusercontent.com/16665629/49431777-e9989680-f7b6-11e8-899b-cfe100f47ac7.png
-    :width: 50%
+   .. figure:: https://user-images.githubusercontent.com/16665629/186132644-89cb22f3-461e-46dd-bea8-581fa7679a17.png
+    :width: 100%
     :align: center
     :alt: alternate text
     :figclass: align-center
 
-    Figure 4. Input-Output Flux model comparison
+    Figure 6. Input-Output Flux model comparison
 
 For astrometry, the more sources lie on the y=0 (Delta-position axis) in the left plot and the more points with 1 sigma (blue circle) the more accurate the output source positions.
 
-   .. figure:: https://user-images.githubusercontent.com/16665629/47504227-1f6b6680-d86c-11e8-937c-a00e2ec50d0f.png
-    :width: 60%
+   .. figure:: https://user-images.githubusercontent.com/16665629/186132653-c2c67f6e-92ab-4f97-aedd-b9d536cce2a0.png
+    :width: 100%
     :align: center
     :alt: alternate text
     :figclass: align-center
 
-    Figure 5. Input-Output Astrometry model comparison
+    Figure 7. Input-Output Astrometry model comparison
 
 Lastly, if you want to run any of the available source finders, generate the config file and edit then run:
 
@@ -242,4 +284,3 @@ Lastly, if you want to run any of the available source finders, generate the con
 
     $ aimfast source-finder -gc my-source-finder.yml
     $ aimfast source-finder -c my-source-finder.yml -sf pybdsf
-
