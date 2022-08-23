@@ -38,7 +38,7 @@ class TestClass(object):
         """Test fitsInfo method"""
         input_value = 'aimfast/tests/files/cube1.fits'
         output_value = aimfast.fitsInfo(input_value)
-        from astLib import astWCS
+        from astropy.wcs import WCS
         expected = {'b_size': (0.00154309340472658,
                                0.00136912246542523,
                                159.801295045408),
@@ -51,7 +51,7 @@ class TestClass(object):
                     'ra': 0.0,
                     'raPix': 10,
                     'skyArea': 3.0864197530864246e-05,
-                    'wcs': astWCS.WCS}
+                    'wcs': WCS}
         for param, value in expected.items():
             val = output_value[param]
             if param == 'wcs':
@@ -91,8 +91,8 @@ class TestClass(object):
         output_value = aimfast.residual_image_stats(
             input_value,
             mask=input_mask)
-        expected_value = {'SKEW': 0.186153,
-                          'KURT': 2.870047,
+        expected_value = {'SKEW': -0.341298,
+                          'KURT': 2.422672,
                           'RMS': 2.6e-05,
                           'MAD': 2.2e-05,
                           'MIN': -8.35573e-05,
@@ -198,7 +198,7 @@ class TestClass(object):
         output_value = aimfast.model_dynamic_range(model_path, res_path,
                                                    area_factor=1)
         expected_value = {"deepest_negative"  : 130.40011268142158,
-                          "local_rms"         : 286.64778198522015,
+                          "local_rms"         : 224.29535518140233,
                           "global_rms"        : 174.74979385790667}
         assert expected_value == output_value
 

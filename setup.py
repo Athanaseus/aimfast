@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 pkg = 'aimfast'
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 build_root = os.path.dirname(__file__)
 
 def readme():
@@ -43,7 +43,8 @@ setup(name=pkg,
                       'aegean': ["AegeanTools"],
                       'pybdsf': ["bdsf", "matplotlib"],
                       'source_finders': ["bdsf", "matplotlib",
-                                         "AegeanTools"]},
-      python_requires='>=3.6',
+                                         "AegeanTools"],
+                      'svg_images': ["matplotlib", "selenium"]},
+      python_requires='>=3.8',
       include_package_data=True,
       scripts=['aimfast/bin/aimfast'])

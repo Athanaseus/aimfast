@@ -19,6 +19,8 @@ from scipy.stats import linregress
 from scipy.interpolate import interp1d
 from scipy.ndimage import measurements as measure
 
+from bokeh.io import export_svgs
+
 from bokeh.transform import transform
 
 from bokeh.models.widgets import Div, PreText
@@ -33,9 +35,11 @@ from bokeh.models import LogColorMapper, LogTicker, LinearColorMapper
 from bokeh.layouts import row, column, gridplot, grid
 from bokeh.plotting import figure, output_file, show, save, ColumnDataSource
 
-from astLib.astWCS import WCS
+from astropy.wcs import WCS
+from astropy import units as u
 from astropy.table import Table
 from astropy.io import fits as fitsio
+from astropy.coordinates import Angle, SkyCoord
 
 from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
@@ -173,7 +177,7 @@ def fitsInfo(fitsname=None):
     dec = hdr['CRVAL2']
     ddec = abs(hdr['CDELT2'])
     decPix = hdr['CRPIX2']
-    wcs = WCS(hdr, mode='pyfits')
+    wcs = WCS(hdr)
     numPix = hdr['NAXIS1']
     try:
         beam_size = (hdr['BMAJ'], hdr['BMIN'], hdr['BPA'])
@@ -256,7 +260,7 @@ def get_box(wcs, radec, w):
         RA and DEC in degrees.
     w : int
         Width of box.
-    wcs : astLib.astWCS.WCS instance
+    wcs : atropy.wcs instance
         World Coordinate System.
 
     Returns
@@ -265,7 +269,8 @@ def get_box(wcs, radec, w):
         A box centred at radec.
 
     """
-    raPix, decPix = wcs.wcs2pix(*radec)
+    radec_pix = SkyCoord(*radec,unit='deg').to_pixel(wcs)
+    raPix, decPix = radec_pix[0] , radec_pix[1]
     raPix = int(raPix)
     decPix = int(decPix)
     box = (slice(decPix - int(w / 2), decPix + int(w / 2)),
@@ -631,9 +636,8 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     RA = rad2deg(peak_source_flux.pos.ra)
     DEC = rad2deg(peak_source_flux.pos.dec)
     # Get source region and slice
-    wcs = WCS(residual_hdu[0].header, mode="pyfits")
     width = int(beam_size * area_factor)
-    imslice = get_box(wcs, (RA, DEC), width)
+    imslice = get_box(fitsInfo(fitsname)['wcs'], (RA, DEC), width)
     source_res_area = np.array(residual_data[0, 0, :, :][imslice])
     min_flux = source_res_area.min()
     local_std = source_res_area.std()
@@ -1170,7 +1174,10 @@ def get_detected_sources_properties(model_1, model_2, tolerance, shape_limit=6.0
 
 def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_limit=6.0,
                    off_axis=None, closest_only=False, prefix=None, flux_plot='log',
-                   fxlabels=None, fylabels=None, ftitles=None):
+                   fxlabels=None, fylabels=None, ftitles=None, svg=False,
+                   title_size='16pt', x_label_size='12pt', y_label_size='12pt',
+                   legend_size='10pt', xmajor_size='8pt', ymajor_size='8pt',
+                   bar_size='12pt', bar_major_size='8pt'):
     """Plot model1 source properties against that of model2
 
     Parameters
@@ -1244,21 +1251,42 @@ def compare_models(models, tolerance=0.2, plot=True, all_sources=False, shape_li
         results[heading]['tolerance'] = tolerance
     if plot:
         _source_flux_plotter(results, models, prefix=prefix, plot_type=flux_plot,
-                             titles=ftitles, xlabels=fxlabels, ylabels=fylabels)
-        _source_astrometry_plotter(results, models, prefix=prefix)
+                             titles=ftitles, xlabels=fxlabels, ylabels=fylabels,
+                             svg=svg, title_size=title_size, x_label_size=x_label_size,
+                             y_label_size=y_label_size, legend_size=legend_size,
+                             xmajor_size=xmajor_size, ymajor_size=ymajor_size,
+                             bar_size=bar_size, bar_major_size=bar_major_size)
+        _source_astrometry_plotter(results, models, prefix=prefix, svg=svg,
+                                   title_size=title_size, x_label_size=x_label_size,
+                                   y_label_size=y_label_size, legend_size=legend_size,
+                                   xmajor_size=xmajor_size, ymajor_size=ymajor_size,
+                                   bar_size=bar_size, bar_major_size=bar_major_size)
     return results
 
 
 def compare_residuals(residuals, skymodel=None, points=None,
                       inline=False, area_factor=None,
-                      prefix=None, fov_factor=None):
+                      prefix=None, fov_factor=None,
+                      units='micro',
+                      title_size='14pt',
+                      xmajor_size='6pt',
+                      ymajor_size='6pt',
+                      legend_size='10pt',
+                      x_label_size='12pt',
+                      y_label_size='12pt'):
     if skymodel:
         res = _source_residual_results(residuals, skymodel, area_factor)
     else:
         res = _random_residual_results(residuals, points,
                                        fov_factor, area_factor)
     _residual_plotter(residuals, results=res, points=points,
-                      inline=inline, prefix=prefix)
+                      inline=inline, prefix=prefix, units=units,
+                      title_size=title_size,
+                      legend_size=legend_size,
+                      xmajor_size=xmajor_size,
+                      ymajor_size=ymajor_size,
+                      x_label_size=x_label_size,
+                      y_label_size=y_label_size)
     return res
 
 def targets_not_matching(sources1, sources2, matched_names, flux_units='milli'):
@@ -1423,8 +1451,12 @@ def plot_residuals_noise(res_noise_images, skymodel=None, label=None,
 
 
 def _source_flux_plotter(results, all_models, inline=False, units='milli',
-                         prefix=None, plot_type='log', titles=None,
-                         xlabels=None, ylabels=None):
+                         prefix=None, plot_type='log', titles=None, svg=False,
+                         xlabels=None, ylabels=None, title_size='16pt',
+                         x_label_size='12pt', y_label_size='12pt',
+                         legend_size='10pt', xmajor_size='8pt',
+                         ymajor_size='8pt', bar_size='12pt',
+                         bar_major_size='8pt'):
     """Plot flux results and save output as html file.
 
     Parameters
@@ -1449,6 +1481,24 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
         Y-axis labels for the flux comparison plots
     fylabels : str[]
         Title labels for the flux comparison plots
+    title_size : str
+        Title label size for the flux comparison plots
+    x_label_size : str
+        X-axis  label size for the flux comparison plots
+    y_label_size : str
+        Y-axis label size for the flux comparison plots
+    legend_size : str
+        Legend label size for the flux comparison plots
+    xmajor_size : str
+        X-axis major label size for the flux comparison plots
+    ymajor_size : str
+        Y-axis major label size for the flux comparison plots
+    bar_size : str
+        Colorbar text font size
+    bar_major_size : str
+        Colorbar major axis text font size
+    svg : bool
+        Whether to save svg plots in addition to the standard html
     """
     if prefix:
         outfile = f'{prefix}-FluxOffset.html'
@@ -1566,24 +1616,33 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                x_axis_label=axis_labels[0],
                                y_axis_label=axis_labels[1],
                                tools=TOOLS)
-            plot_flux.title.text_font_size = '16pt'
+            # Plot title font sizes
+            plot_flux.title.text_font_size = title_size
+            plot_flux.xaxis.axis_label_text_font_size = x_label_size
+            plot_flux.yaxis.axis_label_text_font_size = y_label_size
+            plot_flux.xaxis.major_label_text_font_size = xmajor_size
+            plot_flux.yaxis.major_label_text_font_size = ymajor_size
             # Create a color bar and size objects
             color_bar_height = 100
-            mapper_opts = dict(palette="Viridis256",
+            mapper_opts = dict(palette="Plasma11",
                                low=min(z),
                                high=max(z))
-            mapper = LinearColorMapper(**mapper_opts)
             flux_mapper = LinearColorMapper(**mapper_opts)
-            color_bar = ColorBar(color_mapper=mapper,
+            color_bar = ColorBar(color_mapper=flux_mapper,
                                  ticker=plot_flux.xaxis.ticker,
                                  formatter=plot_flux.xaxis.formatter,
-                                 location=(0, 0), orientation='horizontal')
-            color_bar_plot = figure(title="Distance off-axis (deg)",
-                                    title_location="below",
-                                    height=color_bar_height,
-                                    toolbar_location=None,
-                                    outline_line_color=None,
-                                    min_border=0)
+                                 title='Distance off-axis (deg)',
+                                 title_text_font_size=bar_size,
+                                 title_text_align='center',
+                                 major_label_text_font_size=bar_major_size,
+                                 orientation='horizontal')
+            #color_bar_plot = figure(title="Distance off-axis (deg)",
+                                    #title_location="below",
+                                    #height=color_bar_height,
+                                    #toolbar_location=None,
+                                    #outline_line_color='red',
+                                    #min_border=0)
+            #color_bar_plot.title.text_font_size = '20pt'
             # Get errors from the input/output fluxes
             for xval, yval, xerr, yerr in zip(x1, y1,
                                   np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
@@ -1654,7 +1713,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                     source=source,
                                     line_color=None,
                                     fill_color={"field": "phase_centre_dist",
-                                               "transform": mapper})
+                                               "transform": flux_mapper})
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
@@ -1716,30 +1775,40 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                 ("(S_err1, S_err2)"," (@flux_1_err, @flux_2_err)"),
                 ("(RA,DEC)", "@ra_dec"),
                 ("Distance off-axis", "@phase_centre_dist")])
-            # Legend position and title align
+            # Legend position, size and title align
             plot_flux.legend.location = "top_left"
+            plot_flux.legend.label_text_font_size = legend_size
             plot_flux.title.align = "center"
             plot_flux.legend.click_policy = "hide"
             # Colorbar position
-            color_bar_plot.add_layout(color_bar, "below")
-            color_bar_plot.title.align = "center"
+            plot_flux.add_layout(color_bar, "below")
+            #color_bar_plot.add_layout(color_bar, "below")
+            #color_bar_plot.title.align = "center"
             # Append all plots
             flux_plot_list.append(column(row(plot_flux,
                                              column(stats_table,
                                                     stats_table1,
-                                                    stats_table2)),
-                                         color_bar_plot))
+                                                    stats_table2))))
         else:
             LOGGER.warn('No photometric plot created for {}'.format(model_pair[1]["path"]))
     if flux_plot_list:
         # Make the plots in a column layout
         flux_plots = column(flux_plot_list)
+        if svg:
+            plot_flux.output_backend='svg'
+            prefix = '.'.join(outfile.split('.')[:-1])
+            export_svgs(flux_plots, filename=f"{prefix}.svg")
         # Save the plot (html)
         save(flux_plots, title=outfile)
         LOGGER.info('Saving photometry comparisons in {}'.format(outfile))
 
 
-def _source_astrometry_plotter(results, all_models, inline=False, units='', prefix=None):
+def _source_astrometry_plotter(results, all_models, inline=False, units='',
+                               prefix=None, svg=False, title_size='16pt',
+                               x_label_size='12pt', y_label_size='12pt',
+                               legend_size='10pt', xmajor_size='6pt',
+                               ymajor_size='6pt', bar_size='8pt',
+                               bar_major_size='8pt'):
     """Plot astrometry results and save output as html file.
 
     Parameters
@@ -1756,6 +1825,24 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
         Data points and axis label units
     prefix : str
         Prefix for output htmls
+    svg : bool
+        Whether to save svg plots in addition to the standard html
+    title_size : str
+        Title label size for the flux comparison plots
+    x_label_size : str
+        X-axis  label size for the flux comparison plots
+    y_label_size : str
+        Y-axis label size for the flux comparison plots
+    legend_size : str
+        Legend label size for the flux comparison plots
+    xmajor_size : str
+        X-axis major label size for the flux comparison plots
+    ymajor_size : str
+        Y-axis major label size for the flux comparison plots
+    bar_size : str
+        Colorbar text font size
+    bar_major_size : str
+        Colorbar major axis text font size
 
     """
     if prefix:
@@ -1837,7 +1924,9 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                    y_axis_label='DEC offset ({:s})'.format(
                                        POSITION_UNIT_SCALER['arcsec'][1]),
                                    tools=TOOLS)
-            plot_position.title.text_font_size = '16pt'
+            plot_position.title.text_font_size = title_size
+            plot_position.xaxis.axis_label_text_font_size = x_label_size
+            plot_position.yaxis.axis_label_text_font_size = y_label_size
             # Create an image overlay
             s1_ra_rad = [src[3] for src in overlays if src[-1] == 1]
             s1_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s1_ra_rad]
@@ -1893,29 +1982,46 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                                  source=overlay_source2,
                                                  #line_color=None,
                                                  color='red')
-            plot_position.title.text_font_size = '16pt'
-            plot_overlay.title.text_font_size = '16pt'
+            plot_position.title.text_font_size = title_size
+            plot_position.xaxis.axis_label_text_font_size = x_label_size
+            plot_position.yaxis.axis_label_text_font_size = y_label_size
+            plot_position.xaxis.major_label_text_font_size = xmajor_size
+            plot_position.yaxis.major_label_text_font_size = ymajor_size
+            plot_position.axis.axis_label_text_font_style = 'normal'
+            plot_overlay.title.text_font_size = title_size
+            plot_overlay.xaxis.axis_label_text_font_size = x_label_size
+            plot_overlay.yaxis.axis_label_text_font_size = y_label_size
+            plot_overlay.legend.label_text_font_size = legend_size
+            plot_overlay.xaxis.major_label_text_font_size = xmajor_size
+            plot_overlay.yaxis.major_label_text_font_size = ymajor_size
+            plot_overlay.axis.axis_label_text_font_style = 'normal'
             plot_overlay.title.align = "center"
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
             color_bar_height = 100
             plot_overlay.x_range.flipped = True
             # Colorbar Mapper
-            mapper_opts = dict(palette="Viridis256",
+            mapper_opts = dict(palette="Plasma11",
                                low=min(z),
                                high=max(z))
-            mapper = LinearColorMapper(**mapper_opts)
-            flux_mapper = LinearColorMapper(**mapper_opts)
-            color_bar = ColorBar(color_mapper=mapper,
+            position_mapper = LinearColorMapper(**mapper_opts)
+            color_bar = ColorBar(color_mapper=position_mapper,
                                  ticker=plot_position.xaxis.ticker,
                                  formatter=plot_position.xaxis.formatter,
-                                 location=(0, 0), orientation='horizontal')
-            color_bar_plot = figure(title="Distance off-axis (deg)",
-                                    title_location="below",
-                                    height=color_bar_height,
-                                    toolbar_location=None,
-                                    outline_line_color=None,
-                                    min_border=0)
+                                 location=(0,0),
+                                 title='Distance off-axis (deg)',
+                                 title_text_font_size=bar_size,
+                                 title_text_align='center',
+                                 major_label_text_font_size=bar_major_size,
+                                 orientation='horizontal')
+
+#            color_bar_plot = figure(title="Distance off-axis (deg)",
+#                                    title_location="below",
+#                                    height=color_bar_height,
+#                                    toolbar_location=None,
+#                                    outline_line_color=None,
+#                                    min_border=0)
+#            color_bar_plot.title.text_font_size = '10pt'
             # Get errors from the output positions
             err_xs1 = []
             err_ys1 = []
@@ -1943,7 +2049,7 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
                                  line_color=None,
                                  legend_label='Data',
                                  fill_color={"field": "phase_centre_dist",
-                                             "transform": mapper})
+                                             "transform": position_mapper})
             # Table with stats data
             deci = DECIMALS  # round off to this decimal places
             cols = ["Stats", "Value"]
@@ -2001,12 +2107,20 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
             plot_position.legend.click_policy = "hide"
             plot_position.title.align = "center"
             # Colorbar position
-            color_bar_plot.add_layout(color_bar, "below")
-            color_bar_plot.title.align = "center"
+            plot_position.add_layout(color_bar, "below")
+            plot_position.legend.label_text_font_size = legend_size
+  #          color_bar_plot.add_layout(color_bar, "below")
+  #          color_bar_plot.title.align = "center"
+            if svg:
+                plot_overlay.output_backend = "svg"
+                plot_position.output_backend = "svg"
+                prefix = '.'.join(outfile.split('.')[:-1])
+                export_svgs(column(plot_overlay), filename=f"{prefix}_1.svg")
+                export_svgs(column(plot_position), filename=f"{prefix}_2.svg")
             # Append object to plot list
             position_plot_list.append(column(row(plot_position, plot_overlay,
-                                                 column(stats_table)),
-                                             color_bar_plot))
+                                                 column(stats_table))))
+
         else:
             LOGGER.warn('No plot astrometric created for {}'.format(model_pair[1]["path"]))
     if position_plot_list:
@@ -2018,7 +2132,10 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='', pref
 
 
 def _residual_plotter(res_noise_images, points=None, results=None,
-                      inline=False, prefix=None):
+                      inline=False, prefix=None, title_size='16pt',
+                      x_label_size='12pt', y_label_size='12pt',
+                      legend_size='10pt', xmajor_size='6pt',
+                      ymajor_size='6pt', units='micro'):
     """Plot ratios of random residuals and noise
 
     Parameters
@@ -2036,13 +2153,13 @@ def _residual_plotter(res_noise_images, points=None, results=None,
 
     """
     if points:
-        title = "Random residual noise"
+        title = "Random Residual Noise"
         if prefix:
             outfile = f'{prefix}-RandomResidualNoiseRatio.html'
         else:
             outfile = 'RandomResidualNoiseRatio.html'
     else:
-        title = "Source residual noise"
+        title = "Source Residual Noise"
         if prefix:
             outfile = f'{prefix}-SourceResidualNoiseRatio.html'
         else:
@@ -2064,8 +2181,8 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             name_labels.append(res_src[4])
         if len(name_labels) > 1:
             # Get sigma value of residuals
-            res1 = np.array(residuals1) * FLUX_UNIT_SCALER['micro'][0]
-            res2 = np.array(residuals2) * FLUX_UNIT_SCALER['micro'][0]
+            res1 = np.array(residuals1) * FLUX_UNIT_SCALER[units][0]
+            res2 = np.array(residuals2) * FLUX_UNIT_SCALER[units][0]
             # Get ratio data
             y1 = np.array(res_noise_ratio)
             x1 = np.array(range(len(res_noise_ratio)))
@@ -2073,16 +2190,18 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
             source = ColumnDataSource(
                         data=dict(x=x1, y=y1, res1=res1, res2=res2, label=name_labels))
-            text1 = residual_pair[0]["path"].split("/")[-1].split('.')[0]
-            text2 = residual_pair[1]["path"].split("/")[-1].split('.')[0]
+            text1 = residual_pair[0]["path"].split("/")[-1].split('.fits')[0]
+            text2 = residual_pair[1]["path"].split("/")[-1].split('.fits')[0]
             # Get y2 label and range
-            y2_label = "Flux ({})".format(FLUX_UNIT_SCALER['micro'][1])
+            y2_label = "Flux density ({})".format(FLUX_UNIT_SCALER[units][1])
             y_max = max(res1) if max(res1) > max(res2) else max(res2)
             y_min = min(res1) if min(res1) < min(res2) else min(res2)
             # Create a plot objects and set axis limits
             plot_residual = figure(title=title,
                                    x_axis_label='Sources',
                                    y_axis_label='Res1-to-Res2',
+                                   #sizing_mode='stretch_both',
+                                   plot_width=1200, plot_height=800,
                                    tools=TOOLS)
             plot_residual.y_range = Range1d(start=min(y1) - .01, end=max(y1) + .01)
             plot_residual.extra_y_ranges = {y2_label: Range1d(start=y_min - .01 * abs(y_min),
@@ -2090,6 +2209,7 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.add_layout(LinearAxis(y_range_name=y2_label,
                                                 axis_label=y2_label),
                                      'right')
+            plot_residual.axis.axis_label_text_font_style = 'bold'
             res1_object = plot_residual.line(x1, res1,
                                              color='red',
                                              legend_label=f'res1: {text1}',
@@ -2103,14 +2223,19 @@ def _residual_plotter(res_noise_images, points=None, results=None,
                                                   source=source,
                                                   color='green',
                                                   legend_label='res1-to-res2')
-            plot_residual.title.text_font_size = '16pt'
+            plot_residual.title.text_font_size = title_size
+            plot_residual.xaxis.axis_label_text_font_size = x_label_size
+            plot_residual.yaxis.axis_label_text_font_size = y_label_size
+            plot_residual.legend.label_text_font_size = legend_size
+            plot_residual.xaxis.major_label_text_font_size = xmajor_size
+            plot_residual.yaxis.major_label_text_font_size = ymajor_size
             # Table with stats data
             cols = ["Stats", "Value"]
-            stats = {"Stats": [f"{text1} ({FLUX_UNIT_SCALER['micro'][1]})",
-                               f"{text2} ({FLUX_UNIT_SCALER['micro'][1]})",
+            stats = {"Stats": [f"{text1} ({FLUX_UNIT_SCALER[units][1]})",
+                               f"{text2} ({FLUX_UNIT_SCALER[units][1]})",
                                "Res1-to-Res2"],
-                     "Value": [np.mean(residuals1) * FLUX_UNIT_SCALER['micro'][0],
-                               np.mean(residuals2) * FLUX_UNIT_SCALER['micro'][0],
+                     "Value": [np.mean(residuals1) * FLUX_UNIT_SCALER[units][0],
+                               np.mean(residuals2) * FLUX_UNIT_SCALER[units][0],
                                np.mean(residuals2) / np.mean(residuals1)]}
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
@@ -2133,8 +2258,14 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.title.align = "center"
             # Add object to plot list
             residual_plot_list.append(row(plot_residual, column(stats_table)))
+            svg=True
+            if svg:
+                plot_residual.output_backend = "svg"
+                prefix = '.'.join(outfile.split('.')[:-1])
+                export_svgs(plot_residual, filename=f"{prefix}.svg")
         else:
             LOGGER.warn('No plot created. Found 0 or 1 data point in {}'.format(res_image))
+
     if residual_plot_list:
         # Make the plots in a column layout
         residual_plots = column(residual_plot_list)
@@ -2277,7 +2408,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
     LOGGER.info("Plotting ratios of source residuals and noise")
     # Dictinary to store results
     results = dict()
-    # Get beam size otherwise use default (5``).
+    # Get beam size otherwise use default (6``).
     beam_default = (0.00151582804885738, 0.00128031965017612, 20.0197348935424)
     for images in res_noise_images:
         # Get label
@@ -2291,7 +2422,7 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
         fits_info = fitsInfo(res_image1)
         # Get beam size otherwise use default (~6``).
         beam_deg = fits_info['b_size'] if fits_info['b_size'] else beam_default
-        # In case the images was not deconvloved aslo use default beam
+        # In case the images was not deconvloved also use default beam
         if beam_deg == (0.0, 0.0, 0.0):
             beam_deg = beam_default
         # Open residual images header
@@ -2460,7 +2591,8 @@ def plot_aimfast_stats(fidelity_results_file, units='micro', prefix=''):
 
 
 def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
-                        units='micro'):
+                        title_size='12pt', x_label_size='10pt', y_label_size='10pt',
+                        bar_label_size='15pt', units='micro', svg=False):
     """Plot subimages and stats"""
     output_dict = {}
     subplot_list = []
@@ -2469,9 +2601,12 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
     for im in range(len(centre_coords)):
         im_subplot_list = []
         LOGGER.info(f"Making Subimage with centre pixels ({centre_coords[im]})")
-        centre_coord = centre_coords[im]
         size = sizes[im]
+        centre_coord = centre_coords[im]
+        rx, ry = centre_coord[0], centre_coord[1]
+        rx_0, ry_0 = int(rx-size/2), int(ry-size/2)
         for n, fitsname in enumerate(fitsnames):
+            fitsinfo = fitsInfo(fitsname)
             subimage_data = get_subimage(fitsname, centre_coord, size)
             subimg_stats = image_stats(subimage_data, test_normality='normaltest')
             centre_str = ','.join([str(cc) for cc in centre_coord])
@@ -2517,26 +2652,55 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
             if len(im_subplot_list) > 0:
                 s1 = im_subplot_list[0]
                 subplot = figure(title=plot_title,
+                                 x_axis_label='Right Ascension (deg)',
+                                 y_axis_label='Declination (deg)',
                                  width=plot_width, height=plot_height,
                                  x_range=s1.x_range, y_range=s1.y_range,
                                  tooltips=[("(x, y)", "($x, $y)"),
                                            (f"value ({FLUX_UNIT_SCALER[units][1]})",
                                            "@image")])
             else:
+                # Initial column 1 plot
                 subplot = figure(title=plot_title,
+                                 x_axis_label='Right Ascension (deg)',
+                                 y_axis_label='Declination (deg)',
                                  width=plot_width, height=plot_height,
                                  tooltips=[("(x, y)", "($x, $y)"),
                                            (f"value ({FLUX_UNIT_SCALER[units][1]})",
                                            "@image")])
+
             # must give a vector of images
             subimage = subimage_data[0,0,:,:]
+            if svg:
+                # Save subimages as svg
+                try:
+                    import matplotlib.pyplot as plt
+                    wcs = fitsinfo['wcs']
+                    ax = plt.subplot(111, projection=wcs, slices=('x','y',0,0))
+                    shw = plt.imshow(subimage *  FLUX_UNIT_SCALER[units][0],
+                                     extent=[rx_0, rx_0+size, ry_0, ry_0+size],
+                                     vmin=-0.1, vmax=1)
+                    outname = fitsname.split('.fits')[0]
+                    bar = plt.colorbar(shw)
+                    plt.xlabel('Right Ascension (hours)',
+                               fontsize=float(x_label_size.split('pt')[0]))
+                    plt.ylabel('Declination (deg)',
+                               fontsize=float(y_label_size.split('pt')[0]))
+                    bar.set_label(f"Flux density ({FLUX_UNIT_SCALER[units][1]})",
+                                  fontsize=float(bar_label_size.split('pt')[0]))
+                    plt.savefig(f"{outname}.svg")
+                    print(f"{outname}.svg")
+                except ImportError:
+                    LOGGER.warn("SVGs are requested but matplotlib is not installed")
+                    LOGGER.warn("RUN: pip install aimfast[svg_images]")
+
             subplot.image(image=[subimage * FLUX_UNIT_SCALER[units][0]],
-                          x=0, y=0, dw=size, dh=size,
+                          x=rx_0, y=ry_0, dw=size, dh=size,
                           palette="Plasma11", level="image")
             color_mapper = LinearColorMapper(palette="Plasma11",
                                              low=subimage.min() * FLUX_UNIT_SCALER[units][0],
                                              high=subimage.max() * FLUX_UNIT_SCALER[units][0])
-            color_bar = ColorBar(color_mapper=color_mapper, width=8, label_standoff=4,
+            color_bar = ColorBar(color_mapper=color_mapper, width=80, label_standoff=4,
                                  location=(0, 0), orientation='vertical')
             color_bar_plot = figure(title=f"Flux Density ({FLUX_UNIT_SCALER[units][1]})",
                                     title_location="right",
@@ -2546,7 +2710,6 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
             color_bar_plot.add_layout(color_bar, 'right')
             color_bar_plot.title.align="center"
             color_bar_plot.title.text_font_size = '10pt'
-            #subplot.add_layout(color_bar, 'right')
             im_subplot_list.append(subplot)
             im_subplot_list.append(stats_table)
         subplot_list.append(column(row(im_subplot_list)))
@@ -2606,8 +2769,11 @@ def get_source_properties_from_catalog(catalog_file):
     return source_properties
 
 
-def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None,
-                       x_label=None, y_label=None, title=None, html_prefix=None):
+def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None, svg=False,
+                       x_label=None, y_label=None, title=None, html_prefix=None,
+                       title_size='16pt', x_label_size='12pt', y_label_size='12pt',
+                       legend_size='10pt', xmajor_size='6pt', ymajor_size='6pt',
+                       units='micro'):
     """Plot catalog columns including their uncertainties"""
     width, height = 800, 800
     if 'lsm.html' in catalog_file:
@@ -2625,9 +2791,13 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None,
     x_y_plotter.scatter(x, y, source=bokeh_source,
                              name='x_y_data')
     x_y_plotter.title.align = 'center'
-    x_y_plotter.title.text_font_size = '16pt'
-    x_y_plotter.xaxis.axis_label_text_font_size = "12pt"
-    x_y_plotter.yaxis.axis_label_text_font_size = "12pt"
+    x_y_plotter.title.text_font_size = title_size
+    x_y_plotter.xaxis.axis_label_text_font_size = x_label_size
+    x_y_plotter.yaxis.axis_label_text_font_size = y_label_size
+    #x_y_plotter.legend.label_text_font_size = legend_size
+    x_y_plotter.xaxis.major_label_text_font_size = xmajor_size
+    x_y_plotter.yaxis.major_label_text_font_size = ymajor_size
+    x_y_plotter.axis.axis_label_text_font_style = 'normal'
     if x in ['RA', 'ra']:
         x_y_plotter.x_range.flipped = True
     elif y in ['RA', 'ra']:
@@ -2666,7 +2836,6 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None,
     source_table = column([table_title, dtab])
 
     LOGGER.info(f"Total number of sources: {len(source_properties['name'])}")
-    print(html_prefix)
     if not html_prefix:
         output_file_name = f"{catalog_file.split('.')[0]}_column_properties.html"
     else:
@@ -2674,6 +2843,11 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None,
     LOGGER.info(f"Saving results in {output_file_name}")
     output_file(output_file_name)
     save(row(source_table, x_y_plotter))
+    svg = True
+    if svg:
+        x_y_plotter.output_backend = "svg"
+        prefix = '.'.join(output_file_name.split('.')[:-1])
+        export_svgs(x_y_plotter, filename=f"{prefix}.svg")
 
 
 def plot_model_data(catalog_file, html_prefix=''):
@@ -2740,7 +2914,8 @@ def get_argparser():
                      "- The Dynamic range in restored image \n"
                      "- Comparing the fits images by running source finder \n"
                      "- Comparing the tigger models and online catalogs (NVSS, SUMSS) \n"
-                     "- Comparing the on source/random residuals to noise"))
+                     "- Comparing the on source/random residuals to noise \n"
+                     "- Comparing residual stats from sub-images"))
     subparser = parser.add_subparsers(dest='subcommand')
     sf = subparser.add_parser('source-finder')
     sf.add_argument('-c', '--config', dest='config',
@@ -2750,36 +2925,7 @@ def get_argparser():
     argument = partial(parser.add_argument)
     argument('-v', "--version", action='version',
              version='{0:s} version {1:s}'.format(parser.prog, _version))
-    argument('-c', '--config', dest='config',
-                    help='Config file to run source finder of choice (YAML format)')
-    argument('-catalog', '--tigger-model', dest='model',
-             help='Name of the tigger model lsm.html file or any supported catalog')
-    argument('--restored-image', dest='restored',
-             help='Name of the restored image fits file')
-    argument('-psf', '--psf-image', dest='psf',
-             help='Name of the point spread function file or psf size in arcsec')
-    argument('--residual-image', dest='residual',
-             help='Name of the residual image fits file')
-    argument('--mask-image', dest='mask',
-             help='Name of the mask image fits file')
-    argument('--normality-test', dest='test_normality',
-             choices=('shapiro', 'normaltest'),
-             help='Name of model to use for normality testing. \n'
-                  'options: [shapiro, normaltest] \n'
-                  'NB: normaltest is the D`Agostino')
-    argument('-dr', '--data-range', dest='data_range',
-             help='Data range to perform normality testing')
-    argument('-af', '--area-factor', dest='factor', type=float, default=2,
-             help='Factor to multiply the beam area to get target peak area')
-    argument('-fov', '--fov-factor', dest='fov_factor', type=float, default=0.9,
-             help='Factor to multiply the field of view for random points. i.e. 0.0-1.0')
-    argument('-tol', '--tolerance', dest='tolerance', type=float, default=0.2,
-             help='Tolerance to cross-match sources in arcsec')
-    argument('-as', '--all-source', dest='all', default=False, action='store_true',
-             help='Compare all sources irrespective of shape, otherwise only '
-                  'point-like sources are compared')
-    argument('-closest', '--closest', dest='closest_only', default=False, action='store_true',
-             help='Use the closest source only when cross matching sources')
+    # Inputs to analyse
     argument('--compare-models', dest='models', nargs=2, action='append',
              help='List of tigger model (text/lsm.html) files to compare \n'
                   'e.g. --compare-models model1.lsm.html model2.lsm.html')
@@ -2798,31 +2944,25 @@ def get_argparser():
              nargs='+', action='append',
              help='List of noise-like (fits) files to compare \n'
                   'e.g. --compare-residuals residual1.fits residual2.fits')
+    argument('-catalog', '--tigger-model', dest='model',
+             help='Name of the tigger model lsm.html file or any supported catalog')
+    argument('--restored-image', dest='restored',
+             help='Name of the restored image fits file')
+    argument('-psf', '--psf-image', dest='psf',
+             help='Name of the point spread function file or psf size in arcsec')
+    argument('--residual-image', dest='residual',
+             help='Name of the residual image fits file')
+    argument('--mask-image', dest='mask',
+             help='Name of the mask image fits file')
+    argument('-fdr', '--fidelity-results', dest='json',
+             help='aimfast fidelity results file (JSON format)')
+    # Source finding
+    argument('-c', '--config', dest='config',
+             help='Config file to run source finder of choice (YAML format)')
     argument('-sf', '--source-finder', dest='sourcery',
              choices=('aegean', 'pybdsf'), default='pybdsf',
              help='Source finder to run if comparing restored images')
-    argument('-dp', '--data-points', dest='points',
-             help='Data points to sample the residual/noise image')
-    argument('-thresh', '--threshold', dest='thresh',
-             help='Get stats of channels with pixel flux above thresh in Jy/Beam. \n'
-                  'Also this can be used to filter out sources from online catalog')
-    argument('-chans', '--channels', dest='channels',
-             help='Get stats of specified channels e.g. "10~20;100~1000"')
-    argument('-deci', '--decimals', dest='deci', default=2,
-             help='Number of decimal places to round off results')
-    argument('-sl', '--shape-limit', dest='shape_limit', default=6.0,
-             help='Cross-match only sources with a maj-axis equal or less than this value')
-    argument('-units', '--units', dest='units', default="jansky",
-             choices=('jansky', 'milli', 'micro', 'nano'),
-             help='Units to represent the results')
-    argument('-fp', '--flux-plot', dest='fluxplot', default='log',
-             choices=('log', 'snr', 'inout'),
-             help='Type of plot for flux comparison of the two catalogs')
-    argument("--label",
-             help='Use this label instead of the FITS image path when saving '
-                  'data as JSON file')
-    argument("--html-prefix", dest='htmlprefix',
-             help='Prefix of output html files. Default: None.')
+    # Online catalog query
     argument("--online-catalog-name", dest='catalog_name',
              help='Prefix of output catalog file name')
     argument('-oc', '--online-catalog', dest='online_catalog',
@@ -2835,15 +2975,54 @@ def get_argparser():
     argument('-w', '--width', dest='width',
              help='Field of view width to querry online catalog in degrees.'
                    'e.g. -w 3.0d')
+    # Image stats parameters
+    argument('--normality-test', dest='test_normality',
+             choices=('shapiro', 'normaltest'),
+             help='Name of model to use for normality testing. \n'
+                  'options: [shapiro, normaltest] \n'
+                  'NB: normaltest is the D`Agostino')
+    argument('-dr', '--data-range', dest='data_range',
+             help='Data range to perform normality testing')
+    argument('-thresh', '--threshold', dest='thresh',
+             help='Get stats of channels with pixel flux above thresh in Jy/Beam. \n'
+                  'Also this can be used to filter out sources from online catalog')
+    argument('-chans', '--channels', dest='channels',
+             help='Get stats of specified channels e.g. "10~20;100~1000"')
     argument('-cps', '--centre-pixels-size', dest='centre_pix_size',
              nargs='+', action='append',
              help='List of subimage centre pixels and their sizes to compute stats. \n'
                   'e.g. 500,500,20 200,10,5')
+    # Formatting
+    argument('-dp', '--data-points', dest='points',
+             help='Data points to sample the residual/noise image')
+    argument('-fp', '--flux-plot', dest='fluxplot', default='log',
+             choices=('log', 'snr', 'inout'),
+             help='Type of plot for flux comparison of the two catalogs')
+    argument('-units', '--units', dest='units', default="jansky",
+             choices=('jansky', 'milli', 'micro', 'nano'),
+             help='Units to represent the results')
+    argument('-deci', '--decimals', dest='deci', default=2,
+             help='Number of decimal places to round off results')
     argument('-oa', '--only-off-axis', dest='off_axis', default=None,
              help='Plot only cross-matched sources with distance from the phase centre'
                   ' less than this value')
-    argument('-fdr', '--fidelity-results', dest='json',
-             help='aimfast fidelity results file (JSON format)')
+    argument('-af', '--area-factor', dest='factor', type=float, default=2,
+             help='Factor to multiply the beam area to get target peak area')
+    argument('-fov', '--fov-factor', dest='fov_factor', type=float, default=0.9,
+             help='Factor to multiply the field of view for random points. i.e. 0.0-1.0')
+    argument('-tol', '--tolerance', dest='tolerance', type=float, default=0.2,
+             help='Tolerance to cross-match sources in arcsec')
+    argument('-as', '--all-source', dest='all', default=False, action='store_true',
+             help='Compare all sources irrespective of shape, otherwise only '
+                  'point-like sources are compared')
+    argument('-closest', '--closest', dest='closest_only', default=False, action='store_true',
+             help='Use the closest source only when cross matching sources')
+    argument('-sl', '--shape-limit', dest='shape_limit', default=6.0,
+             help='Cross-match only sources with a maj-axis equal or less than this value')
+    argument("--label",
+             help='Use this label instead of the FITS image path when saving '
+                  'data as JSON file')
+    # Plot labelling for basic catalog plotting
     argument('-x', '--x-col-data', dest='x_col',
              help='Catalog column name to plot on the x-axis')
     argument('-y', '--y-col-data', dest='y_col',
@@ -2857,15 +3036,52 @@ def get_argparser():
     argument('-y-label', '--y-label', dest='y_label',
              help='y-axis labels for the plots')
     argument('-title', '--plot-title', dest='title',
-             help="Title label for the plot")
+             help="Title label for the basic catalog plot")
+    # Plot labelling for the flux comparison plotting
     argument('-fx', '--flux-xlabels', dest='fxlabels', nargs='+',
              help="x-axis labels for the Flux plots")
     argument('-fy', '--flux-ylabels', dest='fylabels', nargs='+',
              help="y-axis labels for the Flux plots")
     argument('-ftitle', '--flux-plot-title', dest='ftitles', nargs='+',
              help="Title labels for the Flux plots")
+    # Plot labelling for the position (comparison & overlay) plotting
+    argument('-px1', '--position-xlabels1', dest='pxlabels1', nargs='+',
+             help="x-axis labels for the position plots")
+    argument('-py1', '--position-ylabels1', dest='pylabels1', nargs='+',
+             help="y-axis labels for the comparison position plots")
+    argument('-ptitle1', '--position-plot-title1', dest='ptitles1', nargs='+',
+             help="Title labels for the comparison position  plots")
+    argument('-px2', '--position-xlabels2', dest='pxlabels2', nargs='+',
+             help="x-axis labels for the overlay position plots")
+    argument('-py2', '--position-ylabels2', dest='pylabels2', nargs='+',
+             help="y-axis labels for the overlay position plots")
+    argument('-ptitle2', '--position-plot-title2', dest='ptitles2', nargs='+',
+             help="Title labels for the overlay position plots")
+    # Plot labelling sizes for all plots
+    argument('-bar-major-size', '--colorbar-major-labels-size', dest='bar_major_size', default='6pt',
+             help="x-axis label size for plots")
+    argument('-bar-size', '--colorbar-labels-size', dest='barsize', default='14pt',
+             help="x-axis label size for plots")
+    argument('-x-size', '--xlabels-size', dest='xsize', default='14pt',
+             help="x-axis label size for plots")
+    argument('-y-size', '--ylabels-size', dest='ysize', default='14pt',
+             help="y-axis label size for plots")
+    argument('-x-maj-size', '--x-major-labels-size', dest='xmaj_size', default='6pt',
+             help="x-axis major label size for plots")
+    argument('-y-maj-size', '--y-mojar-labels-size', dest='ymaj_size', default='6pt',
+             help="y-axis major label size for plots")
+    argument('-legend-size', '--legend-font-size', dest='legsize', default='14pt',
+             help="Label size for legends on the plots")
+    argument('-title-size', '--plot-title-size', dest='tsize', default='18pt',
+             help="Title label size for plots")
+    # Outputs
+    argument("--html-prefix", dest='htmlprefix',
+             help='Prefix of output html files. Default: None.')
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
+    argument('-svg', '--save-svg', dest='svg', default=True, action='store_true',
+             help='Compare all sources irrespective of shape, otherwise only '
+                  'point-like sources are compared')
     return parser
 
 
@@ -2873,10 +3089,15 @@ def main():
     """Main function."""
     LOGGER.info("Welcome to AIMfast")
     LOGGER.info(f"Version: {_version}")
+    _command = ' '.join(sys.argv)
+    LOGGER.info(f"Command: {_command}")
     output_dict = dict()
     parser = get_argparser()
     args = parser.parse_args()
+    # Print default args
+    LOGGER.info(' '.join(f'{k}={v}' for k, v in vars(args).items()))
     DECIMALS = args.deci
+    svg = args.svg
     if args.subcommand:
         if args.config:
             source_finding(get_sf_params(args.config))
@@ -2904,7 +3125,16 @@ def main():
     elif args.model and args.x_col and args.y_col:
         plot_model_columns(args.model, args.x_col, args.y_col,
                            args.x_col_err, args.y_col_err,
-                           args.x_label, args.y_label, args.title,
+                           x_label=args.x_label,
+                           y_label=args.y_label,
+                           title=args.title,
+                           title_size=args.tsize,
+                           x_label_size=args.xsize,
+                           y_label_size=args.ysize,
+                           legend_size=args.legsize,
+                           xmajor_size=args.xmaj_size,
+                           ymajor_size=args.ymaj_size,
+                           units=args.units,
                            html_prefix=args.htmlprefix)
 
     if args.model and not args.noise and args.residual:
@@ -3010,7 +3240,16 @@ def main():
                                          flux_plot=args.fluxplot,
                                          ftitles=args.ftitles,
                                          fxlabels=args.fxlabels,
-                                         fylabels=args.fylabels)
+                                         fylabels=args.fylabels,
+                                         title_size=args.tsize,
+                                         x_label_size=args.xsize,
+                                         y_label_size=args.ysize,
+                                         legend_size=args.legsize,
+                                         xmajor_size=args.xmaj_size,
+                                         ymajor_size=args.ymaj_size,
+                                         bar_size=args.barsize,
+                                         bar_major_size=args.bar_major_size,
+                                         svg=svg)
 
     if args.noise:
         residuals = args.noise
@@ -3030,6 +3269,13 @@ def main():
             if args.model:
                 output_dict = compare_residuals(residuals_list,
                                                 args.model,
+                                                units=args.units,
+                                                title_size=args.tsize,
+                                                legend_size=args.legsize,
+                                                xmajor_size=args.xmaj_size,
+                                                ymajor_size=args.ymaj_size,
+                                                x_label_size=args.xsize,
+                                                y_label_size=args.ysize,
                                                 area_factor=args.factor,
                                                 prefix=args.htmlprefix)
             else:
@@ -3037,6 +3283,13 @@ def main():
                     residuals_list,
                     area_factor=args.factor,
                     fov_factor=args.fov_factor,
+                    units=args.units,
+                    title_size=args.tsize,
+                    xmajor_size=args.xmaj_size,
+                    ymajor_size=args.ymaj_size,
+                    legend_size=args.legsize,
+                    x_label_size=args.xsize,
+                    y_label_size=args.ysize,
                     prefix=args.htmlprefix,
                     points=int(args.points) if args.points else 100)
 
@@ -3074,7 +3327,14 @@ def main():
                                      flux_plot=args.fluxplot,
                                      ftitles=args.ftitles,
                                      fxlabels=args.fxlabels,
-                                     fylabels=args.fylabels)
+                                     fylabels=args.fylabels,
+                                     title_size=args.tsize,
+                                     x_label_size=args.xsize,
+                                     y_label_size=args.ysize,
+                                     legend_size=args.legsize,
+                                     xmajor_size=args.xmaj_size,
+                                     ymajor_size=args.ymaj_size,
+                                     svg=svg)
 
     if args.online:
         models = args.online
@@ -3134,7 +3394,14 @@ def main():
                                      flux_plot=args.fluxplot,
                                      ftitles=args.ftitles,
                                      fxlabels=args.fxlabels,
-                                     fylabels=args.fylabels)
+                                     fylabels=args.fylabels,
+                                     title_size=args.tsize,
+                                     x_label_size=args.xsize,
+                                     y_label_size=args.ysize,
+                                     legend_size=args.legsize,
+                                     xmajor_size=args.xmaj_size,
+                                     ymajor_size=args.ymaj_size,
+                                     svg=svg)
 
     if args.subimage_noise:
         centre_coords = []
@@ -3145,10 +3412,15 @@ def main():
                 centre_pix = (int(cps.split(',')[0]), int(cps.split(',')[1]))
                 centre_coords.append(centre_pix)
                 sizes.append(int(cps.split(',')[-1]))
-
+            print(args.svg)
             output_dict = plot_subimage_stats(args.subimage_noise[0],
                                               centre_coords, sizes,
                                               units=args.units,
+                                              svg=args.svg,
+                                              title_size=args.tsize,
+                                              x_label_size=args.xsize,
+                                              y_label_size=args.ysize,
+                                              bar_label_size=args.barsize,
                                               htmlprefix=(args.htmlprefix
                                               if args.htmlprefix else 'default'))
         else:
