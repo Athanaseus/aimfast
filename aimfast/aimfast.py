@@ -3079,9 +3079,8 @@ def get_argparser():
              help='Prefix of output html files. Default: None.')
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
-    argument('-svg', '--save-svg', dest='svg', default=True, action='store_true',
-             help='Compare all sources irrespective of shape, otherwise only '
-                  'point-like sources are compared')
+    argument('-svg', '--save-svg', dest='svg', default=False, action='store_true',
+             help='Save plots in SVG format.')
     return parser
 
 
