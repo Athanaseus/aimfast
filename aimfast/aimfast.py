@@ -2135,7 +2135,7 @@ def _residual_plotter(res_noise_images, points=None, results=None,
                       inline=False, prefix=None, title_size='16pt',
                       x_label_size='12pt', y_label_size='12pt',
                       legend_size='10pt', xmajor_size='6pt',
-                      ymajor_size='6pt', units='micro'):
+                      ymajor_size='6pt', units='micro', svg=False):
     """Plot ratios of random residuals and noise
 
     Parameters
@@ -2258,7 +2258,6 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.title.align = "center"
             # Add object to plot list
             residual_plot_list.append(row(plot_residual, column(stats_table)))
-            svg=True
             if svg:
                 plot_residual.output_backend = "svg"
                 prefix = '.'.join(outfile.split('.')[:-1])
