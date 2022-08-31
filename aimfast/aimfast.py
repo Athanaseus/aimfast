@@ -3118,9 +3118,7 @@ def main():
         restored_label = args.restored
         model_label = args.model
 
-    if args.model and not args.x_col and not args.y_col:
-        plot_model_data(args.model, html_prefix=args.htmlprefix)
-    elif args.model and args.x_col and args.y_col:
+    if args.model and args.x_col and args.y_col:
         plot_model_columns(args.model, args.x_col, args.y_col,
                            args.x_col_err, args.y_col_err,
                            x_label=args.x_label,
@@ -3217,7 +3215,7 @@ def main():
         models = args.models
         LOGGER.info(f"Number of model pair(s) to compare: {len(models)}")
         if len(models) < 1:
-            LOGGER.error(f"{R}Can only compare two models at a time.{W}")
+            LOGGER.warn(f"{R}Can only compare two models at a time.{W}")
         else:
             models_list = []
             for i, comp_mod in enumerate(models):
