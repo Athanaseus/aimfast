@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 pkg = 'aimfast'
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 build_root = os.path.dirname(__file__)
 
 def readme():
@@ -28,7 +28,7 @@ setup(name=pkg,
       license="GNU GPL 3",
       classifiers=["Development Status :: 4 - Beta",
                    "Intended Audience :: Developers",
-                   "Programming Language :: Python :: 3.6",
+                   "Programming Language :: Python :: 3.8",
                    "Topic :: Scientific/Engineering :: Astronomy",
                    "Topic :: Software Development :: Libraries :: Python Modules"],
       keywords="fits dataset lsm statistics models html jupyter",

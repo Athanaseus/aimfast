@@ -2135,7 +2135,7 @@ def _residual_plotter(res_noise_images, points=None, results=None,
                       inline=False, prefix=None, title_size='16pt',
                       x_label_size='12pt', y_label_size='12pt',
                       legend_size='10pt', xmajor_size='6pt',
-                      ymajor_size='6pt', units='micro'):
+                      ymajor_size='6pt', units='micro', svg=False):
     """Plot ratios of random residuals and noise
 
     Parameters
@@ -2258,7 +2258,6 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual.title.align = "center"
             # Add object to plot list
             residual_plot_list.append(row(plot_residual, column(stats_table)))
-            svg=True
             if svg:
                 plot_residual.output_backend = "svg"
                 prefix = '.'.join(outfile.split('.')[:-1])
@@ -3079,9 +3078,8 @@ def get_argparser():
              help='Prefix of output html files. Default: None.')
     argument("--outfile",
              help='Name of output file name. Default: fidelity_results.json')
-    argument('-svg', '--save-svg', dest='svg', default=True, action='store_true',
-             help='Compare all sources irrespective of shape, otherwise only '
-                  'point-like sources are compared')
+    argument('-svg', '--save-svg', dest='svg', default=False, action='store_true',
+             help='Save plots in SVG format.')
     return parser
 
 
@@ -3120,9 +3118,7 @@ def main():
         restored_label = args.restored
         model_label = args.model
 
-    if args.model and not args.x_col and not args.y_col:
-        plot_model_data(args.model, html_prefix=args.htmlprefix)
-    elif args.model and args.x_col and args.y_col:
+    if args.model and args.x_col and args.y_col:
         plot_model_columns(args.model, args.x_col, args.y_col,
                            args.x_col_err, args.y_col_err,
                            x_label=args.x_label,
@@ -3219,7 +3215,7 @@ def main():
         models = args.models
         LOGGER.info(f"Number of model pair(s) to compare: {len(models)}")
         if len(models) < 1:
-            LOGGER.error(f"{R}Can only compare two models at a time.{W}")
+            LOGGER.warn(f"{R}Can only compare two models at a time.{W}")
         else:
             models_list = []
             for i, comp_mod in enumerate(models):
