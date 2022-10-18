@@ -10,7 +10,7 @@ aimfast
 
 An Astronomical Image Fidelity Assessment Tool
 
-Main website: https://aimfast.readthedocs.io
+Main website: aimfast.rtfd.io_
 
 ==============
 Introduction
@@ -66,6 +66,7 @@ standards pep8_.
                      :target: https://github.com/Athanaseus/aimfast/blob/master/LICENSE
                      :alt:
 
+.. _aimfast.rtfd.io: https://aimfast.rtfd.io
 .. _source: https://github.com/Athanaseus/aimfast
 .. _license: https://github.com/Athanaseus/aimfast/blob/master/LICENSE
 .. _pep8: https://www.python.org/dev/peps/pep-0008
