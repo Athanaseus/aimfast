@@ -1,9 +1,10 @@
 =======
 aimfast
 =======
+
+|Build Version|
 |Doc Status|
 |Pypi Version|
-|Build Version|
 |Python Versions|
 |Project License|
 
@@ -53,8 +54,8 @@ standards pep8_.
 .. |Pypi Version| image:: https://img.shields.io/pypi/v/aimfast.svg
                   :target: https://pypi.python.org/pypi/aimfast
                   :alt:
-.. |Build Version| image:: https://travis-ci.org/Athanaseus/aimfast.svg?branch=master
-                  :target: https://travis-ci.org/Athanaseus/aimfast
+.. |Build Version| image:: https://github.com/Athanaseus/aimfast/actions/workflows/test_installation.yml/badge.svg
+                  :target: https://github.com/Athanaseus/aimfast/actions/workflows/test_installation.yml/
                   :alt:
 
 .. |Python Versions| image:: https://img.shields.io/pypi/pyversions/aimfast.svg
