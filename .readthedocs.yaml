@@ -17,7 +17,7 @@ python:
   install:
     - method: pip
       path: .
-      extra_requires: 
+      extra_requirements: 
         - doc
     - method: pip
       path: aimfast
