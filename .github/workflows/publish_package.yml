@@ -10,7 +10,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: [ ubuntu-20.04, ubuntu-22.04 ]
+    runs-on: ubuntu-latest
     # Run on a push to a tag or master
     if: >
       github.event_name == 'push' &&
