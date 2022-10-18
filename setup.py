@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 pkg = 'aimfast'
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 build_root = os.path.dirname(__file__)
 
 def readme():
@@ -26,12 +26,13 @@ setup(name=pkg,
       packages=find_packages(),
       url="https://github.com/Athanaseus/aimfast",
       license="GNU GPL 3",
-      classifiers=["Development Status :: 4 - Beta",
-                   "Intended Audience :: Developers",
+      classifiers=["Development Status :: 5 - Production/Stable",
+                   "Intended Audience :: Developers/Research",
+                   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
                    "Programming Language :: Python :: 3.8",
-                   "Topic :: Scientific/Engineering :: Astronomy",
-                   "Topic :: Software Development :: Libraries :: Python Modules"],
-      keywords="fits dataset lsm statistics models html jupyter",
+                   "Topic :: Science/Research :: Astronomy",
+                   "Topic :: Software Development :: Libraries"],
+      keywords="fits dataset lsm statistics models html catalogs",
       platforms=["OS Independent"],
       install_requires=requirements(),
       tests_require=["attrs",
