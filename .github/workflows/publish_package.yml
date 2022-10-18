@@ -18,7 +18,7 @@ jobs:
        github.event.ref == 'refs/heads/master')
     steps:
       - name: Set up Python 3
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v3
         with:
           python-version: '3.x'
 
@@ -26,7 +26,7 @@ jobs:
         run: python3 -m pip install -U pip setuptools wheel
 
       - name: Checkout source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 1
 

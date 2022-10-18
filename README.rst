@@ -1,15 +1,16 @@
 =======
 aimfast
 =======
+
+|Build Version|
 |Doc Status|
 |Pypi Version|
-|Build Version|
 |Python Versions|
 |Project License|
 
 An Astronomical Image Fidelity Assessment Tool
 
-Main website: https://aimfast.readthedocs.io
+Main website: aimfast.rtfd.io_
 
 ==============
 Introduction
@@ -53,8 +54,8 @@ standards pep8_.
 .. |Pypi Version| image:: https://img.shields.io/pypi/v/aimfast.svg
                   :target: https://pypi.python.org/pypi/aimfast
                   :alt:
-.. |Build Version| image:: https://travis-ci.org/Athanaseus/aimfast.svg?branch=master
-                  :target: https://travis-ci.org/Athanaseus/aimfast
+.. |Build Version| image:: https://github.com/Athanaseus/aimfast/actions/workflows/test_installation.yml/badge.svg
+                  :target: https://github.com/Athanaseus/aimfast/actions/workflows/test_installation.yml/
                   :alt:
 
 .. |Python Versions| image:: https://img.shields.io/pypi/pyversions/aimfast.svg
@@ -65,6 +66,7 @@ standards pep8_.
                      :target: https://github.com/Athanaseus/aimfast/blob/master/LICENSE
                      :alt:
 
+.. _aimfast.rtfd.io: https://aimfast.rtfd.io
 .. _source: https://github.com/Athanaseus/aimfast
 .. _license: https://github.com/Athanaseus/aimfast/blob/master/LICENSE
 .. _pep8: https://www.python.org/dev/peps/pep-0008
