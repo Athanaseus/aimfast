@@ -14,8 +14,14 @@ formats: all
 
 # Optionally set the version of Python and requirements required to build your docs
 python:
+  version: "3.8"
   install:
-    - requirements: doc/requirements.readthedocs.txt
+    - method: pip
+      path: .
+      extra_requires: 
+        - doc
+    - method: pip
+      path: aimfast
 
 build:
   os: ubuntu-20.04
