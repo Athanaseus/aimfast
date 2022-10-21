@@ -3340,10 +3340,10 @@ def main():
         LOGGER.info(f'Using sky width of {width}')
         catalog_prefix = args.catalog_name or 'default'
         online_catalog = args.online_catalog
-        LOGGER.info(f'Quering the {online_catalog} catalog')
         catalog_name = f"{catalog_prefix}_{online_catalog}_catalog_table.txt"
         images_list = []
 
+        LOGGER.info(f'Extracting phase centre coordinates form {models[0][0]}')
         if models[0][0].endswith('.html'):
             Tigger_model = Tigger.load(models[0][0])
             centre_ra_deg, centre_dec_deg = _get_phase_centre(Tigger_model)
@@ -3359,6 +3359,7 @@ def main():
             else:
                 LOGGER.error('Please supply central coordinates using -ptc. See --help')
 
+        LOGGER.info(f'Quering the {online_catalog} catalog with width of {width} at {centre_coord}')
         table = get_online_catalog(catalog=online_catalog.upper(), centre_coord=centre_coord,
                                    width='5.0d', thresh=threshold, catalog_table=catalog_name)
 
