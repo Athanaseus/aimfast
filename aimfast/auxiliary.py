@@ -250,7 +250,7 @@ def get_subimage(fitsname, centre_coord, size, padding=1):
     return subdata
 
 
-def get_online_catalog(catalog='NVSS', width='3.0d', thresh=None,
+def get_online_catalog(catalog='NVSS', width='5.0d', thresh=None,
                        centre_coord=['0:0:0', '-30:0:0'],
                        catalog_table='nvss_catalog_table.txt'):
     """Query an online catalog to compare with local catalog
@@ -278,32 +278,33 @@ def get_online_catalog(catalog='NVSS', width='3.0d', thresh=None,
     C = Vizier.query_region(coord.SkyCoord(centre_coord[0], centre_coord[1],
                             unit=(u.hourangle, u.deg), frame='icrs'),
                             width=width, catalog=catalog)
-    if not C.values():
-        raise NameError(f"No object found around (ICRS) position {centre_coord}")
+    if C.values():
 
-    table = C[0]
-    ra_deg = []
-    dec_deg = []
+        table = C[0]
+        ra_deg = []
+        dec_deg = []
 
-    if catalog in ['NVSS', 'SUMSS']:
-        for i in range(0, len(table['RAJ2000'])):
-            table['RAJ2000'][i] = ':'.join(table['RAJ2000'][i].split(' '))
-            ra_deg.append(ra2deg(table['RAJ2000'][i]))
-            table['DEJ2000'][i] = ':'.join(table['DEJ2000'][i].split(' '))
-            dec_deg.append(dec2deg(table['DEJ2000'][i]))
+        if catalog in ['NVSS', 'SUMSS']:
+            for i in range(0, len(table['RAJ2000'])):
+                table['RAJ2000'][i] = ':'.join(table['RAJ2000'][i].split(' '))
+                ra_deg.append(ra2deg(table['RAJ2000'][i]))
+                table['DEJ2000'][i] = ':'.join(table['DEJ2000'][i].split(' '))
+                dec_deg.append(dec2deg(table['DEJ2000'][i]))
 
-        if thresh:
-            if catalog in ['NVSS']:
-                above_thresh = table['S1.4'] < thresh
-            if catalog in ['SUMSS']:
-                above_thresh = table['St'] < thresh
+            if thresh:
+                if catalog in ['NVSS']:
+                    above_thresh = table['S1.4'] < thresh
+                if catalog in ['SUMSS']:
+                    above_thresh = table['St'] < thresh
 
-            for i in range(1, len(table.colnames)):
-                table[table.colnames[i]][above_thresh] = np.nan
+                for i in range(1, len(table.colnames)):
+                    table[table.colnames[i]][above_thresh] = np.nan
 
-    table = Table(table, masked=True)
-    ascii.write(table, catalog_table, overwrite=True)
-    return table
+        table = Table(table, masked=True)
+        ascii.write(table, catalog_table, overwrite=True)
+        return table
+    else:
+        return None
 
 
 def aegean(image, kwargs, log):

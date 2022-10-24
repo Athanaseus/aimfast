@@ -3336,14 +3336,14 @@ def main():
         models = args.online
         sourcery = args.sourcery
         threshold = args.thresh
-        width = args.width or '4.0d'
+        width = args.width or '5.0d'
         LOGGER.info(f'Using sky width of {width}')
         catalog_prefix = args.catalog_name or 'default'
         online_catalog = args.online_catalog
-        LOGGER.info(f'Quering the {online_catalog} catalog')
         catalog_name = f"{catalog_prefix}_{online_catalog}_catalog_table.txt"
         images_list = []
 
+        LOGGER.info(f'Extracting phase centre coordinates form {models[0][0]}')
         if models[0][0].endswith('.html'):
             Tigger_model = Tigger.load(models[0][0])
             centre_ra_deg, centre_dec_deg = _get_phase_centre(Tigger_model)
@@ -3359,45 +3359,48 @@ def main():
             else:
                 LOGGER.error('Please supply central coordinates using -ptc. See --help')
 
-        get_online_catalog(catalog=online_catalog.upper(), centre_coord=centre_coord,
-                           width='3.0d', thresh=threshold,
-                           catalog_table=catalog_name)
+        LOGGER.info(f'Quering the {online_catalog} catalog with width of {width} at {centre_coord}')
+        table = get_online_catalog(catalog=online_catalog.upper(), centre_coord=centre_coord,
+                                   width='5.0d', thresh=threshold, catalog_table=catalog_name)
 
 
-        for i, ims in enumerate(models):
-            image1 = ims[0]
-            if image1.endswith('.fits'):
-                configfile = 'default_sf_config.yml'
-                generate_default_config(configfile)
-                sf_params1 = get_sf_params(configfile)
-                sf_params1[sourcery]['filename'] = image1
-                out1 = source_finding(sf_params1, sourcery)
-                image1 = out1
+        if table:
+            for i, ims in enumerate(models):
+                image1 = ims[0]
+                if image1.endswith('.fits'):
+                    configfile = 'default_sf_config.yml'
+                    generate_default_config(configfile)
+                    sf_params1 = get_sf_params(configfile)
+                    sf_params1[sourcery]['filename'] = image1
+                    out1 = source_finding(sf_params1, sourcery)
+                    image1 = out1
 
-            images_list.append(
-                [dict(label="{}-model_a_{}".format(args.label, i),
-                      path=image1),
-                 dict(label="{}-model_b_{}".format(args.label, i),
-                      path=catalog_name)])
+                images_list.append(
+                    [dict(label="{}-model_a_{}".format(args.label, i),
+                          path=image1),
+                     dict(label="{}-model_b_{}".format(args.label, i),
+                          path=catalog_name)])
 
-        output_dict = compare_models(images_list,
-                                     tolerance=args.tolerance,
-                                     shape_limit=args.shape_limit,
-                                     off_axis=args.off_axis,
-                                     all_sources=args.all,
-                                     closest_only=args.closest_only,
-                                     prefix=args.htmlprefix,
-                                     flux_plot=args.fluxplot,
-                                     ftitles=args.ftitles,
-                                     fxlabels=args.fxlabels,
-                                     fylabels=args.fylabels,
-                                     title_size=args.tsize,
-                                     x_label_size=args.xsize,
-                                     y_label_size=args.ysize,
-                                     legend_size=args.legsize,
-                                     xmajor_size=args.xmaj_size,
-                                     ymajor_size=args.ymaj_size,
-                                     svg=svg)
+            output_dict = compare_models(images_list,
+                                         tolerance=args.tolerance,
+                                         shape_limit=args.shape_limit,
+                                         off_axis=args.off_axis,
+                                         all_sources=args.all,
+                                         closest_only=args.closest_only,
+                                         prefix=args.htmlprefix,
+                                         flux_plot=args.fluxplot,
+                                         ftitles=args.ftitles,
+                                         fxlabels=args.fxlabels,
+                                         fylabels=args.fylabels,
+                                         title_size=args.tsize,
+                                         x_label_size=args.xsize,
+                                         y_label_size=args.ysize,
+                                         legend_size=args.legsize,
+                                         xmajor_size=args.xmaj_size,
+                                         ymajor_size=args.ymaj_size,
+                                         svg=svg)
+        else:
+            LOGGER.warn(f'No object found around (ICRS) position {centre_coord}')
 
     if args.subimage_noise:
         centre_coords = []
