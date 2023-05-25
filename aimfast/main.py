@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-
 from aimfast.aimfast import main
 
-main()
+def driver():
+    main()

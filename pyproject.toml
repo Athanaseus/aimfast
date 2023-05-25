@@ -22,6 +22,10 @@ packages = [
     { include = "aimfast" },
 ]
 
+
+[tool.poetry.scripts]
+aimfast = "aimfast.main:driver"
+
 [tool.poetry.dependencies]
 python = ">=3.8"
 astLib = "0.10.0"
@@ -38,11 +42,27 @@ regions = "*"
 scikit-learn = "*"
 scipy = "*"
 AegeanTools = { version = "*", optional=true }
+matplotlib = { version = "*", optional=true }
+bdsf = { version = "*", optional=true}
+selenium = { version = "*", optional=true}
+pytest = { version = "^7.2.2", optional=true }
+pytest-flake8 = { version = "^1.1.1", optional=true }
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.tests]
+optional = true
+[tool.poetry.group.tests.dependencies]
 attrs = "*"
 pytest = "*"
 numpy = "*"
+
+[tool.poetry.group.docs]
+optional = true
+[tool.poetry.group.docs.dependencies]
+Sphinx = "^5.3.0"
+sphinx-pypi-upload = "*"
+sphinx-copybutton = "^0.5.0"
+furo = "^2022.9.15"
+numpydoc = "*"
 
 [tool.poetry.extras]
 doc = ["sphinx-pypi-upload", "numpydoc", "Sphinx", "furo"]
@@ -50,8 +70,8 @@ aegean = ["AegeanTools"]
 pybdsf = ["bdsf", "matplotlib"]
 source_finders = ["bdsf", "matplotlib", "AegeanTools"]
 svg_images = ["matplotlib", "selenium"]
+testing = ["pytest", "pytest-flake8"]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["setuptools", "poetry-core"]
 build-backend = "poetry.core.masonry.api"
-]
