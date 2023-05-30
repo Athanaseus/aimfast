@@ -47,7 +47,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install aimfast
-        run: poetry install --extras "source_finding"
+        run: poetry install --extras "source_finders"
 
       - name: Lint with flake8
         run: |
