@@ -50,6 +50,7 @@ optional = true
 attrs = "*"
 pytest = "*"
 numpy = "*"
+flake8 = "*"
 
 [tool.poetry.group.docs]
 optional = true
