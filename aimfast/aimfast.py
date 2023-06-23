@@ -10,6 +10,7 @@ import argparse
 import tempfile
 import numpy as np
 
+from regions import Regions
 from functools import partial
 from collections import OrderedDict
 
@@ -525,6 +526,43 @@ def image_stats(image_data, test_normality=None, data_range=None):
         LOGGER.info("NORM = {}".format(img_stats['NORM']))
     # Return dictionary of results
     return img_stats
+
+
+def fix_wcs_fits(wcs, dropaxis=2):
+    """This removes the degenerated dimensions in APLpy 2.X...
+    The input must be the object returned by aplpy.FITSFigure().
+    `dropaxis` is the index where to start dropping the axis (by default it assumes the 3rd,4th place).
+    """
+    temp_wcs = wcs.dropaxis(dropaxis)
+    temp_wcs = temp_wcs.dropaxis(dropaxis)
+    return temp_wcs
+
+
+def get_region_stats(fitsname, regions_file):
+    """Extract flux densities measurements within the provided region"""
+    regions_stats = dict()
+    LOGGER.info(f'Reading region file: {regions_file}')
+    regions_list = Regions.read(regions_file, format='ds9')
+    LOGGER.info(f'Number of regions: {len(regions_list)}')
+    image = fitsio.open(fitsname)
+    image_data = image[0].data
+    fitsinfo = fitsInfo(fitsname)
+    wcs = fitsinfo['wcs']
+    beam =  fitsinfo['b_size']
+    dra = fitsinfo['dra']
+    beam_area = (beam[0]*beam[1])/(dra*dra)
+    for i, input_region in enumerate(regions_list):
+        if hasattr(input_region, 'to_pixel'):
+            input_region = input_region.to_pixel(fix_wcs_fits(wcs))
+        mask = input_region.to_mask().to_image(image_data.shape[-2:])
+        data = mask * image_data[0][0]
+        #nndata=nndata[~np.isnan(data)]
+        nndata = np.flip(data, axis=0)
+        nndata = nndata[~np.isnan(nndata)]
+        nndata = nndata[nndata != -0.0]
+        stats = image_stats(nndata)
+        regions_stats[f'region-{i}'] = stats
+    return regions_stats
 
 
 def normality_testing(data, test_normality='normaltest', data_range=None):
@@ -2955,6 +2993,8 @@ def get_argparser():
              help='Name of the mask image fits file')
     argument('-fdr', '--fidelity-results', dest='json',
              help='aimfast fidelity results file (JSON format)')
+    argument('-reg', '--input-regions', dest='reg',
+             help='Region file with regions to generate stats)')
     # Source finding
     argument('-c', '--config', dest='config',
              help='Config file to run source finder of choice (YAML format)')
@@ -3178,7 +3218,7 @@ def main():
             'DR_global_rms'         : DR['global_rms'],
             'DR_local_rms'          : DR['local_rms']}})
         output_dict[residual_label] = stats
-    elif args.residual:
+    elif args.residual and not args.reg:
         if args.residual not in output_dict.keys():
             if args.test_normality in ['shapiro', 'normaltest']:
                 stats = residual_image_stats(args.residual,
@@ -3426,6 +3466,10 @@ def main():
             LOGGER.error(f"{R}Provide Centre coordinates in pixels "
                          f"and size of subimage(s).{W}")
 
+    if args.reg:
+        centre_coords = []
+        stats = get_region_stats(args.residual, args.reg)
+        output_dict[residual_label] = stats
 
     if output_dict:
         if args.outfile:
