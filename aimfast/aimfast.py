@@ -1756,8 +1756,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
                              width=500, max_width=550,
-                             height=100, max_height=150,
-                             sizing_mode='stretch_both')
+                             height=100, max_height=150)
             table_title = Div(text="Cross Matching Statistics")
             table_title.align = "center"
             stats_table = column([table_title, dtab])
@@ -1778,8 +1777,7 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             columns1 = [TableColumn(field=x, title=x.capitalize()) for x in cols1]
             dtab1 = DataTable(source=source1, columns=columns1,
                               width=500, max_width=550,
-                              height=150, max_height=200,
-                              sizing_mode='stretch_both')
+                              height=150, max_height=200)
             table_title1 = Div(text=f"Non-matching sources from {model_1_name}")
             table_title1.align = "center"
             stats_table1 = column([table_title1, dtab1])
@@ -1799,14 +1797,12 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
             columns2 = [TableColumn(field=x, title=x.capitalize()) for x in cols2]
             dtab2 = DataTable(source=source2, columns=columns2,
                               width=500, max_width=550,
-                              height=150, max_height=200,
-                              sizing_mode='stretch_both')
+                              height=150, max_height=200)
             table_title2 = Div(text=f"Non-matching sources from {model_2_name}")
             table_title2.align = "center"
             stats_table2 = column([table_title2, dtab2])
             # Attaching the hover object with labels
             hover = plot_flux.select(dict(type=HoverTool))
-            hover.names = ['data']
             hover.tooltips = OrderedDict([
                 ("source", "(@label)"),
                 ("(S1,S2)", "(@flux_1, @flux_2)"),
@@ -2105,14 +2101,12 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
                              width=450, max_width=500,
-                             height=100, max_height=150,
-                             sizing_mode='stretch_both')
+                             height=100, max_height=150)
             table_title = Div(text="Cross Matching Statistics")
             table_title.align = "center"
             stats_table = column([table_title, dtab])
             # Attaching the hover object with labels
             hover = plot_position.select(dict(type=HoverTool))
-            hover.names = ['data']
             hover.tooltips = OrderedDict([
                 ("source", "(@label)"),
                 ("(S1,S2) [mJy]",
@@ -2238,7 +2232,6 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             plot_residual = figure(title=title,
                                    x_axis_label='Sources',
                                    y_axis_label='Res1-to-Res2',
-                                   #sizing_mode='stretch_both',
                                    plot_width=1200, plot_height=800,
                                    tools=TOOLS)
             plot_residual.y_range = Range1d(start=min(y1) - .01, end=max(y1) + .01)
@@ -2279,14 +2272,12 @@ def _residual_plotter(res_noise_images, points=None, results=None,
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
                              width=550, max_width=800,
-                             height=100, max_height=150,
-                             sizing_mode='stretch_both')
+                             height=100, max_height=150)
             table_title = Div(text="Cross Match Stats")
             table_title.align = "center"
             stats_table = column([table_title, dtab])
             # Attaching the hover object with labels
             hover = plot_residual.select(dict(type=HoverTool))
-            hover.names = ['ratios']
             hover.tooltips = OrderedDict([
                 ("ratio", "@y"),
                 ("(Res1,Res2)", "(@res1,@res2)"),
@@ -2679,8 +2670,7 @@ def plot_subimage_stats(fitsnames, centre_coords, sizes, htmlprefix='default',
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(source=source, columns=columns,
                              width=250, max_width=350,
-                             height=200, max_height=250,
-                             sizing_mode='stretch_both')
+                             height=200, max_height=250)
             table_title = Div(text="Sub-image Statistics")
             table_title.align = "center"
             stats_table = column([table_title, dtab])
@@ -2866,8 +2856,7 @@ def plot_model_columns(catalog_file, x, y, x_err=None, y_err=None, svg=False,
     columns = [TableColumn(field=col, title=col) for col in column_list]
     dtab = DataTable(source=bokeh_source_table, columns=columns,
                              width=width, max_width=width + 50,
-                             height=height, max_height=width + 50,
-                             sizing_mode='stretch_both')
+                             height=height, max_height=width + 50)
     table_title = Div(text="Source Table")
     table_title.align = "center"
     source_table = column([table_title, dtab])
@@ -2900,8 +2889,7 @@ def plot_model_data(catalog_file, html_prefix=''):
     columns = [TableColumn(field=col, title=col) for col in column_list]
     dtab = DataTable(source=bokeh_source_table, columns=columns,
                              width=width, max_width=width + 50,
-                             height=height, max_height=width + 50,
-                             sizing_mode='stretch_both')
+                             height=height, max_height=width + 50)
     table_title = Div(text="Source Table")
     table_title.align = "center"
     source_table = column([table_title, dtab])
