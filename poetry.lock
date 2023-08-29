@@ -664,7 +664,7 @@ test = ["pytest (>=6)"]
 name = "flake8"
 version = "5.0.4"
 description = "the modular source code checker: pep8 pyflakes and co"
-optional = true
+optional = false
 python-versions = ">=3.6.1"
 files = [
     {file = "flake8-5.0.4-py2.py3-none-any.whl", hash = "sha256:7a1cf6b73744f5806ab95e526f6f0d8c01c66d7bbe349562d22dfca20610b248"},
@@ -1187,7 +1187,7 @@ python-dateutil = ">=2.7"
 name = "mccabe"
 version = "0.7.0"
 description = "McCabe checker, plugin for flake8"
-optional = true
+optional = false
 python-versions = ">=3.6"
 files = [
     {file = "mccabe-0.7.0-py2.py3-none-any.whl", hash = "sha256:6c2d30ab6be0e4a46919781807b4f0d834ebdd6c6e3dca0bda5a15f863427b6e"},
@@ -1477,7 +1477,7 @@ testing = ["pytest", "pytest-benchmark"]
 name = "pycodestyle"
 version = "2.9.1"
 description = "Python style guide checker"
-optional = true
+optional = false
 python-versions = ">=3.6"
 files = [
     {file = "pycodestyle-2.9.1-py2.py3-none-any.whl", hash = "sha256:d1735fc58b418fd7c5f658d28d943854f8a849b01a5d0a1e6f3f3fdd0166804b"},
@@ -1555,7 +1555,7 @@ test = ["pytest", "pytest-doctestplus (>=0.7)"]
 name = "pyflakes"
 version = "2.5.0"
 description = "passive checker of Python programs"
-optional = true
+optional = false
 python-versions = ">=3.6"
 files = [
     {file = "pyflakes-2.5.0-py2.py3-none-any.whl", hash = "sha256:4579f67d887f804e67edb544428f264b7b24f435b263c4614f384135cea553d2"},
@@ -2407,4 +2407,4 @@ testing = ["pytest", "pytest-flake8"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8"
-content-hash = "1587fb5c2a88d43b3194b6dda498be51f2351a5606670fdb26976c3934503010"
+content-hash = "b4002735e110c0888be366a5877d05350714dcbf817f9c3cdbbab90efd561475"
