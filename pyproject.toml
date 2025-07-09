@@ -25,7 +25,7 @@ packages = [
 aimfast = "aimfast.main:driver"
 
 [tool.poetry.dependencies]
-python = ">=3.9"
+python = ">=3.9, <3.13"
 astLib = "0.10.0"
 astropy = "*"
 astroquery = "*"
@@ -45,6 +45,7 @@ bdsf = { version = "*", optional=true}
 selenium = { version = "*", optional=true}
 pytest = { version = "^7.2.2", optional=true }
 pytest-flake8 = { version = "^1.1.1", optional=true }
+pytest-cov = { version = "*", optional=true }
 
 [tool.poetry.group.tests]
 optional = true
@@ -69,7 +70,7 @@ aegean = ["AegeanTools"]
 pybdsf = ["bdsf", "matplotlib"]
 source_finders = ["bdsf", "matplotlib", "AegeanTools"]
 svg_images = ["matplotlib", "selenium"]
-testing = ["pytest", "pytest-flake8"]
+testing = ["pytest", "pytest-flake8", "pytest-cov"]
 
 [build-system]
 requires = ["setuptools", "poetry-core"]

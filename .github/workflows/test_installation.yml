@@ -60,4 +60,4 @@ jobs:
         run: poetry run  aimfast -h
 
       - name: Run testsuite
-        run: poetry run py.test -vvv aimfast/
+        run: poetry run py.test --cov=aimfast --cov-report=term-missing --cov-report=html -vvv aimfast/

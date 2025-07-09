@@ -682,9 +682,9 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     global_std = residual_data[0, 0, ...].std()
     # Compute dynamic range
     DR = {
-        "deepest_negative"  : peak_flux/abs(min_flux)*1e0,
-        "local_rms"         : peak_flux/local_std*1e0,
-        "global_rms"        : peak_flux/global_std*1e0,
+        "deepest_negative"  : np.float64(peak_flux/abs(min_flux)),
+        "local_rms"         : np.float64(peak_flux/local_std),
+        "global_rms"        : np.float64(peak_flux/global_std),
     }
     return DR
 
@@ -747,9 +747,9 @@ def image_dynamic_range(fitsname, residual, area_factor=6):
     global_std = residual_data[0, 0, ...].std()
     # Compute dynamic range
     DR = {
-        "deepest_negative"  : peak_flux / abs(min_flux) * 1e0,
-        "local_rms"         : peak_flux / local_std * 1e0,
-        "global_rms"        : peak_flux / global_std * 1e0,
+        "deepest_negative"  : np.float64(peak_flux / abs(min_flux),
+        "local_rms"         : np.flaot64(peak_flux / local_std),
+        "global_rms"        : np.float64(peak_flux / global_std),
     }
     return DR
 
@@ -3385,7 +3385,7 @@ def main():
                 centre_coord = centre_coord.split(',')
             else:
                 LOGGER.error('No central coordinates found. Check if image has header')
-                raise('Otherewise supply central coordinates using -ptc')
+                raise('Otherwise supply central coordinates using -ptc')
 
         except:
             LOGGER.error('Please supply central coordinates using -ptc. See --help')
