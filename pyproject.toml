@@ -54,6 +54,7 @@ attrs = "*"
 pytest = "*"
 numpy = "*"
 flake8 = "*"
+pytest-cov = "*"
 
 [tool.poetry.group.docs]
 optional = true
