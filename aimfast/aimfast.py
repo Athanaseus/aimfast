@@ -748,7 +748,7 @@ def image_dynamic_range(fitsname, residual, area_factor=6):
     # Compute dynamic range
     DR = {
         "deepest_negative"  : np.float64(peak_flux / abs(min_flux)),
-        "local_rms"         : np.flaot64(peak_flux / local_std),
+        "local_rms"         : np.float64(peak_flux / local_std),
         "global_rms"        : np.float64(peak_flux / global_std),
     }
     return DR
