@@ -337,7 +337,7 @@ def bdsf(image, kwargs, log):
     except (ModuleNotFoundError, ImportError):
         raise ModuleNotFoundError("Source finding module is not "
                                   " installed. Install with "
-                                  "`pip install aimfast[bdsf]`")
+                                  "`pip install aimfast[pybdsf]`")
 
     img_opts = {}
     write_opts = {'outfile': None}

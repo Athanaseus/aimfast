@@ -2996,7 +2996,6 @@ def get_argparser():
              choices=('sumss', 'nvss'), default='nvss',
              help='Online catalog to compare local image/model.')
     argument('-ptc', '--centre_coord', dest='centre_coord',
-             default="0:0:0, -30:0:0",
              help='Centre of online catalog to compare local image/model \n'
                   'in "RA hh:mm:ss, Dec deg:min:sec".')
     argument('-w', '--width', dest='width',
@@ -3125,10 +3124,10 @@ def main():
     DECIMALS = args.deci
     svg = args.svg
     if args.subcommand:
-        if args.config:
-            source_finding(get_sf_params(args.config))
         if args.generate:
             generate_default_config(args.generate)
+    if args.config:
+        source_finding(get_sf_params(args.config))
     elif args.json:
        plot_aimfast_stats(args.json, prefix=args.htmlprefix)
     elif not args.residual and not args.restored and not args.model \
@@ -3372,20 +3371,25 @@ def main():
         images_list = []
 
         LOGGER.info(f'Extracting phase centre coordinates form {models[0][0]}')
-        if models[0][0].endswith('.html'):
-            Tigger_model = Tigger.load(models[0][0])
-            centre_ra_deg, centre_dec_deg = _get_phase_centre(Tigger_model)
-            centre_coord =  deg2ra(centre_ra_deg) + ',' + deg2dec(centre_dec_deg)
-            centre_coord = centre_coord.split(',')
-        elif models[0][0].endswith('.fits'):
-            centre_ra_deg, centre_dec_deg = fitsInfo(models[0][0])['centre']
-            centre_coord =  deg2ra(centre_ra_deg) + ',' + deg2dec(centre_dec_deg)
-            centre_coord = centre_coord.split(',')
-        else:
+        try:
             if args.centre_coord:
                 centre_coord = args.centre_coord.split(',')
+            elif models[0][0].endswith('.html'):
+                Tigger_model = Tigger.load(models[0][0])
+                centre_ra_deg, centre_dec_deg = _get_phase_centre(Tigger_model)
+                centre_coord =  deg2ra(centre_ra_deg) + ',' + deg2dec(centre_dec_deg)
+                centre_coord = centre_coord.split(',')
+            elif models[0][0].endswith('.fits'):
+                centre_ra_deg, centre_dec_deg = fitsInfo(models[0][0])['centre']
+                centre_coord =  deg2ra(centre_ra_deg) + ',' + deg2dec(centre_dec_deg)
+                centre_coord = centre_coord.split(',')
             else:
-                LOGGER.error('Please supply central coordinates using -ptc. See --help')
+                LOGGER.error('No central coordinates found. Check if image has header')
+                raise('Otherewise supply central coordinates using -ptc')
+
+        except:
+            LOGGER.error('Please supply central coordinates using -ptc. See --help')
+            raise
 
         LOGGER.info(f'Quering the {online_catalog} catalog with width of {width} at {centre_coord}')
         table = get_online_catalog(catalog=online_catalog.upper(), centre_coord=centre_coord,
