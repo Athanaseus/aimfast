@@ -1745,9 +1745,10 @@ def _source_flux_plotter(results, all_models, inline=False, units='milli',
                                        line_dash="dashed",
                                        color="gray")
             # Create a plot object for the data points
-            data = plot_flux.circle('plot_flux_1', 'plot_flux_2',
+            data = plot_flux.scatter('plot_flux_1', 'plot_flux_2',
                                     name='data',
                                     legend_label="Data",
+                                    size=6,
                                     source=source,
                                     line_color=None,
                                     fill_color={"field": "phase_centre_dist",
@@ -2004,16 +2005,18 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
                                  height=tolerance/3600.,
                                  line_color=None,
                                  color='#CAB2D6')
-            plot_overlay_1 = plot_overlay.circle('ra1', 'dec1',
+            plot_overlay_1 = plot_overlay.scatter('ra1', 'dec1',
                                                  name='model1',
                                                  legend_label=model_1_name,
                                                  source=overlay_source1,
+                                                 size=6,
                                                  #line_color=None,
                                                  color='blue')
-            plot_overlay_2 = plot_overlay.circle('ra2', 'dec2',
+            plot_overlay_2 = plot_overlay.scatter('ra2', 'dec2',
                                                  name='model2',
                                                  legend_label=model_2_name,
                                                  source=overlay_source2,
+                                                 size=6,
                                                  #line_color=None,
                                                  color='red')
             plot_position.title.text_font_size = title_size
@@ -2077,10 +2080,11 @@ def _source_astrometry_plotter(results, all_models, inline=False, units='',
             sigma_plot = plot_position.line(np.array(x1), np.array(y1),
                                             legend_label='Sigma')
             # Create position data points plot object
-            plot_position.circle('ra_offset', 'dec_offset',
+            plot_position.scatter('ra_offset', 'dec_offset',
                                  name='data',
                                  source=source,
                                  line_color=None,
+                                 size=6,
                                  legend_label='Data',
                                  fill_color={"field": "phase_centre_dist",
                                              "transform": position_mapper})
