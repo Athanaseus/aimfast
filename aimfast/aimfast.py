@@ -220,12 +220,12 @@ def fitsInfo(fitsname=None):
     except KeyError:
         centre = None
     try:
-        freq0=None
+        freq0 = None
         for i in range(1, hdr['NAXIS']+1):
             if hdr['CTYPE{0:d}'.format(i)].startswith('FREQ'):
                 freq0 = hdr['CRVAL{0:d}'.format(i)]
     except KeyError:
-        freq0=None
+        freq0 = None
 
     skyArea = (numPix * ddec) ** 2
     fitsinfo = {'wcs': wcs, 'ra': ra, 'dec': dec,
