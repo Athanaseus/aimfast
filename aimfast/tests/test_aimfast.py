@@ -223,7 +223,7 @@ class TestClass(object):
         # Test standard RA conversion: 12:30:45.5 should be ~187.69 degrees
         input_value = '12:30:45.5'
         output_value = ra2deg(input_value)
-        expected_value = (12 * 15.0) + (30 / 60.0 * 15.0) + (45.5 / 3600 * 15.0)
+        expected_value = (12 * 15.0) + ((30 / 60.0) * 15.0) + ((45.5 / 3600) * 15.0)
         assert pytest.approx(expected_value, 0.001) == output_value
 
     def test_deg2ra_negative_value(self):
@@ -254,7 +254,7 @@ class TestClass(object):
         # Test positive DEC conversion: +30:15:20 should be ~30.255 degrees
         input_value = '+30:15:20'
         output_value = dec2deg(input_value)
-        expected_value = 30 + 15/60 + 20/3600
+        expected_value = 30 + (15 / 60.0) + (20 / 3600.0)
         assert pytest.approx(expected_value, 0.001) == output_value
 
     def test_dec2deg_negative(self):
@@ -263,5 +263,5 @@ class TestClass(object):
         # Test negative DEC conversion: -30:15:20 should be ~-30.255 degrees
         input_value = '-30:15:20'
         output_value = dec2deg(input_value)
-        expected_value = -(30 + 15/60 + 20/3600)
+        expected_value = -(30 + (15 / 60.0) + (20 / 3600.0))
         assert pytest.approx(expected_value, 0.001) == output_value

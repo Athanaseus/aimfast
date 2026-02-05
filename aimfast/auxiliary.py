@@ -121,9 +121,7 @@ def deg2ra(ra_deg, deci=2):
     HH:MM:SS : str
 
     """
-    if ra_deg < 0:
-       ra_deg = 360 + ra_deg
-    # Normalize to 0-360 range
+    # Normalize to 0-360 range (handles both negative and >360 values)
     ra_deg = ra_deg % 360
     HH = int((ra_deg * 24) / 360.)
     MM = int((((ra_deg * 24) / 360.) - HH) * 60)
