@@ -65,7 +65,7 @@ def deg2rad(x):
         Angle in radians
 
     """
-    result = float(x) * (np.pi/ 180)
+    result = float(x) * (np.pi / 180)
     return result
 
 
@@ -124,6 +124,8 @@ def deg2ra(ra_deg, deci=2):
     """
     if ra_deg < 0:
        ra_deg = 360 + ra_deg
+    # Normalize to 0-360 range
+    ra_deg = ra_deg % 360
     HH     = int((ra_deg*24)/360.)
     MM     = int((((ra_deg*24)/360.)-HH)*60)
     SS     = round(((((((ra_deg*24)/360.)-HH)*60)-MM)*60), deci)
@@ -157,8 +159,6 @@ def dec2deg(dec_dms):
         return dd + mm + ss
     else:
         return -(dd + mm + ss)
-    d_m_s = dd + mm + ss
-    return d_m_s
 
 
 def deg2dec(dec_deg, deci=2):

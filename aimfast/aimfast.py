@@ -30,11 +30,11 @@ from bokeh.models.widgets import DataTable, TableColumn
 from bokeh.models import Circle
 from bokeh.models import CheckboxGroup, CustomJS
 from bokeh.models import HoverTool, LinearAxis, Range1d
-from bokeh.models import ColorBar, ColumnDataSource, ColorBar
+from bokeh.models import ColorBar, ColumnDataSource
 from bokeh.models import LogColorMapper, LogTicker, LinearColorMapper
 
 from bokeh.layouts import row, column, gridplot, grid
-from bokeh.plotting import figure, output_file, show, save, ColumnDataSource
+from bokeh.plotting import figure, output_file, show, save
 
 from astropy.wcs import WCS
 from astropy import units as u
@@ -46,7 +46,7 @@ from Tigger.Models import SkyModel, ModelClasses
 from Tigger.Coordinates import angular_dist_pos_angle
 from sklearn.metrics import mean_squared_error, r2_score
 
-from aimfast.auxiliary import deg2arcsec, deg2arcsec, rad2arcsec
+from aimfast.auxiliary import deg2arcsec, rad2arcsec
 from aimfast.auxiliary import dec2deg, ra2deg, rad2deg, deg2rad, unwrap
 from aimfast.auxiliary import aegean, bdsf, get_subimage, get_online_catalog
 
@@ -104,7 +104,18 @@ def create_logger():
 LOGGER = create_logger()
 
 def generate_default_config(configfile):
-    "Generate default config file for running source finders"
+    """Generate default config file for running source finders.
+    
+    Parameters
+    ----------
+    configfile : str
+        Path where the config file should be written
+        
+    Returns
+    -------
+    None
+        Copies the default source_finder.yml to the specified path
+    """
     from shutil import copyfile
     LOGGER.info(f"Getting parameter file: {configfile}")
     aim_path = os.path.dirname(os.path.dirname(os.path.abspath(aimfast.__file__)))
@@ -112,7 +123,27 @@ def generate_default_config(configfile):
 
 
 def get_aimfast_data(filename='fidelity_results.json', dir='.'):
-    "Extracts data from the json data file"
+    """Extract data from the json data file.
+    
+    Parameters
+    ----------
+    filename : str, optional
+        Name of the json file. Default is 'fidelity_results.json'
+    dir : str, optional
+        Directory containing the json file. Default is current directory
+        
+    Returns
+    -------
+    dict
+        Dictionary containing the data from the json file
+        
+    Raises
+    ------
+    FileNotFoundError
+        If the json file does not exist
+    json.JSONDecodeError
+        If the file is not valid JSON
+    """
     filepath = f"{dir}/{filename}"
     LOGGER.info('Extracting data from the json data file')
     with open(filepath) as f:
@@ -182,18 +213,18 @@ def fitsInfo(fitsname=None):
     numPix = hdr['NAXIS1']
     try:
         beam_size = (hdr['BMAJ'], hdr['BMIN'], hdr['BPA'])
-    except:
+    except KeyError:
         beam_size = None
     try:
         centre = (hdr['CRVAL1'], hdr['CRVAL2'])
-    except:
+    except KeyError:
         centre = None
     try:
         freq0=None
         for i in range(1, hdr['NAXIS']+1):
             if hdr['CTYPE{0:d}'.format(i)].startswith('FREQ'):
                 freq0 = hdr['CRVAL{0:d}'.format(i)]
-    except:
+    except KeyError:
         freq0=None
 
     skyArea = (numPix * ddec) ** 2
@@ -913,7 +944,7 @@ def get_model(catalog):
                 spi, spi_err = (src['Spec_Indx'], src['E_Spec_Indx'])
                 source.spectrum = ModelClasses.SpectralIndex(spi, freq0)
                 source.setAttribute('spi_error', spi_err)
-            except:
+            except (KeyError, ValueError):
                 pass
         return source
 
