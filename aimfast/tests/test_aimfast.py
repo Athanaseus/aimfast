@@ -216,3 +216,52 @@ class TestClass(object):
                           "local_rms"         : 3.098743200302124,
                           "global_rms"        : 3.394456386566162}
         assert expected_value == output_value
+
+    def test_ra2deg_conversion(self):
+        """Test ra2deg method with standard input"""
+        from aimfast.auxiliary import ra2deg
+        # Test standard RA conversion: 12:30:45.5 should be ~187.69 degrees
+        input_value = '12:30:45.5'
+        output_value = ra2deg(input_value)
+        expected_value = (12 * 15.0) + (30 / 60.0 * 15.0) + (45.5 / 3600 * 15.0)
+        assert pytest.approx(expected_value, 0.001) == output_value
+
+    def test_deg2ra_negative_value(self):
+        """Test deg2ra handles negative RA values"""
+        from aimfast.auxiliary import deg2ra
+        # Test negative RA value gets normalized
+        input_value = -10.0
+        output_value = deg2ra(input_value)
+        # -10 degrees should become 350 degrees
+        assert output_value is not None
+        # Verify it's in valid format
+        assert ':' in output_value
+
+    def test_deg2ra_large_value(self):
+        """Test deg2ra handles RA values > 360"""
+        from aimfast.auxiliary import deg2ra
+        # Test RA value > 360 gets normalized
+        input_value = 370.0
+        output_value = deg2ra(input_value)
+        # 370 degrees should become 10 degrees
+        assert output_value is not None
+        # Verify it's in valid format
+        assert ':' in output_value
+
+    def test_dec2deg_positive(self):
+        """Test dec2deg with positive declination"""
+        from aimfast.auxiliary import dec2deg
+        # Test positive DEC conversion: +30:15:20 should be ~30.255 degrees
+        input_value = '+30:15:20'
+        output_value = dec2deg(input_value)
+        expected_value = 30 + 15/60 + 20/3600
+        assert pytest.approx(expected_value, 0.001) == output_value
+
+    def test_dec2deg_negative(self):
+        """Test dec2deg with negative declination"""
+        from aimfast.auxiliary import dec2deg
+        # Test negative DEC conversion: -30:15:20 should be ~-30.255 degrees
+        input_value = '-30:15:20'
+        output_value = dec2deg(input_value)
+        expected_value = -(30 + 15/60 + 20/3600)
+        assert pytest.approx(expected_value, 0.001) == output_value
