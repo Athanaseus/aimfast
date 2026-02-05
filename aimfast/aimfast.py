@@ -241,7 +241,7 @@ def measure_psf(psffile, arcsec_size=20):
 
     Parameters
     ----------
-    psfile : fits file
+    psffile : fits file
         Point spread function file.
     arcsec_size : float
         Cross section size

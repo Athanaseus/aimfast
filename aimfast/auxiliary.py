@@ -1,5 +1,4 @@
 import os
-import sys
 import subprocess
 
 import numpy
@@ -126,10 +125,10 @@ def deg2ra(ra_deg, deci=2):
        ra_deg = 360 + ra_deg
     # Normalize to 0-360 range
     ra_deg = ra_deg % 360
-    HH     = int((ra_deg*24)/360.)
-    MM     = int((((ra_deg*24)/360.)-HH)*60)
-    SS     = round(((((((ra_deg*24)/360.)-HH)*60)-MM)*60), deci)
-    return "%s:%s:%s"%(HH,MM,SS)
+    HH = int((ra_deg * 24) / 360.)
+    MM = int((((ra_deg * 24) / 360.) - HH) * 60)
+    SS = round(((((((ra_deg * 24) / 360.) - HH) * 60) - MM) * 60), deci)
+    return "%s:%s:%s" % (HH, MM, SS)
 
 
 def dec2deg(dec_dms):
@@ -176,12 +175,13 @@ def deg2dec(dec_deg, deci=2):
     dms : str
       Declination in degrees:arcmin:arcsec format
     """
-    DD          = int(dec_deg)
+    DD = int(dec_deg)
     dec_deg_abs = np.abs(dec_deg)
-    DD_abs      = np.abs(DD)
-    MM          = int((dec_deg_abs - DD_abs)*60)
-    SS          = round((((dec_deg_abs - DD_abs)*60)-MM), deci)
-    return "%s:%s:%s"%(DD,MM,SS)
+    DD_abs = np.abs(DD)
+    MM = int((dec_deg_abs - DD_abs) * 60)
+    SS = round((((dec_deg_abs - DD_abs) * 60) - MM), deci)
+    return "%s:%s:%s" % (DD, MM, SS)
+
 
 def unwrap(angle):
     """Unwrap angle greater than 180"""
@@ -394,7 +394,6 @@ def bdsf(image, kwargs, log):
         img_opts['beam_spectrum'] = beams
 
     image = img_opts.pop('filename')
-    filename = os.path.basename(image)
     outfile = write_opts.pop('outfile') or '{}-pybdsf.fits'.format(image[:-5])
     img = bdsm.process_image(image, **img_opts, ncores=ncores)
     img.write_catalog(outfile=outfile, **write_opts)
