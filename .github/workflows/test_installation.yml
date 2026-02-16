@@ -46,6 +46,9 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Install setuptools
+        run: pip install setuptools -U
+
       - name: Install aimfast
         run: poetry install --extras "source_finders" --with tests
 
