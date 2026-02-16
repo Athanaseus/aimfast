@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-22.04 ]
+        os: [ ubuntu-22.04, ubuntu-latest ]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
       - name: Set up Python ${{ matrix.python-version }}
@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install aimfast with test dependencies
-        run: uv sync --extra source_finders --extra tests --all-groups
+        run: uv sync --extra source_finders --group tests --all-groups
 
       - name: Lint with flake8
         run: |
