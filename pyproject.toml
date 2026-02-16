@@ -70,6 +70,9 @@ docs = [
     "numpydoc"
 ]
 
+[tool.uv.extra-build-dependencies]
+astlib = ["setuptools"]
+
 [tool.uv]
 default-groups = ["tests", "docs"]
 
