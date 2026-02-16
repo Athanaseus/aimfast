@@ -46,11 +46,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install setuptools
-        run: pip install "setuptools<71"
-
       - name: Install aimfast
-        run: poetry install --extras "source_finders" --with tests
+        run: |
+          poetry add --group dev "setuptools<71"
+          poetry install --extras "source_finders" --with tests
 
       - name: Lint with flake8
         run: |
