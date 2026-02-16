@@ -239,7 +239,7 @@ It returns an interactive html correlation plots, from which a `.png` file can b
 
     $ aimfast --compare-models model1.lsm.html model2.lsm.html -tol 5
 
-where -tol is the tolerance to cross-match sources in arcsec. Moreover -as flag can be used to compare all source irrespective of shape (otherwise only point-like source with maj<2" are used). Access to (sumss, nvss,) online catalogs is also provided, to allow comparison of local catalogs to remote catalogs. Also a Fits file can be specified to run a source finder and then perform the comparison.
+where -tol is the tolerance to cross-match sources in arcsec. Moreover, -as flag can be used to compare all source irrespective of shape (otherwise only point-like sources with maj<2" are used). Access to (sumss, nvss,) online catalogs is also provided, to allow comparison of local catalogs to remote catalogs. Also, a Fits file can be specified to run a source finder and then perform the comparison.
 
 .. code-block:: bash
 
