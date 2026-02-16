@@ -53,8 +53,11 @@ from aimfast.auxiliary import aegean, bdsf, get_subimage, get_online_catalog
 from aimfast.auxiliary import deg2dec, deg2ra
 
 # Get version
-from pkg_resources import get_distribution
-_version = get_distribution('aimfast').version
+try:
+    from importlib.metadata import version
+    _version = version('aimfast')
+except Exception:
+    _version = 'dev'
 
 # Unit multipleirs for plotting
 FLUX_UNIT_SCALER = {
