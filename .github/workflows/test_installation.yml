@@ -34,7 +34,10 @@ jobs:
           fetch-depth: 1
 
       - name: Install aimfast with test dependencies
-        run: uv sync --extra source_finders --group tests --all-groups
+        run: |
+          uv venv
+          uv pip install setuptools hatchling editables
+          uv pip install --no-build-isolation -e .[source_finders]
 
       - name: Lint with flake8
         run: |
