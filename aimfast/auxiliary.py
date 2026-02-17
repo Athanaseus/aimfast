@@ -321,14 +321,24 @@ def aegean(image, kwargs, log):
             args += ["{0}".format(value)]
         elif name == "table":
             outfile = "{}.tab".format(kwargs["filename"][:-5])
-            args += ["{0}{1} {2}".format("--", name, outfile)]
+            args += ["{0}{1}".format("--", name), "{0}".format(outfile)]
             # Aegean add '_comp' to the file name e.g. im_comp.tab
             outfile = "{}_comp.tab".format(kwargs["filename"][:-5])
         else:
-            args += ["{0}{1} {2}".format("--", name, value)]
+            args += ["{0}{1}".format("--", name), "{0}".format(value)]
     log.info("Running: {}".format(" ".join(args)))
-    run = subprocess.run(" ".join(args), shell=True)
+    run = subprocess.run(args)
     log.info("The exit code was: {}".format(run.returncode))
+
+    if run.returncode in [143, -15] and outfile and os.path.exists(outfile):
+        log.warning(
+            "Aegean terminated but output catalog exists (%s); continuing with existing output",
+            outfile,
+        )
+        return outfile
+
+    if run.returncode != 0:
+        raise RuntimeError("aegean source finder failed")
     return outfile
 
 

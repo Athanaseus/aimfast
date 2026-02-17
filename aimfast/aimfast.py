@@ -3340,7 +3340,7 @@ def get_sf_params(configfile):
     return sf_parameters
 
 
-def apply_sf_cli_overrides(sf_params, sourcery=None, restored_image=None, threshold=None):
+def apply_sf_cli_overrides(sf_params, sourcery=None, restored_image=None, threshold=None, ncpu=None):
     sf_names = ("pybdsf", "aegean", "breizorro")
     selected = sourcery
 
@@ -3361,6 +3361,14 @@ def apply_sf_cli_overrides(sf_params, sourcery=None, restored_image=None, thresh
             sf_params[selected]["floodclip"] = threshold
         elif selected == "breizorro":
             sf_params[selected]["threshold"] = threshold
+
+    if ncpu is not None and selected in sf_params:
+        if selected == "pybdsf":
+            sf_params[selected]["ncores"] = ncpu
+        elif selected == "aegean":
+            sf_params[selected]["cores"] = ncpu
+        elif selected == "breizorro":
+            sf_params[selected]["ncpu"] = ncpu
 
     return sf_params, selected
 
@@ -3436,6 +3444,13 @@ def get_argparser():
         dest="sf_thresh",
         type=float,
         help="Threshold override for selected source finder",
+    )
+    sf.add_argument(
+        "-j",
+        "--ncpu",
+        dest="sf_ncpu",
+        type=int,
+        help="Number of CPU cores to use for selected source finder",
     )
     argument = partial(parser.add_argument)
     argument(
@@ -3840,6 +3855,7 @@ def main():
                 sourcery=args.sf_sourcery,
                 restored_image=args.sf_restored,
                 threshold=args.sf_thresh,
+                ncpu=args.sf_ncpu,
             )
             source_finding(sf_params, selected_sf)
         if args.generate:
