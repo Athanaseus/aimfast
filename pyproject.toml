@@ -24,7 +24,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries"
 ]
 dependencies = [
-    "astLib>=0.10.0",
+    "astLib",
     "astropy",
     "astroquery",
     "astro-tigger",
