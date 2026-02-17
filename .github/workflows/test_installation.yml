@@ -35,7 +35,7 @@ jobs:
 
       - name: Install aimfast with test dependencies
         run: |
-          uv sync --group tests --extra all --system
+          uv sync --group tests --extra all
 
       - name: Lint with flake8
         run: |
