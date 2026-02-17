@@ -41,9 +41,9 @@ dependencies = [
 [project.optional-dependencies]
 aegean = ["AegeanTools"]
 pybdsf = ["bdsf", "matplotlib"]
-source_finders = ["bdsf", "matplotlib", "AegeanTools", "breizorro"]
+source_finders = ["bdsf", "matplotlib", "AegeanTools", "breizorro[all]"]
 svg_images = ["matplotlib", "selenium"]
-all = ["AegeanTools", "bdsf", "matplotlib", "selenium", "breizorro"]
+all = ["AegeanTools", "bdsf", "matplotlib", "selenium", "breizorro[all]"]
 
 [project.urls]
 Homepage = "https://github.com/Athanaseus/aimfast"

@@ -48,6 +48,7 @@ import aimfast
 from aimfast.auxiliary import (
     aegean,
     bdsf,
+    breizorro,
     dec2deg,
     deg2arcsec,
     deg2dec,
@@ -3341,10 +3342,12 @@ def get_sf_params(configfile):
 
 def source_finding(sf_params, sf=None):
     outfile = None
-    aegean_sf = sf_params.pop("aegean")
-    pybd_sf = sf_params.pop("pybdsf")
+    aegean_sf = sf_params.pop("aegean", {"enable": False})
+    pybd_sf = sf_params.pop("pybdsf", {"enable": False})
+    breizorro_sf = sf_params.pop("breizorro", {"enable": False})
     enable_aegean = aegean_sf.pop("enable")
     enable_pybdsf = pybd_sf.pop("enable")
+    enable_breizorro = breizorro_sf.pop("enable")
     if enable_pybdsf or sf in ["pybdsf"]:
         filename = pybd_sf["filename"]
         LOGGER.info(f"Running pybdsf source finder on image: {filename}")
@@ -3353,6 +3356,10 @@ def source_finding(sf_params, sf=None):
         filename = aegean_sf["filename"]
         LOGGER.info(f"Running aegean source finder on image: {filename}")
         outfile = aegean(filename, aegean_sf, LOGGER)
+    elif enable_breizorro or sf in ["breizorro"]:
+        filename = breizorro_sf["filename"]
+        LOGGER.info(f"Running breizorro source finder on image: {filename}")
+        outfile = breizorro(filename, breizorro_sf, LOGGER)
     else:
         LOGGER.warn(f"{WARNING}No source finder selected.{ENDC}")
     return outfile
@@ -3470,7 +3477,7 @@ def get_argparser():
         "-sf",
         "--source-finder",
         dest="sourcery",
-        choices=("aegean", "pybdsf"),
+        choices=("aegean", "pybdsf", "breizorro"),
         default="pybdsf",
         help="Source finder to run if comparing restored images",
     )

@@ -404,3 +404,37 @@ def bdsf(image, kwargs, log):
     img = bdsm.process_image(image, **img_opts, ncores=ncores)
     img.write_catalog(outfile=outfile, **write_opts)
     return outfile
+
+
+def breizorro(image, kwargs, log):
+    args = ["breizorro"]
+    outfile = kwargs.get("outcatalog")
+
+    bool_options = ["make_binary", "invert", "fill_holes", "gui"]
+
+    for name, value in kwargs.items():
+        if name in ["enable"]:
+            continue
+        if name == "filename":
+            continue
+        if value is None:
+            continue
+
+        cli_name = name.replace("_", "-")
+        if name in bool_options:
+            args.append(f"--{cli_name}" if value else f"--no-{cli_name}")
+        else:
+            args.extend([f"--{cli_name}", str(value)])
+
+    if not outfile:
+        base = os.path.splitext(kwargs["filename"])[0]
+        outfile = f"{base}-breizorro_catalog.txt"
+        args.extend(["--outcatalog", outfile])
+
+    args.extend(["--restored-image", kwargs["filename"]])
+    log.info("Running: {}".format(" ".join(args)))
+    run = subprocess.run(args)
+    log.info("The exit code was: {}".format(run.returncode))
+    if run.returncode != 0:
+        raise RuntimeError("breizorro source finder failed")
+    return outfile

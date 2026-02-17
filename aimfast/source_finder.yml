@@ -80,3 +80,20 @@ aegean:
   maxsummits:                 # If more than *maxsummits* summits are detected in an island, no fitting is done, only estimation. [default: no limit]
   seedclip: 5                 # The clipping value (in sigmas) for seeding islands
   floodclip: 4                # The clipping value (in sigmas) for growing islands
+breizorro:
+  enable: false
+  filename:                   # Input image file name
+  minimum_size:               # Remove islands with areas fewer than or equal to this number of pixels
+  make_binary: false          # Replace all island numbers with 1
+  invert: false               # Invert the mask
+  dilate:                     # Apply dilation with a radius (pixels)
+  erode:                      # Apply N iterations of erosion
+  fill_holes: false           # Fill holes (closed regions) in the mask
+  sum_peak:                   # Sum-to-peak ratio of flux islands to mask in original image
+  ncpu: 4                     # Number of processors to use for cataloging
+  beam_size:                  # Average beam size in arcsec if missing in header
+  source_fitting:             # Source fitting method for catalog generation
+  gui: false                  # Open mask in bokeh html gui
+  outfile:                    # Output mask image
+  outcatalog:                 # Output catalog from mask
+  outregion:                  # Output polygon regions from mask
