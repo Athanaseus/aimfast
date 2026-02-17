@@ -36,6 +36,7 @@ jobs:
       - name: Install aimfast with test dependencies
         run: |
           uv sync --group tests --extra all
+          uv pip install -U --force-reinstall "breizorro[all] @ git+https://github.com/ratt-ru/breizorro.git@updates"
 
       - name: Lint with flake8
         run: |
