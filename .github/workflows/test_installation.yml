@@ -35,7 +35,7 @@ jobs:
 
       - name: Install aimfast with test dependencies
         run: |
-          uv pip install --group tests --no-build-isolation -e .[all] --system
+          uv sync --group tests --extra all --system
 
       - name: Lint with flake8
         run: |
