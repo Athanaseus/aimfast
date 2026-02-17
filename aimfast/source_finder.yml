@@ -17,7 +17,7 @@ pybdsf:
   mean_map:                    # Background mean map: 'default' => calc whether to use or not, 'zero' => 0, 'const' => clipped mean, 'map' => use 2-D map
   rms_box:                     # Box size, step size for rms/mean map calculation. Specify as (box, step) in pixels
   rms_map:                     # Background rms map: True => use 2-D rms map; False => use constant rms; None => calculate inside program
-  format: fits                 # Format of output catalog ["bbs", "ds9", "fits", "star", "kvis", "ascii", "csv", "casabox", "sagecal"]
+  format: ascii                # Format of output catalog ["bbs", "ds9", "fits", "star", "kvis", "ascii", "csv", "casabox", "sagecal"]
   stop_at:                     # Stops after: 'isl' = island finding step or 'read' = image reading step
   pi_thresh_isl:               # Correct source parameters for image projection (BBS format only)
   pi_thresh_pix:               # Source detection threshold for PI image: threshold for the island peak in number of sigma above the mean. Uses thresh_pix if not set

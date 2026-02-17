@@ -60,5 +60,6 @@ jobs:
         run: |
           uv run aimfast source-finder -gc my-source-finder.yml
           for sf in pybdsf aegean breizorro; do
-            uv run aimfast source-finder -c my-source-finder.yml -sf "$sf" -r mypipelinerun_circinus_p3_3-MFS-image.fits --threshold 5 --ncpu 1
+            uv run aimfast source-finder -c my-source-finder.yml -sf "$sf" -r mypipelinerun_circinus_p3_3-MFS-image.fits --threshold 10 --ncpu 1
           done
+          cat mypipelinerun_circinus_p3_3-MFS-image_comp.tab
