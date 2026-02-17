@@ -49,3 +49,15 @@ jobs:
 
       - name: Run testsuite
         run: uv run pytest -vvv aimfast/
+
+      - name: Download test dataset
+        run: |
+          curl --fail --retry 3 --retry-delay 5 -L -o mypipelinerun_circinus_p3_3-MFS-image.tar "https://www.dropbox.com/scl/fi/xoaqth4jhjnx098xbegvn/mypipelinerun_circinus_p3_3-MFS-image.tar?rlkey=vdgkz2xpjgpp7v7hjxm7kg6g2&st=isg70eve&dl=1"
+          tar -xvf mypipelinerun_circinus_p3_3-MFS-image.tar
+
+      - name: Run source-finder end-to-end tests
+        run: |
+          uv run aimfast source-finder -gc my-source-finder.yml
+          for sf in pybdsf aegean breizorro; do
+            uv run aimfast source-finder -c my-source-finder.yml -sf "$sf" -r mypipelinerun_circinus_p3_3-MFS-image.fits -t 5
+          done

@@ -3340,6 +3340,31 @@ def get_sf_params(configfile):
     return sf_parameters
 
 
+def apply_sf_cli_overrides(sf_params, sourcery=None, restored_image=None, threshold=None):
+    sf_names = ("pybdsf", "aegean", "breizorro")
+    selected = sourcery
+
+    if selected:
+        for name in sf_names:
+            if name in sf_params:
+                sf_params[name]["enable"] = name == selected
+    else:
+        selected = next((name for name in sf_names if sf_params.get(name, {}).get("enable")), None)
+
+    if restored_image and selected in sf_params:
+        sf_params[selected]["filename"] = restored_image
+
+    if threshold is not None and selected in sf_params:
+        if selected == "pybdsf":
+            sf_params[selected]["thresh_pix"] = threshold
+        elif selected == "aegean":
+            sf_params[selected]["floodclip"] = threshold
+        elif selected == "breizorro":
+            sf_params[selected]["threshold"] = threshold
+
+    return sf_params, selected
+
+
 def source_finding(sf_params, sf=None):
     outfile = None
     aegean_sf = sf_params.pop("aegean", {"enable": False})
@@ -3391,6 +3416,26 @@ def get_argparser():
         "--generate-config",
         dest="generate",
         help="Genrate config file to run source finder of choice",
+    )
+    sf.add_argument(
+        "-sf",
+        "--source-finder",
+        dest="sf_sourcery",
+        choices=("aegean", "pybdsf", "breizorro"),
+        help="Source finder to run and override from config",
+    )
+    sf.add_argument(
+        "-r",
+        "--restored-image",
+        dest="sf_restored",
+        help="Image file to run source finder on (overrides YAML filename)",
+    )
+    sf.add_argument(
+        "-t",
+        "--threshold",
+        dest="sf_thresh",
+        type=float,
+        help="Threshold override for selected source finder",
     )
     argument = partial(parser.add_argument)
     argument(
@@ -3789,7 +3834,14 @@ def main():
     svg = args.svg
     if args.subcommand:
         if args.config:
-            source_finding(get_sf_params(args.config))
+            sf_params = get_sf_params(args.config)
+            sf_params, selected_sf = apply_sf_cli_overrides(
+                sf_params,
+                sourcery=args.sf_sourcery,
+                restored_image=args.sf_restored,
+                threshold=args.sf_thresh,
+            )
+            source_finding(sf_params, selected_sf)
         if args.generate:
             generate_default_config(args.generate)
     elif args.json:

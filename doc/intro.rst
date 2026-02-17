@@ -283,4 +283,4 @@ Lastly, if you want to run any of the available source finders, generate the con
 .. code-block:: bash
 
     $ aimfast source-finder -gc my-source-finder.yml
-    $ aimfast -c my-source-finder.yml -sf pybdsf
+    $ aimfast source-finder -c my-source-finder.yml -sf pybdsf -r mypipelinerun-image.fits
