@@ -1289,6 +1289,40 @@ def get_detected_sources_properties(
         Tuple of target flux, morphology and astrometry information
 
     """
+    def _source_flux_for_matching(source):
+        int_flux = source.flux.I if source.flux.I else 0.0
+        int_flux_err = source.flux.I_err if source.flux.I_err else 0.0
+
+        if source.shape:
+            return int_flux, int_flux_err
+
+        try:
+            peak_flux = source.getTag("I_peak")
+        except Exception:
+            peak_flux = None
+        try:
+            peak_flux_err = source.getTag("I_peak_err")
+        except Exception:
+            peak_flux_err = None
+
+        if peak_flux is not None:
+            try:
+                peak_flux = float(peak_flux)
+            except Exception:
+                peak_flux = None
+        if peak_flux_err is not None:
+            try:
+                peak_flux_err = float(peak_flux_err)
+            except Exception:
+                peak_flux_err = None
+
+        if peak_flux is not None and np.isfinite(peak_flux) and peak_flux > 0:
+            if peak_flux_err is None or not np.isfinite(peak_flux_err) or peak_flux_err < 0:
+                peak_flux_err = int_flux_err
+            return peak_flux, peak_flux_err
+
+        return int_flux, int_flux_err
+
     model_lsm1 = get_model(model_1)
     model_lsm2 = get_model(model_2)
     # Sources from the input model
@@ -1313,8 +1347,7 @@ def get_detected_sources_properties(
         dec1 = model1_source.pos.dec
         ra_err1 = model1_source.pos.ra_err
         dec_err1 = model1_source.pos.dec_err
-        I_in = model1_source.flux.I
-        I_in_err = model1_source.flux.I_err if model1_source.flux.I_err else 0.0
+        I_in, I_in_err = _source_flux_for_matching(model1_source)
         model2_sources = model_lsm2.getSourcesNear(ra1, dec1, tolerance)
         if not model2_sources:
             continue
@@ -1334,8 +1367,9 @@ def get_detected_sources_properties(
         I_out_err_list = []
         I_out_list = []
         for target in model2_sources:
-            I_out_list.append(target.flux.I)
-            I_out_err_list.append(target.flux.I_err * target.flux.I_err)
+            target_flux, target_flux_err = _source_flux_for_matching(target)
+            I_out_list.append(target_flux)
+            I_out_err_list.append(target_flux_err * target_flux_err)
 
         if I_out_list[0] > 0.0:
             model2_source = model2_sources[0]
@@ -1356,8 +1390,7 @@ def get_detected_sources_properties(
                     continue
 
             if closest_only:
-                I_out = model2_source.flux.I
-                I_out_err = model2_source.flux.I_err
+                I_out, I_out_err = _source_flux_for_matching(model2_source)
                 ra2 = model2_source.pos.ra
                 dec2 = model2_source.pos.dec
                 ra_err2 = model2_source.pos.ra_err
@@ -1403,7 +1436,7 @@ def get_detected_sources_properties(
                     ].pos.dec_err
                 except ZeroDivisionError:
                     if len(model2_sources) > 1:
-                        LOGGER.warn(
+                        LOGGER.warning(
                             "Position ({}, {}): Since more than one source is detected"
                             " at the matched position,"
                             "only the closest to the matched position will be considered."
@@ -1420,8 +1453,7 @@ def get_detected_sources_properties(
                         )
                         model2_sources = [model2_sources[np.argmin(rdist)]]
                     model2_source = model2_sources[0]
-                    I_out = model2_source.flux.I
-                    I_out_err = model2_source.flux.I_err
+                    I_out, I_out_err = _source_flux_for_matching(model2_source)
                     ra2 = model2_source.pos.ra
                     dec2 = model2_source.pos.dec
                     ra_err2 = model2_source.pos.ra_err

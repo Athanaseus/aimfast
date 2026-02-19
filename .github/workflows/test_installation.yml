@@ -67,3 +67,13 @@ jobs:
       - name: Run compare-models test
         run: |
           uv run aimfast --compare-models mypipelinerun_circinus_p3_3-MFS-image-pybdsf.txt mypipelinerun_circinus_p3_3-MFS-image-breizorro.txt -tol 6
+
+      - name: Upload HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-artifacts-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            *.html
+            **/*.lsm.html
+          if-no-files-found: warn
