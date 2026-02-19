@@ -63,3 +63,7 @@ jobs:
             uv run aimfast source-finder -c my-source-finder.yml -sf "$sf" -r mypipelinerun_circinus_p3_3-MFS-image.fits --threshold 10 --ncpu 1
           done
           cat mypipelinerun_circinus_p3_3-MFS-image_comp.tab
+
+      - name: Run compare-models test
+        run: |
+          uv run aimfast --compare-models mypipelinerun_circinus_p3_3-MFS-image-pybdsf.txt mypipelinerun_circinus_p3_3-MFS-image-breizorro.txt -tol 6

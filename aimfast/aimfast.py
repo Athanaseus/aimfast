@@ -866,19 +866,74 @@ def get_src_scale(source_shape):
 def get_model(catalog):
     """Get model model object from file catalog"""
 
+    def _read_commented_ascii(catalog_file, header_startswith, header_strip_prefix=None):
+        header = None
+        rows = []
+        with open(catalog_file) as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if stripped.startswith(header_startswith):
+                    header_line = stripped
+                    if header_strip_prefix and stripped.startswith(header_strip_prefix):
+                        header_line = stripped[len(header_strip_prefix) :].strip()
+                    header = header_line.split()
+                    continue
+                if stripped.startswith("#"):
+                    continue
+                tokens = stripped.split()
+                rows.append(tokens)
+
+        if not header or not rows:
+            return None
+
+        parsed_rows = []
+        ncols = len(header)
+        for tokens in rows:
+            if len(tokens) < ncols:
+                continue
+            if len(tokens) > ncols:
+                tokens = tokens[: ncols - 1] + [" ".join(tokens[ncols - 1 :])]
+            parsed_rows.append(tokens)
+
+        if not parsed_rows:
+            return None
+        return Table(rows=parsed_rows, names=header)
+
+    def _src_value(src, keys, default=0.0):
+        for key in keys:
+            try:
+                value = src[key]
+                if np.ma.is_masked(value):
+                    continue
+                return float(value)
+            except Exception:
+                continue
+        return default
+
     def tigger_src_ascii(src, idx):
         """Get ascii catalog source as a tigger source"""
 
+        def _clean_err(value):
+            try:
+                number = float(value)
+            except Exception:
+                return 0.0
+            if not np.isfinite(number) or number < 0:
+                return 0.0
+            return number
+
         name = "SRC%d" % idx
         flux = ModelClasses.Polarization(
-            float(src["int_flux"]), 0, 0, 0, I_err=float(src["err_int_flux"])
+            float(src["int_flux"]), 0, 0, 0, I_err=_clean_err(src["err_int_flux"])
         )
-        ra, ra_err = map(np.deg2rad, (float(src["ra"]), float(src["err_ra"])))
-        dec, dec_err = map(np.deg2rad, (float(src["dec"]), float(src["err_dec"])))
+        ra, ra_err = map(np.deg2rad, (float(src["ra"]), _clean_err(src["err_ra"])))
+        dec, dec_err = map(np.deg2rad, (float(src["dec"]), _clean_err(src["err_dec"])))
         pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
-        ex, ex_err = map(np.deg2rad, (float(src["a"]), float(src["err_a"])))
-        ey, ey_err = map(np.deg2rad, (float(src["b"]), float(src["err_b"])))
-        pa, pa_err = map(np.deg2rad, (float(src["pa"]), float(src["err_pa"])))
+        ex, ex_err = map(np.deg2rad, (float(src["a"]), _clean_err(src["err_a"])))
+        ey, ey_err = map(np.deg2rad, (float(src["b"]), _clean_err(src["err_b"])))
+        pa, pa_err = map(np.deg2rad, (float(src["pa"]), _clean_err(src["err_pa"])))
         if ex and ey:
             shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err, ey_err=ey_err, pa_err=pa_err)
         else:
@@ -888,10 +943,10 @@ def get_model(catalog):
         # and to avoid null values for point sources I_peak = src["Total_flux"]
         if shape:
             source.setAttribute("I_peak", float(src["peak_flux"]))
-            source.setAttribute("I_peak_err", float(src["err_peak_flux"]))
+            source.setAttribute("I_peak_err", _clean_err(src["err_peak_flux"]))
         else:
             source.setAttribute("I_peak", float(src["int_flux"]))
-            source.setAttribute("I_peak_err", float(src["err_int_flux"]))
+            source.setAttribute("I_peak_err", _clean_err(src["err_int_flux"]))
         return source
 
     def tigger_src_nvss(src, idx):
@@ -1024,6 +1079,57 @@ def get_model(catalog):
         source.setAttribute("I_peak_err", float(0.00))
         return source
 
+    def tigger_src_pybdsf_txt(src, idx):
+        """Get pybdsf txt catalog source as a tigger source"""
+
+        name = "SRC%d" % idx
+        i_flux = _src_value(src, ["Total_flux", "Peak_flux"], 0.0)
+        i_flux_err = _src_value(src, ["E_Total_flux", "E_Peak_flux"], 0.0)
+        flux = ModelClasses.Polarization(i_flux, 0, 0, 0, I_err=i_flux_err)
+        ra, ra_err = map(np.deg2rad, (_src_value(src, ["RA"]), _src_value(src, ["E_RA"])))
+        dec, dec_err = map(np.deg2rad, (_src_value(src, ["DEC"]), _src_value(src, ["E_DEC"])))
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+
+        ex, ex_err = map(
+            np.deg2rad,
+            (_src_value(src, ["DC_Maj", "Maj"]), _src_value(src, ["E_DC_Maj", "E_Maj"])),
+        )
+        ey, ey_err = map(
+            np.deg2rad,
+            (_src_value(src, ["DC_Min", "Min"]), _src_value(src, ["E_DC_Min", "E_Min"])),
+        )
+        pa, pa_err = map(np.deg2rad, (_src_value(src, ["PA"]), _src_value(src, ["E_PA"])))
+        shape = (
+            ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err, ey_err=ey_err, pa_err=pa_err)
+            if ex and ey
+            else None
+        )
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        source.setAttribute("I_peak", _src_value(src, ["Peak_flux", "Total_flux"], 0.0))
+        source.setAttribute("I_peak_err", _src_value(src, ["E_Peak_flux", "E_Total_flux"], 0.0))
+        return source
+
+    def tigger_src_breizorro_txt(src, idx):
+        """Get breizorro txt catalog source as a tigger source"""
+
+        name = str(src["name"]) if "name" in src.colnames else "SRC%d" % idx
+        i_flux = _src_value(src, ["i"], 0.0)
+        i_flux_err = _src_value(src, ["i_err"], 0.0)
+        flux = ModelClasses.Polarization(i_flux, 0, 0, 0, I_err=i_flux_err)
+        ra, ra_err = map(np.deg2rad, (_src_value(src, ["ra_d"]), 0.0))
+        dec, dec_err = map(np.deg2rad, (_src_value(src, ["dec_d"]), 0.0))
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+
+        ex = np.deg2rad(_src_value(src, ["emaj_s"], 0.0) / 3600.0)
+        ey = np.deg2rad(_src_value(src, ["emin_s"], 0.0) / 3600.0)
+        pa = np.deg2rad(_src_value(src, ["pa_d"], 0.0))
+        shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=0.0, ey_err=0.0, pa_err=0.0) if ex and ey else None
+
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        source.setAttribute("I_peak", i_flux)
+        source.setAttribute("I_peak_err", i_flux_err)
+        return source
+
     tfile = tempfile.NamedTemporaryFile(suffix=".txt")
     tfile.flush()
     with open(tfile.name, "w") as stdw:
@@ -1052,6 +1158,77 @@ def get_model(catalog):
             centre = _get_phase_centre(model)
             model.ra0, model.dec0 = map(np.deg2rad, centre)
             model.save(catalog[:-4] + ".lsm.html")
+        elif ext == ".txt" and _read_commented_ascii(
+            catalog, "#format:", header_strip_prefix="#format:"
+        ) is not None:
+            data = _read_commented_ascii(catalog, "#format:", header_strip_prefix="#format:")
+            if data is None:
+                model = Tigger.load(catalog)
+            else:
+                for i, src in enumerate(data):
+                    model.sources.append(tigger_src_breizorro_txt(src, i))
+                fits_file = None
+                for suffix in ("-breizorro_catalog.txt", "-breizorro.txt"):
+                    candidate = catalog.replace(suffix, ".fits")
+                    if candidate != catalog and os.path.exists(candidate):
+                        fits_file = candidate
+                        break
+                centre = fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
+                model.ra0, model.dec0 = map(np.deg2rad, centre)
+                model.save(catalog[:-4] + ".lsm.html")
+        elif ext == ".txt" and _read_commented_ascii(
+            catalog, "# Source_id", header_strip_prefix="# "
+        ) is not None:
+            data = _read_commented_ascii(catalog, "# Source_id", header_strip_prefix="# ")
+            if data is None:
+                model = Tigger.load(catalog)
+            else:
+                for i, src in enumerate(data):
+                    model.sources.append(tigger_src_pybdsf_txt(src, i))
+                fits_file = catalog.replace("-pybdsf.txt", ".fits")
+                centre = fitsInfo(fits_file)["centre"] if os.path.exists(fits_file) else _get_phase_centre(model)
+                model.ra0, model.dec0 = map(np.deg2rad, centre)
+                model.save(catalog[:-4] + ".lsm.html")
+        elif ext == ".txt":
+            try:
+                data = Table.read(catalog, format="ascii")
+            except Exception:
+                model = Tigger.load(catalog)
+            else:
+                aegean_columns = {
+                    "ra",
+                    "err_ra",
+                    "dec",
+                    "err_dec",
+                    "int_flux",
+                    "err_int_flux",
+                    "peak_flux",
+                    "err_peak_flux",
+                    "a",
+                    "err_a",
+                    "b",
+                    "err_b",
+                    "pa",
+                    "err_pa",
+                }
+                if aegean_columns.issubset(set(data.colnames)):
+                    for i, src in enumerate(data):
+                        model.sources.append(tigger_src_ascii(src, i))
+                    fits_file = None
+                    for suffix in ("-aegean.tab", "_aegean.tab", "-aegean.txt"):
+                        candidate = catalog.replace(suffix, ".fits")
+                        if candidate != catalog and os.path.exists(candidate):
+                            fits_file = candidate
+                            break
+                    if fits_file is None:
+                        candidate = os.path.splitext(catalog)[0] + ".fits"
+                        if os.path.exists(candidate):
+                            fits_file = candidate
+                    centre = fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
+                    model.ra0, model.dec0 = map(np.deg2rad, centre)
+                    model.save(catalog[:-4] + ".lsm.html")
+                else:
+                    model = Tigger.load(catalog)
         else:
             model = Tigger.load(catalog)
     if ext in [".tab", ".csv"]:
@@ -1087,6 +1264,7 @@ def get_detected_sources_properties(
     all_sources=False,
     closest_only=False,
     off_axis=None,
+    flux_units="milli",
 ):
     """Extracts the output simulation sources properties.
 
@@ -1308,7 +1486,9 @@ def get_detected_sources_properties(
 
     sources1 = model_lsm1.sources
     sources2 = model_lsm2.sources
-    targets_not_matching_a, targets_not_matching_b = targets_not_matching(sources1, sources2, names)
+    targets_not_matching_a, targets_not_matching_b = targets_not_matching(
+        sources1, sources2, names, flux_units=flux_units
+    )
     sources_overlay = get_source_overlay(sources1, sources2)
     num_of_sources = len(targets_flux)
     LOGGER.info(f"Number of sources matched: {num_of_sources}")
@@ -1344,6 +1524,7 @@ def compare_models(
     ymajor_size="8pt",
     bar_size="12pt",
     bar_major_size="8pt",
+    units="milli",
 ):
     """Plot model1 source properties against that of model2
 
@@ -1396,6 +1577,7 @@ def compare_models(
             "{}".format(output_model["path"]),
             all_sources=all_sources,
             tolerance=tolerance,
+            flux_units=units,
             closest_only=closest_only,
             off_axis=off_axis,
         )
@@ -1422,6 +1604,7 @@ def compare_models(
         _source_flux_plotter(
             results,
             models,
+            units=units,
             prefix=prefix,
             plot_type=flux_plot,
             titles=ftitles,
@@ -1779,10 +1962,14 @@ def _source_flux_plotter(
             model_2_name = model_pair[1]["path"].split("/")[-1].split(".")[0]
             # Format data points value to a readable units
             # and select type of comparison plot
-            x = np.array(flux_in_data) * FLUX_UNIT_SCALER[units][0]
-            y = np.array(flux_out_data) * FLUX_UNIT_SCALER[units][0]
-            xerr = np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0]
-            yerr = np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0]
+            x = np.array(flux_in_data, dtype=float) * FLUX_UNIT_SCALER[units][0]
+            y = np.array(flux_out_data, dtype=float) * FLUX_UNIT_SCALER[units][0]
+            xerr = np.array(flux_in_err_data, dtype=float)
+            yerr = np.array(flux_out_err_data, dtype=float)
+            xerr = np.nan_to_num(xerr, nan=0.0, posinf=0.0, neginf=0.0)
+            yerr = np.nan_to_num(yerr, nan=0.0, posinf=0.0, neginf=0.0)
+            xerr = np.where(xerr > 0.0, xerr, 0.0) * FLUX_UNIT_SCALER[units][0]
+            yerr = np.where(yerr > 0.0, yerr, 0.0) * FLUX_UNIT_SCALER[units][0]
             if plot_type == "inout":
                 x1 = x
                 y1 = y
@@ -1797,16 +1984,22 @@ def _source_flux_plotter(
                     else ylabels[pair],
                 ]
             elif plot_type == "log":
-                x1 = np.log(x)
-                y1 = np.log(y)
-                xerr1 = np.log(xerr)
-                yerr1 = np.log(yerr)
+                epsilon = np.finfo(float).eps
+                x_safe = np.clip(x, epsilon, None)
+                y_safe = np.clip(y, epsilon, None)
+                x1 = np.log(x_safe)
+                y1 = np.log(y_safe)
+                xerr1 = np.abs(np.log(np.clip(x_safe + xerr, epsilon, None)) - np.log(x_safe))
+                yerr1 = np.abs(np.log(np.clip(y_safe + yerr, epsilon, None)) - np.log(y_safe))
                 axis_labels = [
                     f"log S1: {model_1_name}" if not xlabels else xlabels[pair],
                     f"log S2: {model_2_name}" if not ylabels else ylabels[pair],
                 ]
             elif plot_type == "snr":
-                x1 = np.log(x)
+                epsilon = np.finfo(float).eps
+                x_safe = np.clip(x, epsilon, None)
+                y_safe = np.clip(y, epsilon, None)
+                x1 = np.log(x_safe)
                 y1 = x / y
                 xerr1 = xerr
                 yerr1 = yerr
@@ -1973,11 +2166,12 @@ def _source_flux_plotter(
                     color="gray",
                 )
             # Create a plot object for the data points
-            data = plot_flux.circle(
+            data = plot_flux.scatter(
                 "plot_flux_1",
                 "plot_flux_2",
                 name="data",
                 legend_label="Data",
+                size=7,
                 source=source,
                 line_color=None,
                 fill_color={"field": "phase_centre_dist", "transform": flux_mapper},
@@ -2040,7 +2234,7 @@ def _source_flux_plotter(
                 "RA": [deg2ra(s[3], deci) for s in no_match2],
                 "RA_err ['']": [round(deg2arcsec(s[4] if s[4] else 0), deci) for s in no_match2],
                 "DEC": [deg2dec(s[5], deci) for s in no_match2],
-                "DEC_err ['']": [round(deg2arcsec(s[6]), deci) for s in no_match2],
+                "DEC_err ['']": [round(deg2arcsec(s[6] if s[6] else 0), deci) for s in no_match2],
             }
             source2 = ColumnDataSource(data=stats2)
             columns2 = [TableColumn(field=x, title=x.capitalize()) for x in cols2]
@@ -2291,20 +2485,22 @@ def _source_astrometry_plotter(
                 line_color=None,
                 color="#CAB2D6",
             )
-            plot_overlay_1 = plot_overlay.circle(
+            plot_overlay_1 = plot_overlay.scatter(
                 "ra1",
                 "dec1",
                 name="model1",
                 legend_label=model_1_name,
+                size=6,
                 source=overlay_source1,
                 # line_color=None,
                 color="blue",
             )
-            plot_overlay_2 = plot_overlay.circle(
+            plot_overlay_2 = plot_overlay.scatter(
                 "ra2",
                 "dec2",
                 name="model2",
                 legend_label=model_2_name,
+                size=6,
                 source=overlay_source2,
                 # line_color=None,
                 color="red",
@@ -2369,11 +2565,12 @@ def _source_astrometry_plotter(
             # Creat an sigma circle plot object
             sigma_plot = plot_position.line(np.array(x1), np.array(y1), legend_label="Sigma")
             # Create position data points plot object
-            plot_position.circle(
+            plot_position.scatter(
                 "ra_offset",
                 "dec_offset",
                 name="data",
                 source=source,
+                size=7,
                 line_color=None,
                 legend_label="Data",
                 fill_color={"field": "phase_centre_dist", "transform": position_mapper},
@@ -4017,6 +4214,7 @@ def main():
                 tolerance=args.tolerance,
                 off_axis=args.off_axis,
                 all_sources=args.all,
+                units=args.units,
                 shape_limit=args.shape_limit,
                 closest_only=args.closest_only,
                 prefix=args.htmlprefix,
@@ -4109,6 +4307,7 @@ def main():
             images_list,
             tolerance=args.tolerance,
             off_axis=args.off_axis,
+            units=args.units,
             shape_limit=args.shape_limit,
             all_sources=args.all,
             closest_only=args.closest_only,
@@ -4186,6 +4385,7 @@ def main():
                 shape_limit=args.shape_limit,
                 off_axis=args.off_axis,
                 all_sources=args.all,
+                units=args.units,
                 closest_only=args.closest_only,
                 prefix=args.htmlprefix,
                 flux_plot=args.fluxplot,

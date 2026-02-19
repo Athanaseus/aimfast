@@ -312,6 +312,7 @@ def get_online_catalog(
 def aegean(image, kwargs, log):
     args = ["aegean"]
     outfile = ""
+    bool_options = ["progress", "island", "nopositive", "negative", "nocov", "noregroup"]
     for name, value in kwargs.items():
         if value is None:
             continue
@@ -320,10 +321,10 @@ def aegean(image, kwargs, log):
         if name == "filename":  # positional argument
             args += ["{0}".format(value)]
         elif name == "table":
-            outfile = "{}.tab".format(kwargs["filename"][:-5])
+            outfile = "{}_aegean.tab".format(kwargs["filename"][:-5])
             args += ["{0}{1}".format("--", name), "{0}".format(outfile)]
-            # Aegean add '_comp' to the file name e.g. im_comp.tab
-            outfile = "{}_comp.tab".format(kwargs["filename"][:-5])
+        elif name in bool_options:
+            args += ["{0}{1}".format("--", name)]
         else:
             args += ["{0}{1}".format("--", name), "{0}".format(value)]
     log.info("Running: {}".format(" ".join(args)))
@@ -410,7 +411,9 @@ def bdsf(image, kwargs, log):
         img_opts["beam_spectrum"] = beams
 
     image = img_opts.pop("filename")
-    outfile = write_opts.pop("outfile") or "{}-pybdsf.fits".format(image[:-5])
+    output_format = str(write_opts.get("format", "fits")).lower()
+    default_extension = "fits" if output_format == "fits" else "txt"
+    outfile = write_opts.pop("outfile") or f"{image[:-5]}-pybdsf.{default_extension}"
     img = bdsm.process_image(image, **img_opts, ncores=ncores)
     img.write_catalog(outfile=outfile, **write_opts)
     return outfile
@@ -438,7 +441,7 @@ def breizorro(image, kwargs, log):
 
     if not outfile:
         base = os.path.splitext(kwargs["filename"])[0]
-        outfile = f"{base}-breizorro_catalog.txt"
+        outfile = f"{base}-breizorro.txt"
         args.extend(["--outcatalog", outfile])
 
     args.extend(["--restored-image", kwargs["filename"]])

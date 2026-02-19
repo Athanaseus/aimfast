@@ -11,7 +11,7 @@ pybdsf:
   thresh_pix: 5.0              # Source detection threshold: threshold for the island peak in number of sigma above the mean
   catalog_type: srl           # Type of catalog to write:  'gaul' - Gaussian list, 'srl' - source list (formed by grouping Gaussians), 'shap' - shapelet list (FITS format only)
   group_tol: 1.0               # Tolerance for grouping of Gaussians into sources: larger values will result in larger sources
-  group_by_isl: false          # Group all Gaussians in each island into a single source
+  group_by_isl: true          # Group all Gaussians in each island into a single source
   aperture_posn: centroid      # Position the aperture (if aperture is not None) on: 'centroid' or 'peak' of the source
   thresh:                      # Type of thresholding: None => calculate inside program, 'fdr' => use false detection rate algorithm, 'hard' => use sigma clipping
   mean_map:                    # Background mean map: 'default' => calc whether to use or not, 'zero' => 0, 'const' => clipped mean, 'map' => use 2-D map
@@ -71,7 +71,9 @@ aegean:
   enable: false
   filename:                   # Image to extract radio sources
   table: ascii                # Additional table outputs, format inferred from extension (database: .db, votable: .vot, and ascii: .csv/.tab)
-  slice: 0                       # If the input data is a cube, then this slice will determine the array index of the image which will be processed by aegean
+  slice: 0                    # If the input data is a cube, then this slice will determine the array index of the image which will be processed by aegean
+  progress: true              # Provide a progress bar as islands are being fit
+  island: true                # Also calculate the island flux
   psf:                        # A .fits file that represents the local psf
   noise:                      # A .fits file that represents the image noise
   region:                     # Use this regions file to restrict source finding in this image. Use MIMAS region (.mim) files
