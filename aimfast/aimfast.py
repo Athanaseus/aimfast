@@ -1165,17 +1165,27 @@ def get_model(catalog):
             if data is None:
                 model = Tigger.load(catalog)
             else:
-                for i, src in enumerate(data):
-                    model.sources.append(tigger_src_breizorro_txt(src, i))
-                fits_file = None
-                for suffix in ("-breizorro_catalog.txt", "-breizorro.txt"):
-                    candidate = catalog.replace(suffix, ".fits")
-                    if candidate != catalog and os.path.exists(candidate):
-                        fits_file = candidate
-                        break
-                centre = fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
-                model.ra0, model.dec0 = map(np.deg2rad, centre)
-                model.save(catalog[:-4] + ".lsm.html")
+                cols = set(data.colnames)
+                breizorro_required = {"name", "ra_d", "dec_d", "i", "emaj_s", "emin_s", "pa_d"}
+                breizorro_excluded = {"spi", "freq0"}
+                is_breizorro_txt = breizorro_required.issubset(cols) and not cols.intersection(
+                    breizorro_excluded
+                )
+
+                if is_breizorro_txt:
+                    for i, src in enumerate(data):
+                        model.sources.append(tigger_src_breizorro_txt(src, i))
+                    fits_file = None
+                    for suffix in ("-breizorro_catalog.txt", "-breizorro.txt"):
+                        candidate = catalog.replace(suffix, ".fits")
+                        if candidate != catalog and os.path.exists(candidate):
+                            fits_file = candidate
+                            break
+                    centre = fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
+                    model.ra0, model.dec0 = map(np.deg2rad, centre)
+                    model.save(catalog[:-4] + ".lsm.html")
+                else:
+                    model = Tigger.load(catalog)
         elif ext == ".txt" and _read_commented_ascii(
             catalog, "# Source_id", header_strip_prefix="# "
         ) is not None:
