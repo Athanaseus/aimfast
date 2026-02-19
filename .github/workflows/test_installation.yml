@@ -71,10 +71,10 @@ jobs:
           uv run aimfast --compare-models mypipelinerun_circinus_p3_3-MFS-image-pybdsf.txt mypipelinerun_circinus_p3_3-MFS-image-breizorro.txt -tol 6
 
       - name: Upload HTML artifacts
-        if: always()
+        if: always() && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: html-artifacts-${{ matrix.os }}-py${{ matrix.python-version }}
+          name: html-artifacts
           path: |
             *.html
             **/*.lsm.html
