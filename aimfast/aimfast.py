@@ -1567,6 +1567,7 @@ def compare_models(
     bar_size="12pt",
     bar_major_size="8pt",
     units="milli",
+    restored_image=None,
 ):
     """Plot model1 source properties against that of model2
 
@@ -1594,6 +1595,8 @@ def compare_models(
         Y-axis labels for the flux comparison plots
     fylabels : str[]
         Title labels for the flux comparison plots
+    restored_image : str
+        Path to restored FITS image to overlay as background in catalog overlay plot
 
     Returns
     -------
@@ -1675,6 +1678,7 @@ def compare_models(
             ymajor_size=ymajor_size,
             bar_size=bar_size,
             bar_major_size=bar_major_size,
+            restored_image=restored_image,
         )
     return results
 
@@ -1842,7 +1846,7 @@ def plot_photometry(
 
 
 def plot_astrometry(
-    models, label=None, tolerance=0.2, phase_centre=None, all_sources=False, off_axis=None
+    models, label=None, tolerance=0.2, phase_centre=None, all_sources=False, off_axis=None, restored_image=None
 ):
     """Plot model-model positions from lsm.html/txt models
 
@@ -1858,6 +1862,8 @@ def plot_astrometry(
         Phase centre of catalog (if not already embeded)
     all_source: bool
         Compare all sources in the catalog (else only point-like source)
+    restored_image : str
+        Path to restored FITS image to overlay as background in catalog overlay plot
 
     """
     _models = []
@@ -1870,8 +1876,8 @@ def plot_astrometry(
             ]
         )
         i += 1
-    results = compare_models(_models, tolerance, False, phase_centre, all_sources, off_axis)
-    _source_astrometry_plotter(results, _models, inline=True)
+    results = compare_models(_models, tolerance, False, phase_centre, all_sources, off_axis, restored_image=restored_image)
+    _source_astrometry_plotter(results, _models, inline=True, restored_image=restored_image)
 
 
 def plot_residuals_noise(res_noise_images, skymodel=None, label=None, area_factor=2.0, points=100):
@@ -2344,6 +2350,7 @@ def _source_astrometry_plotter(
     ymajor_size="6pt",
     bar_size="8pt",
     bar_major_size="8pt",
+    restored_image=None,
 ):
     """Plot astrometry results and save output as html file.
 
@@ -2379,6 +2386,8 @@ def _source_astrometry_plotter(
         Colorbar text font size
     bar_major_size : str
         Colorbar major axis text font size
+    restored_image : str
+        Path to restored FITS image to overlay as background in catalog overlay plot
 
     """
     if prefix:
@@ -2518,6 +2527,75 @@ def _source_astrometry_plotter(
                 match_aspect=True,
                 tools=("crosshair,pan,wheel_zoom,box_zoom,reset,save"),
             )
+
+            # Add background image if restored_image is provided
+            if restored_image:
+                try:
+                    # Read FITS file
+                    with fitsio.open(restored_image) as hdul:
+                        img_data = hdul[0].data
+                        img_header = hdul[0].header
+                        img_wcs = WCS(img_header)
+
+                    # Handle different image dimensions (squeeze to 2D if needed)
+                    while img_data.ndim > 2:
+                        img_data = img_data[0]
+
+                    # If WCS has more than 2 axes, extract just the spatial axes
+                    if img_wcs.naxis > 2:
+                        img_wcs = img_wcs.sub((1, 2))  # Keep first two axes (RA, DEC)
+
+                    # Get image shape
+                    ny, nx = img_data.shape
+
+                    # Get image bounds in world coordinates using pixel centers
+                    # Calculate the four corners in pixel coordinates
+                    pix_corners = np.array([[0, 0], [nx, 0], [nx, ny], [0, ny]])
+                    world_corners = img_wcs.all_pix2world(pix_corners, 0)
+
+                    # Extract RA and Dec ranges
+                    ra_coords = world_corners[:, 0]
+                    dec_coords = world_corners[:, 1]
+                    ra_min = np.min(ra_coords)
+                    ra_max = np.max(ra_coords)
+                    dec_min = np.min(dec_coords)
+                    dec_max = np.max(dec_coords)
+
+                    # Ensure data is float and handle NaN/inf values
+                    img_data = np.asarray(img_data, dtype=np.float32)
+                    img_data = np.nan_to_num(img_data, nan=0.0, posinf=0.0, neginf=0.0)
+
+                    # Apply log scaling and normalization for better visibility
+                    # Handle negative values and zeros
+                    img_data_min = np.min(img_data)
+                    img_data_positive = img_data - img_data_min + 1e-10
+                    img_data_log = np.log10(img_data_positive)
+
+                    # Normalize to 0-1 range
+                    img_vmin, img_vmax = np.nanpercentile(img_data_log, [1, 99])
+                    img_normalized = (img_data_log - img_vmin) / (img_vmax - img_vmin + 1e-10)
+                    img_normalized = np.clip(img_normalized, 0, 1).astype(np.float32)
+
+                    # Flip image horizontally for correct astronomical orientation (RA increases to the left)
+                    img_to_plot = np.fliplr(img_normalized)
+
+                    # Add image to plot
+                    plot_overlay.image(
+                        image=[img_to_plot],
+                        x=float(ra_min),
+                        y=float(dec_min),
+                        dw=float(ra_max - ra_min),
+                        dh=float(dec_max - dec_min),
+                        palette="Greys256",
+                        level="image",
+                    )
+                    # Set plot ranges to match image bounds with x-axis flipped
+                    plot_overlay.x_range = Range1d(float(ra_max), float(ra_min))
+                    plot_overlay.y_range = Range1d(float(dec_min), float(dec_max))
+                    LOGGER.info(f"Added background image from {restored_image}")
+                except Exception as e:
+                    LOGGER.warning(f"Failed to load restored image {restored_image}: {e}")
+
             plot_overlay.ellipse(
                 "ra1",
                 "dec1",
@@ -2564,7 +2642,7 @@ def _source_astrometry_plotter(
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
             color_bar_height = 100
-            plot_overlay.x_range.flipped = True
+            #plot_overlay.x_range.flipped = True
             # Colorbar Mapper
             mapper_opts = dict(palette="Plasma11", low=min(z), high=max(z))
             position_mapper = LinearColorMapper(**mapper_opts)
@@ -2572,12 +2650,13 @@ def _source_astrometry_plotter(
                 color_mapper=position_mapper,
                 ticker=plot_position.xaxis.ticker,
                 formatter=plot_position.xaxis.formatter,
-                location=(0, 0),
                 title="Distance off-axis (deg)",
                 title_text_font_size=bar_size,
                 title_text_align="center",
                 major_label_text_font_size=bar_major_size,
                 orientation="horizontal",
+                location=(0, 0),
+                title_standoff=5,
             )
 
             #            color_bar_plot = figure(title="Distance off-axis (deg)",
@@ -2604,10 +2683,13 @@ def _source_astrometry_plotter(
             error2_plot = plot_position.multi_line(
                 err_xs2, err_ys2, legend_label="Errors", color="red"
             )
+            # Disable hover on error bars
+            error1_plot.hover_glyph = None
+            error2_plot.hover_glyph = None
             # Creat an sigma circle plot object
             sigma_plot = plot_position.line(np.array(x1), np.array(y1), legend_label="Sigma")
             # Create position data points plot object
-            plot_position.scatter(
+            scatter_renderer = plot_position.scatter(
                 "ra_offset",
                 "dec_offset",
                 name="data",
@@ -2642,8 +2724,9 @@ def _source_astrometry_plotter(
             table_title = Div(text="Cross Matching Statistics")
             table_title.align = "center"
             stats_table = column([table_title, dtab])
-            # Attaching the hover object with labels
+            # Attaching the hover object with labels - only to scatter points, not error bars
             hover = plot_position.select(dict(type=HoverTool))
+            hover.renderers = [scatter_renderer]
             hover.tooltips = OrderedDict(
                 [
                     ("source", "(@label)"),
@@ -3747,7 +3830,7 @@ def get_argparser():
         dest="model",
         help="Name of the tigger model lsm.html file or any supported catalog",
     )
-    argument("--restored-image", dest="restored", help="Name of the restored image fits file")
+    argument("--restored-image", dest="restored", help="Name of the restored image fits file (also used as background overlay in catalog comparison plots)")
     argument(
         "-psf",
         "--psf-image",
@@ -4273,6 +4356,7 @@ def main():
                 bar_size=args.barsize,
                 bar_major_size=args.bar_major_size,
                 svg=svg,
+                restored_image=args.restored,
             )
 
     if args.noise:
@@ -4365,6 +4449,7 @@ def main():
             xmajor_size=args.xmaj_size,
             ymajor_size=args.ymaj_size,
             svg=svg,
+            restored_image=args.restored,
         )
 
     if args.online:
@@ -4431,6 +4516,7 @@ def main():
                 closest_only=args.closest_only,
                 prefix=args.htmlprefix,
                 flux_plot=args.fluxplot,
+                restored_image=args.restored,
                 ftitles=args.ftitles,
                 fxlabels=args.fxlabels,
                 fylabels=args.fylabels,
