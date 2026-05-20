@@ -85,7 +85,11 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N"]
-ignore = ["E501"]
+ignore = [
+    "E501", # Line length
+    "N806", # Upper case variables (skyArea)
+    "N802", # Upper case functions (maxDist)
+]
 
 [tool.ruff.format]
 quote-style = "double"
