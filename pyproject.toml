@@ -40,8 +40,9 @@ dependencies = [
 
 [project.optional-dependencies]
 aegean = ["AegeanTools"]
-pybdsf = ["bdsf", "matplotlib"]
-source_finders = ["bdsf", "matplotlib", "AegeanTools", "breizorro[all]"]
+pybdsf = ["bdsf"]
+breizorro = ["breizorro[all]"]
+source_finders = ["bdsf", "AegeanTools", "breizorro[all]"]
 svg_images = ["matplotlib", "selenium"]
 all = ["AegeanTools", "bdsf", "matplotlib", "selenium", "breizorro[all]"]
 

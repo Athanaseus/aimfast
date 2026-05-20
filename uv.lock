@@ -82,15 +82,16 @@ all = [
     { name = "matplotlib" },
     { name = "selenium" },
 ]
+breizorro = [
+    { name = "breizorro", extra = ["all"] },
+]
 pybdsf = [
     { name = "bdsf" },
-    { name = "matplotlib" },
 ]
 source-finders = [
     { name = "aegeantools" },
     { name = "bdsf" },
     { name = "breizorro", extra = ["all"] },
-    { name = "matplotlib" },
 ]
 svg-images = [
     { name = "matplotlib" },
@@ -131,11 +132,10 @@ requires-dist = [
     { name = "bdsf", marker = "extra == 'source-finders'" },
     { name = "bokeh" },
     { name = "breizorro", extras = ["all"], marker = "extra == 'all'" },
+    { name = "breizorro", extras = ["all"], marker = "extra == 'breizorro'" },
     { name = "breizorro", extras = ["all"], marker = "extra == 'source-finders'" },
     { name = "jsonschema" },
     { name = "matplotlib", marker = "extra == 'all'" },
-    { name = "matplotlib", marker = "extra == 'pybdsf'" },
-    { name = "matplotlib", marker = "extra == 'source-finders'" },
     { name = "matplotlib", marker = "extra == 'svg-images'" },
     { name = "mock" },
     { name = "numpy" },
@@ -147,7 +147,7 @@ requires-dist = [
     { name = "selenium", marker = "extra == 'all'" },
     { name = "selenium", marker = "extra == 'svg-images'" },
 ]
-provides-extras = ["aegean", "pybdsf", "source-finders", "svg-images", "all"]
+provides-extras = ["aegean", "pybdsf", "breizorro", "source-finders", "svg-images", "all"]
 
 [package.metadata.requires-dev]
 docs = [

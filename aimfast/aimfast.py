@@ -1116,8 +1116,9 @@ def get_model(catalog):
         i_flux = _src_value(src, ["i"], 0.0)
         i_flux_err = _src_value(src, ["i_err"], 0.0)
         flux = ModelClasses.Polarization(i_flux, 0, 0, 0, I_err=i_flux_err)
-        ra, ra_err = map(np.deg2rad, (_src_value(src, ["ra_d"]), 0.0))
-        dec, dec_err = map(np.deg2rad, (_src_value(src, ["dec_d"]), 0.0))
+        # RA and Ra_err as ra_d and ra_d_err in degrees, and dec and dec_err as dec_d and dec_d_err in degrees
+        ra, ra_err = map(np.deg2rad, (_src_value(src, ["ra_d"]), _src_value(src, ["ra_d_err"])))
+        dec, dec_err = map(np.deg2rad, (_src_value(src, ["dec_d"]), _src_value(src, ["dec_d_err"])))
         pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
 
         ex = np.deg2rad(_src_value(src, ["emaj_s"], 0.0) / 3600.0)
@@ -2035,13 +2036,17 @@ def _source_flux_plotter(
                 epsilon = np.finfo(float).eps
                 x_safe = np.clip(x, epsilon, None)
                 y_safe = np.clip(y, epsilon, None)
-                x1 = np.log(x_safe)
-                y1 = np.log(y_safe)
-                xerr1 = np.abs(np.log(np.clip(x_safe + xerr, epsilon, None)) - np.log(x_safe))
-                yerr1 = np.abs(np.log(np.clip(y_safe + yerr, epsilon, None)) - np.log(y_safe))
+                x1 = x_safe
+                y1 = y_safe
+                xerr1 = xerr
+                yerr1 = yerr
                 axis_labels = [
-                    f"log S1: {model_1_name}" if not xlabels else xlabels[pair],
-                    f"log S2: {model_2_name}" if not ylabels else ylabels[pair],
+                    f"S1: {model_1_name} ({FLUX_UNIT_SCALER[units][1]})"
+                    if not xlabels
+                    else xlabels[pair],
+                    f"S2: {model_2_name} ({FLUX_UNIT_SCALER[units][1]})"
+                    if not ylabels
+                    else ylabels[pair],
                 ]
             elif plot_type == "snr":
                 epsilon = np.finfo(float).eps
@@ -2119,8 +2124,19 @@ def _source_flux_plotter(
             )
             text = "Flux Offset" if not titles else titles[pair]
             # Create a plot object
+            if plot_type == "log":
+                x_axis_type = "log"
+                y_axis_type = "log"
+            else:
+                x_axis_type = "auto"
+                y_axis_type = "auto"
             plot_flux = figure(
-                title=text, x_axis_label=axis_labels[0], y_axis_label=axis_labels[1], tools=TOOLS
+                title=text,
+                x_axis_label=axis_labels[0],
+                y_axis_label=axis_labels[1],
+                tools=TOOLS,
+                x_axis_type=x_axis_type,
+                y_axis_type=y_axis_type,
             )
             # Plot title font sizes
             plot_flux.title.text_font_size = title_size
@@ -2136,11 +2152,12 @@ def _source_flux_plotter(
                 color_mapper=flux_mapper,
                 ticker=plot_flux.xaxis.ticker,
                 formatter=plot_flux.xaxis.formatter,
-                title="Distance off-axis (deg)",
+                title=30*"\t" + "Distance off-axis (deg)",
                 title_text_font_size=bar_size,
                 title_text_align="center",
                 major_label_text_font_size=bar_major_size,
                 orientation="horizontal",
+                title_standoff=10
             )
             # color_bar_plot = figure(title="Distance off-axis (deg)",
             # title_location="below",
@@ -2156,13 +2173,20 @@ def _source_flux_plotter(
                 np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
                 np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0],
             ):
-                err_xs1.append((xval - xerr, xval + xerr))
-                err_ys2.append((yval - yerr, yval + yerr))
+                if plot_type == "log":
+                    err_xs1.append((max(xval - xerr, epsilon), xval + xerr))
+                    err_ys2.append((max(yval - yerr, epsilon), yval + yerr))
+                else:
+                    err_xs1.append((xval - xerr, xval + xerr))
+                    err_ys2.append((yval - yerr, yval + yerr))
                 err_ys1.append((yval, yval))
                 err_xs2.append((xval, xval))
             # Create S2plot object for errors
             error1_plot = plot_flux.multi_line(err_xs1, err_ys1, legend_label="Errors", color="red")
             error2_plot = plot_flux.multi_line(err_xs2, err_ys2, legend_label="Errors", color="red")
+            # Disable hover on error bars
+            error1_plot.hover_glyph = None
+            error2_plot.hover_glyph = None
             # Create a plot object for a Fit
             if plot_type == "inout":
                 fit_points = 100
@@ -2299,6 +2323,7 @@ def _source_flux_plotter(
             stats_table2 = column([table_title2, dtab2])
             # Attaching the hover object with labels
             hover = plot_flux.select(dict(type=HoverTool))
+            hover.renderers = [data]
             hover.tooltips = OrderedDict(
                 [
                     ("source", "(@label)"),
@@ -2650,7 +2675,7 @@ def _source_astrometry_plotter(
                 color_mapper=position_mapper,
                 ticker=plot_position.xaxis.ticker,
                 formatter=plot_position.xaxis.formatter,
-                title="Distance off-axis (deg)",
+                title=30*"\t" + "Distance off-axis (deg)",
                 title_text_font_size=bar_size,
                 title_text_align="center",
                 major_label_text_font_size=bar_major_size,
