@@ -1858,7 +1858,9 @@ def plot_photometry(
             ]
         )
         i += 1
-    results = compare_models(_models, tolerance, False, phase_centre, all_sources, off_axis)
+    results = compare_models(
+        _models, tolerance=tolerance, plot=False, all_sources=all_sources, off_axis=off_axis
+    )
     _source_flux_plotter(results, _models, inline=True, plot_type=flux_plot)
 
 
@@ -1901,11 +1903,10 @@ def plot_astrometry(
         i += 1
     results = compare_models(
         _models,
-        tolerance,
-        False,
-        phase_centre,
-        all_sources,
-        off_axis,
+        tolerance=tolerance,
+        plot=False,
+        all_sources=all_sources,
+        off_axis=off_axis,
         restored_image=restored_image,
     )
     _source_astrometry_plotter(results, _models, inline=True, restored_image=restored_image)
