@@ -1124,7 +1124,11 @@ def get_model(catalog):
         ex = np.deg2rad(_src_value(src, ["emaj_s"], 0.0) / 3600.0)
         ey = np.deg2rad(_src_value(src, ["emin_s"], 0.0) / 3600.0)
         pa = np.deg2rad(_src_value(src, ["pa_d"], 0.0))
-        shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=0.0, ey_err=0.0, pa_err=0.0) if ex and ey else None
+        shape = (
+            ModelClasses.Gaussian(ex, ey, pa, ex_err=0.0, ey_err=0.0, pa_err=0.0)
+            if ex and ey
+            else None
+        )
 
         source = SkyModel.Source(name, pos, flux, shape=shape)
         source.setAttribute("I_peak", i_flux)
@@ -1159,9 +1163,11 @@ def get_model(catalog):
             centre = _get_phase_centre(model)
             model.ra0, model.dec0 = map(np.deg2rad, centre)
             model.save(catalog[:-4] + ".lsm.html")
-        elif ext == ".txt" and _read_commented_ascii(
-            catalog, "#format:", header_strip_prefix="#format:"
-        ) is not None:
+        elif (
+            ext == ".txt"
+            and _read_commented_ascii(catalog, "#format:", header_strip_prefix="#format:")
+            is not None
+        ):
             data = _read_commented_ascii(catalog, "#format:", header_strip_prefix="#format:")
             if data is None:
                 model = Tigger.load(catalog)
@@ -1182,14 +1188,17 @@ def get_model(catalog):
                         if candidate != catalog and os.path.exists(candidate):
                             fits_file = candidate
                             break
-                    centre = fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
+                    centre = (
+                        fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
+                    )
                     model.ra0, model.dec0 = map(np.deg2rad, centre)
                     model.save(catalog[:-4] + ".lsm.html")
                 else:
                     model = Tigger.load(catalog)
-        elif ext == ".txt" and _read_commented_ascii(
-            catalog, "# Source_id", header_strip_prefix="# "
-        ) is not None:
+        elif (
+            ext == ".txt"
+            and _read_commented_ascii(catalog, "# Source_id", header_strip_prefix="# ") is not None
+        ):
             data = _read_commented_ascii(catalog, "# Source_id", header_strip_prefix="# ")
             if data is None:
                 model = Tigger.load(catalog)
@@ -1197,7 +1206,11 @@ def get_model(catalog):
                 for i, src in enumerate(data):
                     model.sources.append(tigger_src_pybdsf_txt(src, i))
                 fits_file = catalog.replace("-pybdsf.txt", ".fits")
-                centre = fitsInfo(fits_file)["centre"] if os.path.exists(fits_file) else _get_phase_centre(model)
+                centre = (
+                    fitsInfo(fits_file)["centre"]
+                    if os.path.exists(fits_file)
+                    else _get_phase_centre(model)
+                )
                 model.ra0, model.dec0 = map(np.deg2rad, centre)
                 model.save(catalog[:-4] + ".lsm.html")
         elif ext == ".txt":
@@ -1235,7 +1248,9 @@ def get_model(catalog):
                         candidate = os.path.splitext(catalog)[0] + ".fits"
                         if os.path.exists(candidate):
                             fits_file = candidate
-                    centre = fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
+                    centre = (
+                        fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
+                    )
                     model.ra0, model.dec0 = map(np.deg2rad, centre)
                     model.save(catalog[:-4] + ".lsm.html")
                 else:
@@ -1300,6 +1315,7 @@ def get_detected_sources_properties(
         Tuple of target flux, morphology and astrometry information
 
     """
+
     def _source_flux_for_matching(source):
         int_flux = source.flux.I if source.flux.I else 0.0
         int_flux_err = source.flux.I_err if source.flux.I_err else 0.0
@@ -1847,7 +1863,13 @@ def plot_photometry(
 
 
 def plot_astrometry(
-    models, label=None, tolerance=0.2, phase_centre=None, all_sources=False, off_axis=None, restored_image=None
+    models,
+    label=None,
+    tolerance=0.2,
+    phase_centre=None,
+    all_sources=False,
+    off_axis=None,
+    restored_image=None,
 ):
     """Plot model-model positions from lsm.html/txt models
 
@@ -1877,7 +1899,15 @@ def plot_astrometry(
             ]
         )
         i += 1
-    results = compare_models(_models, tolerance, False, phase_centre, all_sources, off_axis, restored_image=restored_image)
+    results = compare_models(
+        _models,
+        tolerance,
+        False,
+        phase_centre,
+        all_sources,
+        off_axis,
+        restored_image=restored_image,
+    )
     _source_astrometry_plotter(results, _models, inline=True, restored_image=restored_image)
 
 
@@ -2152,12 +2182,12 @@ def _source_flux_plotter(
                 color_mapper=flux_mapper,
                 ticker=plot_flux.xaxis.ticker,
                 formatter=plot_flux.xaxis.formatter,
-                title=30*"\t" + "Distance off-axis (deg)",
+                title=30 * "\t" + "Distance off-axis (deg)",
                 title_text_font_size=bar_size,
                 title_text_align="center",
                 major_label_text_font_size=bar_major_size,
                 orientation="horizontal",
-                title_standoff=10
+                title_standoff=10,
             )
             # color_bar_plot = figure(title="Distance off-axis (deg)",
             # title_location="below",
@@ -2667,7 +2697,7 @@ def _source_astrometry_plotter(
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
             color_bar_height = 100
-            #plot_overlay.x_range.flipped = True
+            # plot_overlay.x_range.flipped = True
             # Colorbar Mapper
             mapper_opts = dict(palette="Plasma11", low=min(z), high=max(z))
             position_mapper = LinearColorMapper(**mapper_opts)
@@ -2675,7 +2705,7 @@ def _source_astrometry_plotter(
                 color_mapper=position_mapper,
                 ticker=plot_position.xaxis.ticker,
                 formatter=plot_position.xaxis.formatter,
-                title=30*"\t" + "Distance off-axis (deg)",
+                title=30 * "\t" + "Distance off-axis (deg)",
                 title_text_font_size=bar_size,
                 title_text_align="center",
                 major_label_text_font_size=bar_major_size,
@@ -3687,7 +3717,9 @@ def get_sf_params(configfile):
     return sf_parameters
 
 
-def apply_sf_cli_overrides(sf_params, sourcery=None, restored_image=None, threshold=None, ncpu=None):
+def apply_sf_cli_overrides(
+    sf_params, sourcery=None, restored_image=None, threshold=None, ncpu=None
+):
     sf_names = ("pybdsf", "aegean", "breizorro")
     selected = sourcery
 
@@ -3855,7 +3887,11 @@ def get_argparser():
         dest="model",
         help="Name of the tigger model lsm.html file or any supported catalog",
     )
-    argument("--restored-image", dest="restored", help="Name of the restored image fits file (also used as background overlay in catalog comparison plots)")
+    argument(
+        "--restored-image",
+        dest="restored",
+        help="Name of the restored image fits file (also used as background overlay in catalog comparison plots)",
+    )
     argument(
         "-psf",
         "--psf-image",

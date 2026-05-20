@@ -223,12 +223,8 @@ class TestClass(object):
         assert output_value["deepest_negative"] == pytest.approx(
             expected_value["deepest_negative"], rel=0.01
         )
-        assert output_value["local_rms"] == pytest.approx(
-            expected_value["local_rms"], rel=0.01
-        )
-        assert output_value["global_rms"] == pytest.approx(
-            expected_value["global_rms"], rel=0.01
-        )
+        assert output_value["local_rms"] == pytest.approx(expected_value["local_rms"], rel=0.01)
+        assert output_value["global_rms"] == pytest.approx(expected_value["global_rms"], rel=0.01)
 
     def test_image_dynamic_range(self):
         """Test dynamic range from image"""
