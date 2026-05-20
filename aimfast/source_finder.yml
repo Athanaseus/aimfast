@@ -95,6 +95,8 @@ breizorro:
   ncpu: 4                     # Number of processors to use for cataloging
   beam_size:                  # Average beam size in arcsec if missing in header
   source_fitting:             # Source fitting method for catalog generation
+  threshold: 6                # Flux detection threshold
+  boxsize: 50                 # Box size over which to compute stats
   gui: false                  # Open mask in bokeh html gui
   outfile:                    # Output mask image
   outcatalog:                 # Output catalog from mask

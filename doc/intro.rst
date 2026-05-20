@@ -239,17 +239,17 @@ It returns an interactive html correlation plots, from which a `.png` file can b
 
     $ aimfast --compare-models model1.lsm.html model2.lsm.html -tol 5
 
-where -tol is the tolerance to cross-match sources in arcsec. Moreover, -as flag can be used to compare all source irrespective of shape (otherwise only point-like sources with maj<2" are used). Access to (sumss, nvss,) online catalogs is also provided, to allow comparison of local catalogs to remote catalogs. Also, a Fits file can be specified to run a source finder and then perform the comparison.
+where -tol is the tolerance to cross-match sources in arcsec. Moreover, -as flag can be used to compare all sources irrespective of shape (otherwise only point-like sources with maj<2" are used). Access to (sumss, nvss,) online catalogs is also provided, to allow comparison of local catalogs to remote catalogs. Also, a FITS file can be specified to run a source finder and then perform the comparison.
 
 .. code-block:: bash
 
     $ aimfast --compare-online model1.lsm.html --online-catalog nvss -tol 5
 
-In the case where fits images are compared, aimfast can pre-install source finder of choice (pybdsf, aegean,) to generate a catalogs which are in turn compared:
+In the case where fits images are compared, aimfast can run a source finder of choice (pybdsf, aegean,) to generate catalogs that are then converted to Tigger ``.lsm.html`` files and compared:
 
 .. code-block:: bash
 
-    $ aimfast --compare-images image1.fits image1.fits --source-finder pybdsf -tol 5
+    $ aimfast --compare-images image1.fits image2.fits --source-finder pybdsf -tol 5
 
 After the first run attempt one of the outputs is source_finder.yml file, which provide all the possible parameters of the source finders. Otherwise this file can be generated and edited prior to the comparison:
 
@@ -257,6 +257,19 @@ After the first run attempt one of the outputs is source_finder.yml file, which 
 
     $ aimfast source-finder -gc my-source-finder.yml
     $ aimfast --compare-images image1.fits image2.fits --html-prefix cluster --units milli -x-size 16pt -y-size 16pt -title-size 28pt -legend-size 16pt -x-maj-size 16pt -y-maj-size 16pt -bar-size 16pt -bar-major-size 14pt -units micro
+
+Source finder outputs are now kept in their native format and also written as a Tigger ``.lsm.html`` model alongside the native catalog. This makes phase-centre-aware plotting and model comparison simpler because the generated ``.lsm.html`` file can be used directly in ``--compare-models`` and ``--compare-online`` workflows.
+
+For source finders or catalog formats that are not recognized automatically, you can provide explicit column mappings. Column values may be given either by name or by zero-based column index:
+
+.. code-block:: bash
+
+    $ aimfast source-finder -c my-source-finder.yml -sf pybdsf -r image.fits \
+      --flux-xaxis Total_flux --flux-err-xaxis E_Total_flux \
+      --position-xaxis RA --position-yaxis DEC \
+      --position-err-xaxis E_RA --position-err-yaxis E_DEC
+
+If the phase centre is not available in the input catalog, aimfast still completes the comparison and uses the source coordinates for plotting. In that case the off-axis colorbars are omitted, but you can still provide a phase centre explicitly on the command line when needed.
 
 For Flux density, the more the data points rest on the y=x (or I_out=I_in), the more correlated the two models are.
 

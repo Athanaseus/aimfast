@@ -294,3 +294,57 @@ class TestClass(object):
         output_value = dec2deg(input_value)
         expected_value = -(30 + (15 / 60.0) + (20 / 3600.0))
         assert pytest.approx(expected_value, 0.001) == output_value
+
+    def test_convert_catalog_with_index_columns(self, tmp_path):
+        """Test conversion of a simple CSV using column indices as mappings"""
+        import os
+
+        csv = tmp_path / "test_map.csv"
+        csv.write_text("name,ra,dec,flux,flux_err\nSRC1,10.0,-30.0,0.0001,1e-06\nSRC2,12.0,-31.0,0.0002,2e-06\n")
+        mappings = {
+            "name": "0",
+            "position_xaxis": "1",
+            "position_yaxis": "2",
+            "flux_xaxis": "3",
+            "flux_err_xaxis": "4",
+        }
+        model = aimfast.convert_catalog_with_mapping(str(csv), mappings)
+        assert len(model.sources) == 2
+        s0 = model.sources[0]
+        assert float(s0.flux.I) == pytest.approx(0.0001)
+        # ra/dec were given in degrees -> check angle
+        assert pytest.approx(10.0, rel=1e-6) == round(np.rad2deg(s0.pos.ra), 6)
+
+    def test_convert_catalog_with_sexagesimal(self, tmp_path):
+        """Test conversion of sexagesimal RA/DEC strings using mappings by name"""
+        csv = tmp_path / "test_map2.csv"
+        csv.write_text("name,ra_hms,dec_dms,flux\nSRC1,12:30:45.5,-30:15:20,0.00015\n")
+        mappings = {"name": "name", "position_xaxis": "ra_hms", "position_yaxis": "dec_dms", "flux_xaxis": "flux"}
+        model = aimfast.convert_catalog_with_mapping(str(csv), mappings)
+        assert len(model.sources) == 1
+        s0 = model.sources[0]
+        # RA should be close to 187.6895833333 degrees
+        assert pytest.approx(187.6895833, rel=1e-5) == round(np.rad2deg(s0.pos.ra), 7)
+
+    def test_convert_catalog_with_error_metadata(self, tmp_path):
+        """Test mapped error columns are preserved in source metadata"""
+        csv = tmp_path / "test_map3.csv"
+        csv.write_text(
+            "name,ra,dec,ra_err,dec_err,flux,flux_err\nSRC1,10.0,-30.0,0.01,0.02,0.0001,1e-06\n"
+        )
+        mappings = {
+            "name": "name",
+            "position_xaxis": "ra",
+            "position_yaxis": "dec",
+            "position_err_xaxis": "ra_err",
+            "position_err_yaxis": "dec_err",
+            "flux_xaxis": "flux",
+            "flux_err_xaxis": "flux_err",
+        }
+        model = aimfast.convert_catalog_with_mapping(str(csv), mappings)
+        source = model.sources[0]
+        assert pytest.approx(10.0, rel=1e-6) == round(np.rad2deg(source.pos.ra), 6)
+        assert pytest.approx(-30.0, rel=1e-6) == round(np.rad2deg(source.pos.dec), 6)
+        assert source.pos.ra_err > 0
+        assert source.pos.dec_err > 0
+        assert source.getTag("I_peak_err") == pytest.approx(1e-06)

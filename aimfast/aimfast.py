@@ -863,8 +863,14 @@ def get_src_scale(source_shape):
     return scale_out_arc_sec, scale_out_err_arc_sec
 
 
-def get_model(catalog):
-    """Get model model object from file catalog"""
+def get_model(catalog, mappings=None):
+    """Get model object from file catalog.
+
+    If `mappings` is provided (dict of column mappings), unsupported catalog
+    formats will be converted using those mappings and a Tigger SkyModel will
+    be saved as <catalog>*.lsm.html. If a phase centre cannot be determined
+    it will be left unset and a warning is emitted (plots will skip colorbar).
+    """
 
     def _read_commented_ascii(catalog_file, header_startswith, header_strip_prefix=None):
         header = None
@@ -1239,7 +1245,7 @@ def get_model(catalog):
                     for i, src in enumerate(data):
                         model.sources.append(tigger_src_ascii(src, i))
                     fits_file = None
-                    for suffix in ("-aegean.tab", "_aegean.tab", "-aegean.txt"):
+                    for suffix in ("_aegean_isl.txt", "_aegean_comp.txt"):
                         candidate = catalog.replace(suffix, ".fits")
                         if candidate != catalog and os.path.exists(candidate):
                             fits_file = candidate
@@ -1260,9 +1266,12 @@ def get_model(catalog):
     if ext in [".tab", ".csv"]:
         data = Table.read(catalog, format="ascii")
         if ext == ".tab":
-            fits_file = catalog.replace("_comp.tab", ".fits")
+            if "_aegean_comp.tab" in catalog:
+                fits_file = catalog.replace("_aegean_comp.tab", ".fits")
+            else:
+                fits_file = catalog.replace("_aegean_isl.tab", ".fits")
         else:
-            fits_file = catalog.replace("_comp.csv", ".fits")
+            fits_file = catalog.replace("_aegean_comp.csv", ".fits")
         fitsinfo = fitsInfo(fits_file)
         for i, src in enumerate(data):
             model.sources.append(tigger_src_ascii(src, i))
@@ -1279,6 +1288,175 @@ def get_model(catalog):
         centre = fitsinfo["centre"] or _get_phase_centre(model)
         model.ra0, model.dec0 = map(np.deg2rad, centre)
         model.save(catalog[:-5] + ".lsm.html")
+    # If an unsupported format was provided but mappings supplied, try conversion
+    if model is None and mappings:
+        try:
+            model = convert_catalog_with_mapping(catalog, mappings)
+            lsm_path = os.path.splitext(catalog)[0] + ".lsm.html"
+            if not os.path.exists(lsm_path):
+                model.save(lsm_path)
+        except Exception:
+            LOGGER.warning("Could not convert %s using provided mappings", catalog)
+
+    # Ensure phase centre information exists; warn if not
+    try:
+        ra0 = getattr(model, "ra0", None)
+        dec0 = getattr(model, "dec0", None)
+        if not ra0 or not dec0:
+            LOGGER.warning(
+                "Phase centre unspecified for %s; plots will omit colorbar unless a phase centre is provided.",
+                catalog,
+            )
+            model.ra0 = None
+            model.dec0 = None
+    except Exception:
+        # Be conservative: if model isn't set or doesn't support attributes, just warn
+        LOGGER.warning(
+            "Phase centre unspecified for %s; plots will omit colorbar unless a phase centre is provided.",
+            catalog,
+        )
+
+    return model
+
+
+def convert_catalog_with_mapping(catalog, mappings):
+    """Convert a generic table/catalog to a Tigger SkyModel using user-provided mappings.
+
+    Mappings can use column names or column indices (as strings containing digits).
+    Supported mapping keys: 'position_xaxis','position_yaxis','position_err_xaxis',
+    'position_err_yaxis','flux_xaxis','flux_yaxis','flux_err_xaxis','flux_err_yaxis','name'
+
+    RA/DEC values may be in degrees or in HH:MM:SS / DD:MM:SS string formats.
+    """
+    from astropy.table import Table
+
+    data = None
+    ext = os.path.splitext(catalog)[-1].lower()
+    if ext in [".fits"]:
+        data = Table.read(catalog, format="fits")
+    else:
+        data = Table.read(catalog, format="ascii")
+
+    colnames = list(data.colnames)
+
+    def _resolve_value(row, key):
+        if key is None:
+            return None
+        # If key is a digit string, interpret as column index
+        if str(key).isdigit():
+            idx = int(key)
+            if idx < 0 or idx >= len(colnames):
+                raise IndexError(f"Column index {idx} out of range")
+            col = colnames[idx]
+        else:
+            col = key
+            if col not in colnames:
+                raise KeyError(f"Column {col} not found in {catalog}")
+        return row[col]
+
+    def _parse_angle(val, kind="ra"):
+        # handle masked or missing values
+        try:
+            sval = str(val).strip()
+        except Exception:
+            return None
+        if sval == "" or sval == "--":
+            return None
+        # If contains ':' assume sexagesimal
+        if ":" in sval:
+            try:
+                ang = Angle(sval)
+                return np.deg2rad(ang.degree) if kind == "ra" else np.deg2rad(ang.degree)
+            except Exception:
+                # fallback to ra2deg/dec2deg if available
+                if kind == "ra":
+                    return np.deg2rad(ra2deg(sval))
+                else:
+                    return np.deg2rad(dec2deg(sval))
+        else:
+            # numeric assumed degrees
+            try:
+                deg = float(sval)
+                return np.deg2rad(deg)
+            except Exception:
+                return None
+
+    def _parse_error(val):
+        try:
+            sval = str(val).strip()
+        except Exception:
+            return 0.0
+        if sval == "" or sval == "--":
+            return 0.0
+        try:
+            return float(sval)
+        except Exception:
+            return 0.0
+
+    # Create an empty Tigger SkyModel via Tigger.load on a small ASCII template
+    tfile = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
+    try:
+        with open(tfile.name, "w") as stdw:
+            stdw.write("#format:name ra_d dec_d i emaj_s emin_s pa_d\n")
+        model = Tigger.load(tfile.name)
+    finally:
+        try:
+            tfile.close()
+        except Exception:
+            pass
+    for i, row in enumerate(data):
+        name = None
+        if mappings and mappings.get("name"):
+            try:
+                name = _resolve_value(row, mappings.get("name"))
+            except Exception:
+                name = f"SRC{i}"
+        if name is None:
+            name = f"SRC{i}"
+
+        ra_val = _resolve_value(row, mappings.get("position_xaxis")) if mappings else None
+        dec_val = _resolve_value(row, mappings.get("position_yaxis")) if mappings else None
+        ra = _parse_angle(ra_val, kind="ra")
+        dec = _parse_angle(dec_val, kind="dec")
+
+        ra_err_val = None
+        dec_err_val = None
+        if mappings and mappings.get("position_err_xaxis"):
+            ra_err_val = _resolve_value(row, mappings.get("position_err_xaxis"))
+        if mappings and mappings.get("position_err_yaxis"):
+            dec_err_val = _resolve_value(row, mappings.get("position_err_yaxis"))
+        ra_err = np.deg2rad(_parse_error(ra_err_val)) if ra_err_val is not None else 0.0
+        dec_err = np.deg2rad(_parse_error(dec_err_val)) if dec_err_val is not None else 0.0
+
+        flux_val = None
+        if mappings and mappings.get("flux_xaxis"):
+            flux_val = _resolve_value(row, mappings.get("flux_xaxis"))
+        try:
+            flux_f = float(flux_val) if flux_val is not None else 0.0
+        except Exception:
+            flux_f = 0.0
+
+        flux_err_val = None
+        if mappings and mappings.get("flux_err_xaxis"):
+            flux_err_val = _resolve_value(row, mappings.get("flux_err_xaxis"))
+        elif mappings and mappings.get("flux_err_yaxis"):
+            flux_err_val = _resolve_value(row, mappings.get("flux_err_yaxis"))
+        flux_err_f = _parse_error(flux_err_val)
+
+        # Use the user-specified position uncertainties when available.
+        pos = ModelClasses.Position(ra or 0.0, dec or 0.0, ra_err=ra_err, dec_err=dec_err)
+        flux = ModelClasses.Polarization(flux_f, 0, 0, 0, I_err=flux_err_f)
+        source = SkyModel.Source(str(name), pos, flux)
+        # set I_peak as integrated flux fallback
+        source.setAttribute("I_peak", flux_f)
+        source.setAttribute("I_peak_err", flux_err_f)
+        if ra_err:
+            source.setAttribute("ra_err", ra_err)
+        if dec_err:
+            source.setAttribute("dec_err", dec_err)
+        source.setAttribute("flux_err", flux_err_f)
+        model.sources.append(source)
+
     return model
 
 
@@ -2094,11 +2272,28 @@ def _source_flux_plotter(
             # RA and Dec with a cross-match in deg:arcmin:arcsec
             position_ra_dec = [(deg2ra(ra), deg2dec(dec)) for (ra, dec) in positions_in_out]
             # Phase centre distance in degree
-            z = np.array(phase_centre_dist) / 3600.0
+            # phase_centre_dist may contain None values when phase centre is
+            # unspecified; filter those out for color mapping and avoid
+            # creating a colorbar when we don't have valid distances.
+            valid_z = [v for v in phase_centre_dist if v is not None]
+            if len(valid_z) > 0:
+                z = np.array(phase_centre_dist, dtype=float) / 3600.0
+                has_phase_dist = True
+            else:
+                # fallback: create zero-array so plotting still works, but
+                # mark that we must not create a colorbar
+                z = np.zeros(len(phase_centre_dist))
+                has_phase_dist = False
             # Compute some fit stats of the two models being compared
             if plot_type in ["log", "inout"]:
-                flux_MSE = mean_squared_error(x1, y1)
-                reg1 = linregress(x1, y1)
+                if plot_type == "log":
+                    log_x1 = np.log10(x1)
+                    log_y1 = np.log10(y1)
+                    flux_MSE = mean_squared_error(log_x1, log_y1)
+                    reg1 = linregress(log_x1, log_y1)
+                else:
+                    flux_MSE = mean_squared_error(x1, y1)
+                    reg1 = linregress(x1, y1)
                 flux_R_score = reg1.rvalue
             elif plot_type in ["snr"]:
                 reg1 = linregress(x1, y1)
@@ -2112,20 +2307,31 @@ def _source_flux_plotter(
             deci = DECIMALS  # Round off to this decimal places
             cols = ["Stats", "Value"]
             if plot_type in ["log", "inout"]:
-                stats = {
-                    "Stats": [
-                        "Slope",
-                        f"Intercept ({FLUX_UNIT_SCALER[units][1]})",
-                        f"RMS_Error ({FLUX_UNIT_SCALER[units][1]})",
-                        "R2",
-                    ],
-                    "Value": [
-                        f"{reg1.slope:.{deci}f}",
-                        f"{reg1.intercept:.{deci}f}",
-                        f"{np.sqrt(flux_MSE):.{deci}e}",
-                        f"{flux_R_score:.{deci}f}",
-                    ],
-                }
+                if plot_type == "log":
+                    stats = {
+                        "Stats": ["Slope", "Intercept (log10)", "RMS_Error (log10)", "R2"],
+                        "Value": [
+                            f"{reg1.slope:.{deci}f}",
+                            f"{reg1.intercept:.{deci}f}",
+                            f"{np.sqrt(flux_MSE):.{deci}e}",
+                            f"{flux_R_score:.{deci}f}",
+                        ],
+                    }
+                else:
+                    stats = {
+                        "Stats": [
+                            "Slope",
+                            f"Intercept ({FLUX_UNIT_SCALER[units][1]})",
+                            f"RMS_Error ({FLUX_UNIT_SCALER[units][1]})",
+                            "R2",
+                        ],
+                        "Value": [
+                            f"{reg1.slope:.{deci}f}",
+                            f"{reg1.intercept:.{deci}f}",
+                            f"{np.sqrt(flux_MSE):.{deci}e}",
+                            f"{flux_R_score:.{deci}f}",
+                        ],
+                    }
             elif plot_type in ["snr"]:
                 stats = {
                     "Stats": ["MAX", "MIN", "MEAN", "MAD", "MEDIAN", "STD"],
@@ -2177,19 +2383,22 @@ def _source_flux_plotter(
             plot_flux.yaxis.major_label_text_font_size = ymajor_size
             # Create a color bar and size objects
             color_bar_height = 100
-            mapper_opts = dict(palette="Plasma11", low=min(z), high=max(z))
-            flux_mapper = LinearColorMapper(**mapper_opts)
-            color_bar = ColorBar(
-                color_mapper=flux_mapper,
-                ticker=plot_flux.xaxis.ticker,
-                formatter=plot_flux.xaxis.formatter,
-                title=30 * "\t" + "Distance off-axis (deg)",
-                title_text_font_size=bar_size,
-                title_text_align="center",
-                major_label_text_font_size=bar_major_size,
-                orientation="horizontal",
-                title_standoff=10,
-            )
+            if has_phase_dist:
+                mapper_opts = dict(palette="Plasma11", low=min(z), high=max(z))
+                flux_mapper = LinearColorMapper(**mapper_opts)
+                color_bar = ColorBar(
+                    color_mapper=flux_mapper,
+                    ticker=plot_flux.xaxis.ticker,
+                    formatter=plot_flux.xaxis.formatter,
+                    title=30 * "\t" + "Distance off-axis (deg)",
+                    title_text_font_size=bar_size,
+                    title_text_align="center",
+                    major_label_text_font_size=bar_major_size,
+                    orientation="horizontal",
+                    title_standoff=10,
+                )
+            else:
+                color_bar = None
             # color_bar_plot = figure(title="Distance off-axis (deg)",
             # title_location="below",
             # height=color_bar_height,
@@ -2252,18 +2461,16 @@ def _source_flux_plotter(
                 )
             elif plot_type == "log":
                 fit_points = 100
-                slope = reg1.slope
-                intercept = reg1.intercept
                 min_val = min(x1) if min(x1) < min(y1) else min(y1)
                 max_val = max(y1) if max(y1) > max(x1) else max(x1)
                 # Regression fit plot
-                fit_xs = np.linspace(min_val, max_val, fit_points)
-                fit_ys = slope * fit_xs + intercept
+                fit_xs = np.geomspace(min_val, max_val, fit_points)
+                fit_ys = np.power(10.0, reg1.intercept) * np.power(fit_xs, reg1.slope)
                 fit = plot_flux.line(fit_xs, fit_ys, legend_label="Fit", color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
                 equal = plot_flux.line(
-                    np.array([0 if 0 < min_val else min_val, max_val]),
-                    np.array([0 if 0 < min_val else min_val, max_val]),
+                    np.array([min_val, max_val]),
+                    np.array([min_val, max_val]),
                     legend_label="log(S1)=log(S2)",
                     line_dash="dashed",
                     color="gray",
@@ -2507,7 +2714,13 @@ def _source_astrometry_plotter(
             # TODO: Use flux as a radius dimension
             flux_in_mjy = np.array(flux_in_data) * FLUX_UNIT_SCALER["milli"][0]
             flux_out_mjy = np.array(flux_out_data) * FLUX_UNIT_SCALER["milli"][0]
-            z = np.array(phase_centre_dist) / 3600.0  # For color
+            valid_z = [v for v in phase_centre_dist if v is not None]
+            if len(valid_z) > 0:
+                z = np.array(phase_centre_dist, dtype=float) / 3600.0  # For color
+                has_phase_dist = True
+            else:
+                z = np.zeros(len(phase_centre_dist))
+                has_phase_dist = False
             # RA and Dec with a cross-match in deg:arcmin:arcsec
             position_ra_dec = [(deg2ra(ra), deg2dec(dec)) for (ra, dec) in positions_in_out]
             # Create additional feature on the plot such as hover, display text
@@ -2699,21 +2912,23 @@ def _source_astrometry_plotter(
             plot_overlay.legend.click_policy = "hide"
             color_bar_height = 100
             # plot_overlay.x_range.flipped = True
-            # Colorbar Mapper
-            mapper_opts = dict(palette="Plasma11", low=min(z), high=max(z))
-            position_mapper = LinearColorMapper(**mapper_opts)
-            color_bar = ColorBar(
-                color_mapper=position_mapper,
-                ticker=plot_position.xaxis.ticker,
-                formatter=plot_position.xaxis.formatter,
-                title=30 * "\t" + "Distance off-axis (deg)",
-                title_text_font_size=bar_size,
-                title_text_align="center",
-                major_label_text_font_size=bar_major_size,
-                orientation="horizontal",
-                location=(0, 0),
-                title_standoff=5,
-            )
+            # Colorbar Mapper (only when we have valid phase centre distances)
+            if has_phase_dist:
+                position_mapper = LinearColorMapper(palette="Plasma11", low=min(z), high=max(z))
+                color_bar = ColorBar(
+                    color_mapper=position_mapper,
+                    ticker=plot_position.xaxis.ticker,
+                    formatter=plot_position.xaxis.formatter,
+                    title=30 * "\t" + "Distance off-axis (deg)",
+                    title_text_font_size=bar_size,
+                    title_text_align="center",
+                    major_label_text_font_size=bar_major_size,
+                    orientation="horizontal",
+                    location=(0, 0),
+                    title_standoff=5,
+                )
+            else:
+                color_bar = None
 
             #            color_bar_plot = figure(title="Distance off-axis (deg)",
             #                                    title_location="below",
@@ -3753,7 +3968,19 @@ def apply_sf_cli_overrides(
     return sf_params, selected
 
 
-def source_finding(sf_params, sf=None):
+def source_finding(sf_params, sf=None, mappings=None):
+    """Run configured source finder and ensure a Tigger .lsm.html is produced.
+
+    Parameters
+    ----------
+    sf_params: dict
+        Source finder parameters from config
+    sf: str
+        Optional selected source finder key
+    mappings: dict
+        Optional column mappings for conversion (flux/position)
+
+    """
     outfile = None
     aegean_sf = sf_params.pop("aegean", {"enable": False})
     pybd_sf = sf_params.pop("pybdsf", {"enable": False})
@@ -3775,6 +4002,40 @@ def source_finding(sf_params, sf=None):
         outfile = breizorro(filename, breizorro_sf, LOGGER)
     else:
         LOGGER.warn(f"{WARNING}No source finder selected.{ENDC}")
+    # Try to produce a Tigger .lsm.html model alongside native output.
+    if outfile:
+        # If the source-finder already returned a tigger lsm, keep it
+        if outfile.endswith(".lsm.html"):
+            return outfile
+
+        lsm_path = os.path.splitext(outfile)[0] + ".lsm.html"
+        try:
+            model = get_model(outfile)
+            if not os.path.exists(lsm_path):
+                model.save(lsm_path)
+            LOGGER.info("Created Tigger model: %s", lsm_path)
+            return lsm_path
+        except Exception:
+            # Try best-effort conversion using provided mappings
+            if mappings:
+                try:
+                    model = convert_catalog_with_mapping(outfile, mappings)
+                    if not os.path.exists(lsm_path):
+                        model.save(lsm_path)
+                    LOGGER.info("Converted %s -> %s using provided mappings", outfile, lsm_path)
+                    return lsm_path
+                except Exception as e:
+                    LOGGER.warning("Mapping conversion failed: %s", e)
+                    raise RuntimeError(
+                        "Failed to generate lsm.html from source-finder output. "
+                        "Provide correct --flux-xaxis/--flux-yaxis and --position-xaxis/--position-yaxis mappings."
+                    )
+            else:
+                raise RuntimeError(
+                    "Failed to generate lsm.html from source-finder output. "
+                    "If your source-finder produced a non-standard catalog, re-run with "
+                    "--flux-xaxis/--flux-yaxis and --position-xaxis/--position-yaxis to specify column mappings."
+                )
     return outfile
 
 
@@ -4104,6 +4365,27 @@ def get_argparser():
         nargs="+",
         help="Title labels for the Flux plots",
     )
+    # Additional flux/position axis mappings for non-lsm catalogs
+    argument(
+        "--flux-xaxis",
+        dest="flux_xaxis",
+        help="Column name for flux (x-axis) when providing non-lsm catalogs",
+    )
+    argument(
+        "--flux-yaxis",
+        dest="flux_yaxis",
+        help="Column name for flux (y-axis) when providing non-lsm catalogs",
+    )
+    argument(
+        "--flux-err-xaxis",
+        dest="flux_err_xaxis",
+        help="Column name for flux error (x-axis) when providing non-lsm catalogs",
+    )
+    argument(
+        "--flux-err-yaxis",
+        dest="flux_err_yaxis",
+        help="Column name for flux error (y-axis) when providing non-lsm catalogs",
+    )
     # Plot labelling for the position (comparison & overlay) plotting
     argument(
         "-px1",
@@ -4146,6 +4428,27 @@ def get_argparser():
         dest="ptitles2",
         nargs="+",
         help="Title labels for the overlay position plots",
+    )
+    # Position column mappings for non-lsm catalogs (RA/DEC and their errors)
+    argument(
+        "--position-xaxis",
+        dest="position_xaxis",
+        help="Column name for RA (or longitude) when providing non-lsm catalogs",
+    )
+    argument(
+        "--position-yaxis",
+        dest="position_yaxis",
+        help="Column name for DEC (or latitude) when providing non-lsm catalogs",
+    )
+    argument(
+        "--position-err-xaxis",
+        dest="position_err_xaxis",
+        help="Column name for RA error when providing non-lsm catalogs",
+    )
+    argument(
+        "--position-err-yaxis",
+        dest="position_err_yaxis",
+        help="Column name for DEC error when providing non-lsm catalogs",
     )
     # Plot labelling sizes for all plots
     argument(
@@ -4231,6 +4534,18 @@ def main():
     LOGGER.info(" ".join(f"{k}={v}" for k, v in vars(args).items()))
     DECIMALS = args.deci
     svg = args.svg
+    # Build optional column mappings from CLI for conversion of non-lsm catalogs
+    mappings = {
+        "flux_xaxis": getattr(args, "flux_xaxis", None),
+        "flux_yaxis": getattr(args, "flux_yaxis", None),
+        "flux_err_xaxis": getattr(args, "flux_err_xaxis", None),
+        "flux_err_yaxis": getattr(args, "flux_err_yaxis", None),
+        "position_xaxis": getattr(args, "position_xaxis", None),
+        "position_yaxis": getattr(args, "position_yaxis", None),
+        "position_err_xaxis": getattr(args, "position_err_xaxis", None),
+        "position_err_yaxis": getattr(args, "position_err_yaxis", None),
+        "name": None,
+    }
     if args.subcommand:
         if args.config:
             sf_params = get_sf_params(args.config)
@@ -4241,7 +4556,7 @@ def main():
                 threshold=args.sf_thresh,
                 ncpu=args.sf_ncpu,
             )
-            source_finding(sf_params, selected_sf)
+            source_finding(sf_params, selected_sf, mappings=mappings)
         if args.generate:
             generate_default_config(args.generate)
     elif args.json:
@@ -4481,10 +4796,10 @@ def main():
                 image1, image2 = comp_ims[0], comp_ims[1]
             sf_params1 = get_sf_params(configfile)
             sf_params1[sourcery]["filename"] = image1
-            out1 = source_finding(sf_params1, sourcery)
+            out1 = source_finding(sf_params1, sourcery, mappings=mappings)
             sf_params2 = get_sf_params(configfile)
             sf_params2[sourcery]["filename"] = image2
-            out2 = source_finding(sf_params2, sourcery)
+            out2 = source_finding(sf_params2, sourcery, mappings=mappings)
             images_list.append(
                 [
                     dict(label="{}-model_a_{}".format(args.label, i), path=out1),
@@ -4558,7 +4873,7 @@ def main():
                     generate_default_config(configfile)
                     sf_params1 = get_sf_params(configfile)
                     sf_params1[sourcery]["filename"] = image1
-                    out1 = source_finding(sf_params1, sourcery)
+                    out1 = source_finding(sf_params1, sourcery, mappings=mappings)
                     image1 = out1
 
                 images_list.append(

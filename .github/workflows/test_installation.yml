@@ -62,9 +62,14 @@ jobs:
           for sf in pybdsf aegean breizorro; do
             uv run aimfast source-finder -c my-source-finder.yml -sf "$sf" -r mypipelinerun_circinus_p3_3-MFS-image.fits --threshold 10 --ncpu 1
           done
-          cat mypipelinerun_circinus_p3_3-MFS-image_aegean_isle.tab
-          cat mypipelinerun_circinus_p3_3-MFS-image-breizorro.txt
-          cat mypipelinerun_circinus_p3_3-MFS-image-pybdsf.txt
+          cat mypipelinerun_circinus_p3_3-MFS-image*aegean*.tab
+          cat mypipelinerun_circinus_p3_3-MFS-image*breizorro*.txt
+          cat mypipelinerun_circinus_p3_3-MFS-image*pybdsf*.txt
+
+      - name: Run compare-images test
+        run: |
+          uv run aimfast --compare-images mypipelinerun_circinus_p3_3-MFS-image.fits mypipelinerun_circinus_p3_3-MFS-image.fits --html-prefix cluster --units milli -x-size 16pt -y-size 16pt -title-size 28pt -legend-size 16pt -x-maj-size 16pt -y-maj-size 16pt -bar-size 16pt -bar-major-size 14pt -units micro
+          find . -name '*.html' -o -name '*.lsm.html'
 
       - name: Run compare-models test
         run: |
