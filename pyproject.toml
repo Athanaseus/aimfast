@@ -89,6 +89,7 @@ ignore = [
     "E501", # Line length
     "N806", # Upper case variables (skyArea)
     "N802", # Upper case functions (maxDist)
+    "N803", # Upper case arguments (maxDist)
 ]
 
 [tool.ruff.format]

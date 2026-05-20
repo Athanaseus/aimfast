@@ -5,7 +5,6 @@ import numpy
 import numpy as np
 from astropy import coordinates as coord
 from astropy import units as u
-from astropy.coordinates import SkyCoord
 from astropy.io import ascii
 from astropy.io import fits as fitsio
 from astropy.io import fits as pyfits
