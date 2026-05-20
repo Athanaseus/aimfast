@@ -300,7 +300,9 @@ class TestClass(object):
         import os
 
         csv = tmp_path / "test_map.csv"
-        csv.write_text("name,ra,dec,flux,flux_err\nSRC1,10.0,-30.0,0.0001,1e-06\nSRC2,12.0,-31.0,0.0002,2e-06\n")
+        csv.write_text(
+            "name,ra,dec,flux,flux_err\nSRC1,10.0,-30.0,0.0001,1e-06\nSRC2,12.0,-31.0,0.0002,2e-06\n"
+        )
         mappings = {
             "name": "0",
             "position_xaxis": "1",
@@ -319,7 +321,12 @@ class TestClass(object):
         """Test conversion of sexagesimal RA/DEC strings using mappings by name"""
         csv = tmp_path / "test_map2.csv"
         csv.write_text("name,ra_hms,dec_dms,flux\nSRC1,12:30:45.5,-30:15:20,0.00015\n")
-        mappings = {"name": "name", "position_xaxis": "ra_hms", "position_yaxis": "dec_dms", "flux_xaxis": "flux"}
+        mappings = {
+            "name": "name",
+            "position_xaxis": "ra_hms",
+            "position_yaxis": "dec_dms",
+            "flux_xaxis": "flux",
+        }
         model = aimfast.convert_catalog_with_mapping(str(csv), mappings)
         assert len(model.sources) == 1
         s0 = model.sources[0]
