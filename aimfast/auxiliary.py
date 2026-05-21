@@ -353,10 +353,10 @@ def aegean(image, kwargs, log):
     run = subprocess.run(args)
     log.info("The exit code was: {}".format(run.returncode))
 
-    if kwargs.get('island'):
-        outfile = outfile.replace('.tab', '_isle.tab')
+    if kwargs.get("island"):
+        outfile = outfile.replace(".tab", "_isle.tab")
     else:
-        outfile = outfile.replace('.tab', '_comp.tab')
+        outfile = outfile.replace(".tab", "_comp.tab")
 
     if run.returncode in [143, -15] and outfile and os.path.exists(outfile):
         log.warning(

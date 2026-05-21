@@ -962,7 +962,10 @@ def get_model(catalog, mappings=None):
                 value = src[key]
                 if np.ma.is_masked(value):
                     continue
-                return float(value)
+                number = float(value)
+                if not np.isfinite(number):
+                    continue
+                return number
             except Exception:
                 continue
         return default
@@ -981,7 +984,7 @@ def get_model(catalog, mappings=None):
 
         name = str(src["name"]) if "name" in src.colnames else f"SRC{idx}"
         i_flux = _src_value(src, ["int_flux", "peak_flux", "i"], 0.0)
-        i_flux_err = _src_value(src, ["err_int_flux", "err_peak_flux", "i_err"], 0.0)
+        i_flux_err = _clean_err(_src_value(src, ["err_int_flux", "err_peak_flux", "i_err"], 0.0))
         flux = ModelClasses.Polarization(i_flux, 0, 0, 0, I_err=i_flux_err)
         ra, ra_err = map(
             np.deg2rad,
@@ -999,9 +1002,27 @@ def get_model(catalog, mappings=None):
         )
         pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
         if {"a", "b", "pa"}.issubset(src.colnames):
-            ex, ex_err = map(np.deg2rad, (float(src["a"]), _clean_err(src["err_a"])))
-            ey, ey_err = map(np.deg2rad, (float(src["b"]), _clean_err(src["err_b"])))
-            pa, pa_err = map(np.deg2rad, (float(src["pa"]), _clean_err(src["err_pa"])))
+            ex, ex_err = map(
+                np.deg2rad,
+                (
+                    _src_value(src, ["a"], 0.0),
+                    _clean_err(_src_value(src, ["err_a"], 0.0)),
+                ),
+            )
+            ey, ey_err = map(
+                np.deg2rad,
+                (
+                    _src_value(src, ["b"], 0.0),
+                    _clean_err(_src_value(src, ["err_b"], 0.0)),
+                ),
+            )
+            pa, pa_err = map(
+                np.deg2rad,
+                (
+                    _src_value(src, ["pa"], 0.0),
+                    _clean_err(_src_value(src, ["err_pa"], 0.0)),
+                ),
+            )
             shape = (
                 ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err, ey_err=ey_err, pa_err=pa_err)
                 if ex and ey
@@ -1013,8 +1034,10 @@ def get_model(catalog, mappings=None):
         # Adding source peak flux (error) as extra flux attributes for sources,
         # and to avoid null values for point sources I_peak = src["Total_flux"]
         if shape and "peak_flux" in src.colnames:
-            source.setAttribute("I_peak", float(src["peak_flux"]))
-            source.setAttribute("I_peak_err", _clean_err(src["err_peak_flux"]))
+            source.setAttribute("I_peak", _src_value(src, ["peak_flux"], i_flux))
+            source.setAttribute(
+                "I_peak_err", _clean_err(_src_value(src, ["err_peak_flux"], i_flux_err))
+            )
         else:
             source.setAttribute("I_peak", i_flux)
             source.setAttribute("I_peak_err", i_flux_err)
@@ -1763,7 +1786,9 @@ def get_detected_sources_properties(
 
             if not off_axis:
                 off_axis = 360.0
-            if delta_phase_centre_arc_sec is None or delta_phase_centre_arc_sec <= deg2arcsec(off_axis):
+            if delta_phase_centre_arc_sec is None or delta_phase_centre_arc_sec <= deg2arcsec(
+                off_axis
+            ):
                 targets_flux[source2_name] = [
                     I_out,
                     I_out_err,
@@ -1978,7 +2003,7 @@ def compare_residuals(
     legend_size="10pt",
     x_label_size="12pt",
     y_label_size="12pt",
-    svg=False
+    svg=False,
 ):
     if skymodel:
         res = _source_residual_results(residuals, skymodel, area_factor)
@@ -1997,7 +2022,7 @@ def compare_residuals(
         ymajor_size=ymajor_size,
         x_label_size=x_label_size,
         y_label_size=y_label_size,
-        svg=svg
+        svg=svg,
     )
     return res
 

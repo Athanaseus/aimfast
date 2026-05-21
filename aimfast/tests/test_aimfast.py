@@ -396,7 +396,9 @@ class TestClass(object):
                 "flux_xaxis": "int_flux",
             },
         ]
-        output = aimfast.compare_models(models, plot=False, all_sources=True, model_mappings=model_mappings)
+        output = aimfast.compare_models(
+            models, plot=False, all_sources=True, model_mappings=model_mappings
+        )
         result = output["pair-model_a_0"]
         assert len(result["flux"]) == 1
         assert len(result["position"]) == 1
@@ -462,3 +464,22 @@ class TestClass(object):
 
         assert len(model.sources) == 1
         assert pytest.approx(213.091265, rel=1e-6) == round(np.rad2deg(model.sources[0].pos.ra), 6)
+
+    def test_get_model_sanitizes_aegean_nan_errors(self, tmp_path, monkeypatch):
+        """Test Aegean nan uncertainty values do not propagate into model attributes"""
+        catalog = tmp_path / "sample_aegean_isle.tab"
+        catalog.write_text(
+            "island components background local_rms ra_str dec_str ra dec peak_flux int_flux err_int_flux eta x_width y_width max_angular_size pa pixels area beam_area flags uuid\n"
+            "1 1 0.0 0.0 14:12:21.90 -30:00:00.0 213.091265 -30.0 0.0095 0.00045 nan 0.0 3 10 0.0 84.5 22 1.0 1.0 0 x\n"
+        )
+        fits_file = tmp_path / "sample.fits"
+        fits_file.write_text("dummy")
+
+        monkeypatch.setattr(aimfast.os.path, "exists", lambda path: str(path) == str(fits_file))
+        monkeypatch.setattr(aimfast, "fitsInfo", lambda path: {"centre": (0.0, -30.0)})
+
+        model = aimfast.get_model(str(catalog))
+        source = model.sources[0]
+
+        assert np.isfinite(source.flux.I_err)
+        assert np.isfinite(source.getTag("I_peak_err"))
