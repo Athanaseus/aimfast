@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
+from pathlib import Path
 
 from aimfast import aimfast
+from bokeh.models import ColumnDataSource
 
 
 class TestClass(object):
@@ -398,3 +400,65 @@ class TestClass(object):
         result = output["pair-model_a_0"]
         assert len(result["flux"]) == 1
         assert len(result["position"]) == 1
+
+    def test_plot_model_columns_with_plain_catalog(self, tmp_path):
+        """Test basic catalog plotting works for a plain CSV catalog"""
+        catalog = tmp_path / "wise_hii_V2.3.csv"
+        catalog.write_text("name,RA,Dec,flux\nSRC1,10.0,-30.0,0.001\nSRC2,11.0,-31.0,0.002\n")
+
+        output_prefix = tmp_path / "basic_catalog_plot"
+        aimfast.plot_model_columns(str(catalog), "RA", "Dec", html_prefix=str(output_prefix))
+
+        assert Path(f"{output_prefix}.html").exists()
+
+    def test_plot_model_columns_with_txt_catalog(self, tmp_path):
+        """Test basic catalog plotting works for a commented-header TXT catalog"""
+        catalog = Path("aimfast/tests/files/catalog1.txt")
+
+        output_prefix = tmp_path / "txt_catalog_plot"
+        aimfast.plot_model_columns(str(catalog), "ra_d", "dec_d", html_prefix=str(output_prefix))
+
+        assert Path(f"{output_prefix}.html").exists()
+
+    def test_plot_model_columns_with_sexagesimal_positions(self, tmp_path):
+        """Test basic catalog plotting accepts sexagesimal RA/Dec strings"""
+        catalog = tmp_path / "sexagesimal_catalog.csv"
+        catalog.write_text(
+            "name,ra,dec,flux\n"
+            "SRC1,14:12:21.90,-30:00:00.0,0.001\n"
+            "SRC2,14:15:00.00,-30:10:00.0,0.002\n"
+        )
+
+        output_prefix = tmp_path / "sexagesimal_catalog_plot"
+        aimfast.plot_model_columns(str(catalog), "ra", "dec", html_prefix=str(output_prefix))
+
+        assert Path(f"{output_prefix}.html").exists()
+
+    def test_link_table_selection_to_plot_registers_callback(self):
+        """Test table selection wiring registers a selection callback"""
+        table_source = ColumnDataSource(data={"ra": [1.0], "dec": [2.0]})
+        plot_source = ColumnDataSource(data={"ra": [1.0], "dec": [2.0]})
+
+        aimfast._link_table_selection_to_plot(table_source, plot_source)
+
+        callbacks = table_source.selected.js_property_callbacks.get("change:indices", [])
+        assert callbacks
+        assert any("plot_source.selected.indices" in callback.code for callback in callbacks)
+
+    def test_get_model_reads_aegean_tab(self, tmp_path, monkeypatch):
+        """Test Aegean-style tab catalogs produce a populated model"""
+        catalog = tmp_path / "sample_aegean_isle.tab"
+        catalog.write_text(
+            "island components background local_rms ra_str dec_str ra dec peak_flux int_flux err_int_flux eta x_width y_width max_angular_size pa pixels area beam_area flags uuid\n"
+            "1 1 0.0 0.0 14:12:21.90 -30:00:00.0 213.091265 -30.0 0.0095 0.00045 0.00001 0.0 3 10 0.0 84.5 22 1.0 1.0 0 x\n"
+        )
+        fits_file = tmp_path / "sample.fits"
+        fits_file.write_text("dummy")
+
+        monkeypatch.setattr(aimfast.os.path, "exists", lambda path: str(path) == str(fits_file))
+        monkeypatch.setattr(aimfast, "fitsInfo", lambda path: {"centre": (0.0, -30.0)})
+
+        model = aimfast.get_model(str(catalog))
+
+        assert len(model.sources) == 1
+        assert pytest.approx(213.091265, rel=1e-6) == round(np.rad2deg(model.sources[0].pos.ra), 6)

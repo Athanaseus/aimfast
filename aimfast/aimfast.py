@@ -8,6 +8,7 @@ import sys
 import tempfile
 from collections import OrderedDict
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 import scipy
@@ -978,29 +979,45 @@ def get_model(catalog, mappings=None):
                 return 0.0
             return number
 
-        name = "SRC%d" % idx
-        flux = ModelClasses.Polarization(
-            float(src["int_flux"]), 0, 0, 0, I_err=_clean_err(src["err_int_flux"])
+        name = str(src["name"]) if "name" in src.colnames else f"SRC{idx}"
+        i_flux = _src_value(src, ["int_flux", "peak_flux", "i"], 0.0)
+        i_flux_err = _src_value(src, ["err_int_flux", "err_peak_flux", "i_err"], 0.0)
+        flux = ModelClasses.Polarization(i_flux, 0, 0, 0, I_err=i_flux_err)
+        ra, ra_err = map(
+            np.deg2rad,
+            (
+                _src_value(src, ["ra", "ra_d", "RA"], 0.0),
+                _src_value(src, ["err_ra", "ra_d_err", "E_RA"], 0.0),
+            ),
         )
-        ra, ra_err = map(np.deg2rad, (float(src["ra"]), _clean_err(src["err_ra"])))
-        dec, dec_err = map(np.deg2rad, (float(src["dec"]), _clean_err(src["err_dec"])))
+        dec, dec_err = map(
+            np.deg2rad,
+            (
+                _src_value(src, ["dec", "dec_d", "DEC"], 0.0),
+                _src_value(src, ["err_dec", "dec_d_err", "E_DEC"], 0.0),
+            ),
+        )
         pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
-        ex, ex_err = map(np.deg2rad, (float(src["a"]), _clean_err(src["err_a"])))
-        ey, ey_err = map(np.deg2rad, (float(src["b"]), _clean_err(src["err_b"])))
-        pa, pa_err = map(np.deg2rad, (float(src["pa"]), _clean_err(src["err_pa"])))
-        if ex and ey:
-            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err, ey_err=ey_err, pa_err=pa_err)
+        if {"a", "b", "pa"}.issubset(src.colnames):
+            ex, ex_err = map(np.deg2rad, (float(src["a"]), _clean_err(src["err_a"])))
+            ey, ey_err = map(np.deg2rad, (float(src["b"]), _clean_err(src["err_b"])))
+            pa, pa_err = map(np.deg2rad, (float(src["pa"]), _clean_err(src["err_pa"])))
+            shape = (
+                ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err, ey_err=ey_err, pa_err=pa_err)
+                if ex and ey
+                else None
+            )
         else:
             shape = None
         source = SkyModel.Source(name, pos, flux, shape=shape)
         # Adding source peak flux (error) as extra flux attributes for sources,
         # and to avoid null values for point sources I_peak = src["Total_flux"]
-        if shape:
+        if shape and "peak_flux" in src.colnames:
             source.setAttribute("I_peak", float(src["peak_flux"]))
             source.setAttribute("I_peak_err", _clean_err(src["err_peak_flux"]))
         else:
-            source.setAttribute("I_peak", float(src["int_flux"]))
-            source.setAttribute("I_peak_err", _clean_err(src["err_int_flux"]))
+            source.setAttribute("I_peak", i_flux)
+            source.setAttribute("I_peak_err", i_flux_err)
         return source
 
     def tigger_src_nvss(src, idx):
@@ -1317,8 +1334,8 @@ def get_model(catalog, mappings=None):
         if ext == ".tab":
             if "_aegean_comp.tab" in catalog:
                 fits_file = catalog.replace("_aegean_comp.tab", ".fits")
-            elif "_aegean_isl.tab" in catalog:
-                fits_file = catalog.replace("_aegean_isl.tab", ".fits")
+            elif "_aegean_isle.tab" in catalog:
+                fits_file = catalog.replace("_aegean_isle.tab", ".fits")
         elif "_aegean_comp.csv" in catalog:
             fits_file = catalog.replace("_aegean_comp.csv", ".fits")
 
@@ -1961,6 +1978,7 @@ def compare_residuals(
     legend_size="10pt",
     x_label_size="12pt",
     y_label_size="12pt",
+    svg=False
 ):
     if skymodel:
         res = _source_residual_results(residuals, skymodel, area_factor)
@@ -1979,6 +1997,7 @@ def compare_residuals(
         ymajor_size=ymajor_size,
         x_label_size=x_label_size,
         y_label_size=y_label_size,
+        svg=svg
     )
     return res
 
@@ -3887,6 +3906,152 @@ def get_source_properties_from_catalog(catalog_file):
     return source_properties
 
 
+def _read_commented_ascii_catalog(catalog_file):
+    header = None
+    rows = []
+    with open(catalog_file) as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("#format:"):
+                header = stripped[len("#format:") :].strip().split()
+                continue
+            if stripped.startswith("#"):
+                continue
+            rows.append(stripped.split())
+
+    if not header or not rows:
+        return None
+
+    parsed_rows = []
+    ncols = len(header)
+    for tokens in rows:
+        if len(tokens) < ncols:
+            continue
+        if len(tokens) > ncols:
+            tokens = tokens[: ncols - 1] + [" ".join(tokens[ncols - 1 :])]
+        parsed_rows.append(tokens)
+
+    if not parsed_rows:
+        return None
+
+    return Table(rows=parsed_rows, names=header)
+
+
+def _read_catalog_table(catalog_file):
+    ext = os.path.splitext(catalog_file)[-1].lower()
+    if ext == ".fits":
+        return Table.read(catalog_file, format="fits")
+    if ext == ".csv":
+        return Table.read(catalog_file, format="ascii.csv")
+    if ext == ".ecsv":
+        return Table.read(catalog_file, format="ascii.ecsv")
+    if ext == ".html":
+        return Table.read(catalog_file, format="ascii.html")
+    if ext in (".tab", ".tsv"):
+        return Table.read(catalog_file, format="ascii.tab")
+
+    commented_ascii = _read_commented_ascii_catalog(catalog_file)
+    if commented_ascii is not None:
+        return commented_ascii
+
+    for catalog_format in (
+        "ascii.commented_header",
+        "ascii.fast_commented_header",
+        "ascii.basic",
+        "ascii.fast_basic",
+        "ascii.no_header",
+        "ascii.fast_no_header",
+        "ascii.tab",
+        "ascii.csv",
+        "ascii.ecsv",
+    ):
+        try:
+            return Table.read(catalog_file, format=catalog_format)
+        except Exception:
+            continue
+
+    raise RuntimeError(f"Unable to read catalog file {catalog_file}")
+
+
+def _table_source_properties(catalog_file):
+    table = _read_catalog_table(catalog_file)
+    source_properties = {column: table[column].tolist() for column in table.colnames}
+    if "name" not in source_properties:
+        source_properties["name"] = [f"SRC{index}" for index in range(len(table))]
+    return source_properties
+
+
+def _coerce_plot_values(values, column_name):
+    coerced_values = []
+    lower_name = (column_name or "").lower()
+    is_ra_column = "ra" in lower_name or "right_ascension" in lower_name
+    is_dec_column = "dec" in lower_name or "declination" in lower_name
+
+    for value in values:
+        if value is None:
+            coerced_values.append(np.nan)
+            continue
+        if isinstance(value, (int, float, np.integer, np.floating)):
+            coerced_values.append(float(value))
+            continue
+
+        text = str(value).strip()
+        if not text:
+            coerced_values.append(np.nan)
+            continue
+
+        try:
+            coerced_values.append(float(text))
+            continue
+        except Exception:
+            pass
+
+        if ":" in text:
+            try:
+                if is_ra_column:
+                    coerced_values.append(Angle(text, unit=u.hourangle).degree)
+                elif is_dec_column:
+                    coerced_values.append(Angle(text, unit=u.deg).degree)
+                else:
+                    coerced_values.append(Angle(text).degree)
+                continue
+            except Exception:
+                coerced_values.append(np.nan)
+                continue
+
+        coerced_values.append(np.nan)
+
+    return coerced_values
+
+
+def _resolve_catalog_column(column_name, available_columns, catalog_file):
+    if column_name is None:
+        return None
+    if str(column_name).isdigit():
+        column_index = int(column_name)
+        if column_index < 0 or column_index >= len(available_columns):
+            raise IndexError(f"Column index {column_index} out of range for {catalog_file}")
+        return available_columns[column_index]
+    if column_name not in available_columns:
+        raise KeyError(f"Column {column_name} not found in {catalog_file}")
+    return column_name
+
+
+def _link_table_selection_to_plot(table_source, plot_source):
+    table_source.selected.js_on_change(
+        "indices",
+        CustomJS(
+            args=dict(plot_source=plot_source),
+            code="""
+                plot_source.selected.indices = cb_obj.indices.slice();
+                plot_source.change.emit();
+            """,
+        ),
+    )
+
+
 def plot_model_columns(
     catalog_file,
     x,
@@ -3911,18 +4076,42 @@ def plot_model_columns(
     if "lsm.html" in catalog_file:
         source_properties = get_source_properties_from_catalog(catalog_file)
     else:
-        data = Table.read(catalog_file)
-        print("Model not yet supported")
-    bokeh_source = ColumnDataSource(data=source_properties)
+        source_properties = _table_source_properties(catalog_file)
+
+    available_columns = list(source_properties.keys())
+    x = _resolve_catalog_column(x, available_columns, catalog_file)
+    y = _resolve_catalog_column(y, available_columns, catalog_file)
+    if x_err:
+        x_err = _resolve_catalog_column(x_err, available_columns, catalog_file)
+    if y_err:
+        y_err = _resolve_catalog_column(y_err, available_columns, catalog_file)
+
+    plot_source_properties = dict(source_properties)
+    plot_source_properties[x] = _coerce_plot_values(source_properties[x], x)
+    plot_source_properties[y] = _coerce_plot_values(source_properties[y], y)
+    if x_err:
+        plot_source_properties[x_err] = _coerce_plot_values(source_properties[x_err], x_err)
+    if y_err:
+        plot_source_properties[y_err] = _coerce_plot_values(source_properties[y_err], y_err)
+
+    bokeh_source = ColumnDataSource(data=plot_source_properties)
     x_y_plotter = figure(
         x_axis_label=x if not x_label else x_label,
         y_axis_label=y if not y_label else y_label,
-        plot_width=width,
-        plot_height=height,
+        width=width,
+        height=height,
         # tools=TOOLS,
-        title=f"{catalog_file.split('.')[0]} {x.upper()} vs {y.upper()}" if not title else title,
+        title=f"{Path(catalog_file).stem} {x.upper()} vs {y.upper()}" if not title else title,
     )
-    x_y_plotter.scatter(x, y, source=bokeh_source, name="x_y_data")
+    x_y_plotter.scatter(
+        x,
+        y,
+        source=bokeh_source,
+        name="x_y_data",
+        selection_color="firebrick",
+        nonselection_alpha=0.15,
+        nonselection_line_alpha=0.15,
+    )
     x_y_plotter.title.align = "center"
     x_y_plotter.title.text_font_size = title_size
     x_y_plotter.xaxis.axis_label_text_font_size = x_label_size
@@ -3968,19 +4157,19 @@ def plot_model_columns(
         height=height,
         max_height=width + 50,
     )
+    _link_table_selection_to_plot(bokeh_source_table, bokeh_source)
     table_title = Div(text="Source Table")
     table_title.align = "center"
     source_table = column([table_title, dtab])
 
-    LOGGER.info(f"Total number of sources: {len(source_properties['name'])}")
+    LOGGER.info(f"Total number of sources: {len(next(iter(source_properties.values()), []))}")
     if not html_prefix:
-        output_file_name = f"{catalog_file.split('.')[0]}_column_properties.html"
+        output_file_name = f"{Path(catalog_file).stem}_column_properties.html"
     else:
         output_file_name = f"{html_prefix}.html"
     LOGGER.info(f"Saving results in {output_file_name}")
     output_file(output_file_name)
     save(row(source_table, x_y_plotter))
-    svg = True
     if svg:
         x_y_plotter.output_backend = "svg"
         prefix = ".".join(output_file_name.split(".")[:-1])
@@ -3993,8 +4182,7 @@ def plot_model_data(catalog_file, html_prefix=""):
     if "lsm.html" in catalog_file:
         source_properties = get_source_properties_from_catalog(catalog_file)
     else:
-        data = Table.read(catalog_file)
-        print("Model not yet supported")
+        source_properties = _table_source_properties(catalog_file)
     column_list = source_properties.keys()
     bokeh_source_table = ColumnDataSource(data=source_properties)
     columns = [TableColumn(field=col, title=col) for col in column_list]
@@ -4010,10 +4198,10 @@ def plot_model_data(catalog_file, html_prefix=""):
     table_title.align = "center"
     source_table = column([table_title, dtab])
 
-    LOGGER.info(f"Total number of sources: {len(source_properties['name'])}")
+    LOGGER.info(f"Total number of sources: {len(next(iter(source_properties.values()), []))}")
     print(html_prefix)
     if not html_prefix:
-        output_file_name = f"{catalog_file.split('.')[0]}_column_properties.html"
+        output_file_name = f"{Path(catalog_file).stem}_column_properties.html"
     else:
         output_file_name = f"{html_prefix}.html"
     LOGGER.info(f"Saving results in {output_file_name}")
@@ -5033,7 +5221,6 @@ def main():
                 centre_pix = (int(cps.split(",")[0]), int(cps.split(",")[1]))
                 centre_coords.append(centre_pix)
                 sizes.append(int(cps.split(",")[-1]))
-            print(args.svg)
             output_dict = plot_subimage_stats(
                 args.subimage_noise[0],
                 centre_coords,

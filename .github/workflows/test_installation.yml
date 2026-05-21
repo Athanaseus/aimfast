@@ -51,6 +51,11 @@ jobs:
       - name: Run testsuite
         run: uv run pytest -vvv aimfast/
 
+      - name: Run basic catalog CLI test
+        run: |
+          uv run aimfast -x ra_d -y dec_d -catalog aimfast/tests/files/catalog1.txt --html-prefix basic-catalog
+          test -f basic-catalog.html
+
       - name: Download test dataset
         run: |
           curl --fail --retry 3 --retry-delay 5 -L -o mypipelinerun_circinus_p3_3-MFS-image.tar "https://www.dropbox.com/scl/fi/xoaqth4jhjnx098xbegvn/mypipelinerun_circinus_p3_3-MFS-image.tar?rlkey=vdgkz2xpjgpp7v7hjxm7kg6g2&st=isg70eve&dl=1"
