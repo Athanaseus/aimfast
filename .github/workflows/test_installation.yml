@@ -62,9 +62,9 @@ jobs:
           for sf in pybdsf aegean breizorro; do
             uv run aimfast source-finder -c my-source-finder.yml -sf "$sf" -r mypipelinerun_circinus_p3_3-MFS-image.fits --threshold 10 --ncpu 1
           done
-          cat mypipelinerun_circinus_p3_3-MFS-image*aegean*.tab
-          cat mypipelinerun_circinus_p3_3-MFS-image*breizorro*.txt
-          cat mypipelinerun_circinus_p3_3-MFS-image*pybdsf*.txt
+          cat mypipelinerun_circinus_p3_3-MFS-image_aegean_isle.tab
+          cat mypipelinerun_circinus_p3_3-MFS-image-breizorro.txt
+          cat mypipelinerun_circinus_p3_3-MFS-image-pybdsf.txt
 
       - name: Run compare-images test
         run: |
