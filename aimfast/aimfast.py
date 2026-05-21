@@ -422,6 +422,54 @@ def _get_random_pixel_coord(num, sky_area, phase_centre=[0.0, -30.0]):
     return COORDs
 
 
+def _image_phase_centre(restored_image):
+    """Get the phase centre from a restored FITS image in degrees."""
+    if not restored_image:
+        return None
+    try:
+        return fitsInfo(restored_image)["centre"]
+    except Exception:
+        return None
+
+
+def _render_restored_image_png(restored_image, output_name=None):
+    """Render a compact PNG preview of a restored FITS image."""
+    if not restored_image:
+        return None
+
+    try:
+        import matplotlib.pyplot as plt
+        from io import BytesIO
+        import base64
+    except Exception:
+        LOGGER.warning("Matplotlib is unavailable; using the restored FITS image directly.")
+        return None
+
+    with fitsio.open(restored_image) as hdul:
+        img_data = hdul[0].data
+
+    while img_data.ndim > 2:
+        img_data = img_data[0]
+
+    img_data = np.asarray(img_data, dtype=np.float32)
+    img_data = np.nan_to_num(img_data, nan=0.0, posinf=0.0, neginf=0.0)
+    img_data_min = np.min(img_data)
+    img_data_positive = img_data - img_data_min + 1e-10
+    img_data_log = np.log10(img_data_positive)
+    img_vmin, img_vmax = np.nanpercentile(img_data_log, [1, 99])
+    img_normalized = (img_data_log - img_vmin) / (img_vmax - img_vmin + 1e-10)
+    img_normalized = np.clip(img_normalized, 0, 1)
+
+    buffer = BytesIO()
+    plt.imsave(buffer, img_normalized, cmap="Greys256", origin="upper", format="png")
+    plt.close()
+    png_bytes = buffer.getvalue()
+    if output_name:
+        with open(output_name, "wb") as png_file:
+            png_file.write(png_bytes)
+    return f"data:image/png;base64,{base64.b64encode(png_bytes).decode('ascii')}"
+
+
 def get_image_products(images, mask):
     """Get a product of images with a mask
 
@@ -1265,19 +1313,27 @@ def get_model(catalog, mappings=None):
             model = Tigger.load(catalog)
     if ext in [".tab", ".csv"]:
         data = Table.read(catalog, format="ascii")
+        fits_file = None
         if ext == ".tab":
             if "_aegean_comp.tab" in catalog:
                 fits_file = catalog.replace("_aegean_comp.tab", ".fits")
-            else:
+            elif "_aegean_isl.tab" in catalog:
                 fits_file = catalog.replace("_aegean_isl.tab", ".fits")
-        else:
+        elif "_aegean_comp.csv" in catalog:
             fits_file = catalog.replace("_aegean_comp.csv", ".fits")
-        fitsinfo = fitsInfo(fits_file)
-        for i, src in enumerate(data):
-            model.sources.append(tigger_src_ascii(src, i))
-        centre = fitsinfo["centre"] or _get_phase_centre(model)
-        model.ra0, model.dec0 = map(np.deg2rad, centre)
-        model.save(catalog[:-4] + ".lsm.html")
+
+        if fits_file and os.path.exists(fits_file):
+            fitsinfo = fitsInfo(fits_file)
+            for i, src in enumerate(data):
+                model.sources.append(tigger_src_ascii(src, i))
+            centre = fitsinfo["centre"] or _get_phase_centre(model)
+            model.ra0, model.dec0 = map(np.deg2rad, centre)
+            model.save(catalog[:-4] + ".lsm.html")
+        elif mappings:
+            model = convert_catalog_with_mapping(catalog, mappings)
+            lsm_path = os.path.splitext(catalog)[0] + ".lsm.html"
+            if not os.path.exists(lsm_path):
+                model.save(lsm_path)
     if ext in [".fits"]:
         data = Table.read(catalog, format="fits")
         fits_file = catalog.replace("-pybdsf", "")
@@ -1469,6 +1525,9 @@ def get_detected_sources_properties(
     closest_only=False,
     off_axis=None,
     flux_units="milli",
+    model_1_mappings=None,
+    model_2_mappings=None,
+    phase_centre=None,
 ):
     """Extracts the output simulation sources properties.
 
@@ -1528,8 +1587,8 @@ def get_detected_sources_properties(
 
         return int_flux, int_flux_err
 
-    model_lsm1 = get_model(model_1)
-    model_lsm2 = get_model(model_2)
+    model_lsm1 = get_model(model_1, mappings=model_1_mappings)
+    model_lsm2 = get_model(model_2, mappings=model_2_mappings)
     # Sources from the input model
     model1_sources = model_lsm1.sources
     # {"source_name": [I_out, I_out_err, I_in, source_name]}
@@ -1665,6 +1724,8 @@ def get_detected_sources_properties(
                     dec_err2 = model2_source.pos.dec_err
 
             RA0, DEC0 = model_lsm1.ra0, model_lsm1.dec0
+            if (RA0 is None or DEC0 is None) and phase_centre:
+                RA0, DEC0 = map(np.deg2rad, phase_centre)
             source2_name = model2_source.name
 
             if ra2 > np.pi:
@@ -1675,7 +1736,7 @@ def get_detected_sources_properties(
                 rad2arcsec(ra1), rad2arcsec(dec1), rad2arcsec(ra2), rad2arcsec(dec2)
             )[0]
             delta_pos_angle_arc_sec = float("{0:.7f}".format(delta_pos_angle_arc_sec))
-            if RA0 or DEC0:
+            if RA0 is not None and DEC0 is not None:
                 delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra2, dec2)
                 delta_phase_centre_arc_sec = rad2arcsec(delta_phase_centre[0])
             else:
@@ -1685,7 +1746,7 @@ def get_detected_sources_properties(
 
             if not off_axis:
                 off_axis = 360.0
-            if delta_phase_centre_arc_sec <= deg2arcsec(off_axis):
+            if delta_phase_centre_arc_sec is None or delta_phase_centre_arc_sec <= deg2arcsec(off_axis):
                 targets_flux[source2_name] = [
                     I_out,
                     I_out_err,
@@ -1763,6 +1824,8 @@ def compare_models(
     bar_major_size="8pt",
     units="milli",
     restored_image=None,
+    model_mappings=None,
+    phase_centre=None,
 ):
     """Plot model1 source properties against that of model2
 
@@ -1800,6 +1863,8 @@ def compare_models(
 
     """
     results = dict()
+    if phase_centre is None and restored_image:
+        phase_centre = _image_phase_centre(restored_image)
     for _models in models:
         input_model = _models[0]
         output_model = _models[1]
@@ -1820,6 +1885,9 @@ def compare_models(
             flux_units=units,
             closest_only=closest_only,
             off_axis=off_axis,
+            model_1_mappings=(model_mappings[0] if model_mappings else None),
+            model_2_mappings=(model_mappings[1] if model_mappings else None),
+            phase_centre=phase_centre,
         )
         for i in range(len(props[0])):
             flux_prop = list(props[0].items())
@@ -2817,9 +2885,11 @@ def _source_astrometry_plotter(
                     # Get image shape
                     ny, nx = img_data.shape
 
-                    # Get image bounds in world coordinates using pixel centers
-                    # Calculate the four corners in pixel coordinates
-                    pix_corners = np.array([[0, 0], [nx, 0], [nx, ny], [0, ny]])
+                    # Get image bounds in world coordinates using pixel edges.
+                    # Use half-pixel offsets so the rendered footprint matches the image exactly.
+                    pix_corners = np.array(
+                        [[-0.5, -0.5], [nx - 0.5, -0.5], [nx - 0.5, ny - 0.5], [-0.5, ny - 0.5]]
+                    )
                     world_corners = img_wcs.all_pix2world(pix_corners, 0)
 
                     # Extract RA and Dec ranges
@@ -2830,27 +2900,52 @@ def _source_astrometry_plotter(
                     dec_min = np.min(dec_coords)
                     dec_max = np.max(dec_coords)
 
-                    # Ensure data is float and handle NaN/inf values
+                    # Ensure data is float and handle NaN/inf values.
                     img_data = np.asarray(img_data, dtype=np.float32)
                     img_data = np.nan_to_num(img_data, nan=0.0, posinf=0.0, neginf=0.0)
 
-                    # Apply log scaling and normalization for better visibility
-                    # Handle negative values and zeros
-                    img_data_min = np.min(img_data)
-                    img_data_positive = img_data - img_data_min + 1e-10
+                    # Reproject the image onto a regular RA/DEC grid so the background is not
+                    # distorted by the sky projection when Bokeh renders it as a flat raster.
+                    target_ny, target_nx = img_data.shape
+                    target_ra = np.linspace(float(ra_min), float(ra_max), target_nx)
+                    target_dec = np.linspace(float(dec_min), float(dec_max), target_ny)
+                    ra_grid, dec_grid = np.meshgrid(target_ra, target_dec)
+                    try:
+                        x_pix, y_pix = img_wcs.world_to_pixel_values(ra_grid, dec_grid)
+                        img_display = scipy.ndimage.map_coordinates(
+                            img_data,
+                            [y_pix, x_pix],
+                            order=1,
+                            mode="nearest",
+                        )
+                    except Exception:
+                        # Fall back to the original data if reprojection fails for any reason.
+                        img_display = img_data
+
+                    # Apply log scaling and normalization for better visibility.
+                    # Handle negative values and zeros.
+                    img_data_min = np.min(img_display)
+                    img_data_positive = img_display - img_data_min + 1e-10
                     img_data_log = np.log10(img_data_positive)
 
-                    # Normalize to 0-1 range
+                    # Normalize to 0-1 range.
                     img_vmin, img_vmax = np.nanpercentile(img_data_log, [1, 99])
                     img_normalized = (img_data_log - img_vmin) / (img_vmax - img_vmin + 1e-10)
                     img_normalized = np.clip(img_normalized, 0, 1).astype(np.float32)
 
-                    # Flip image horizontally for correct astronomical orientation (RA increases to the left)
-                    img_to_plot = np.fliplr(img_normalized)
+                    # Downsample the display raster so the HTML output stays compact.
+                    max_display_size = 768
+                    if max(img_normalized.shape) > max_display_size:
+                        scale = max_display_size / float(max(img_normalized.shape))
+                        img_normalized = scipy.ndimage.zoom(
+                            img_normalized,
+                            zoom=(scale, scale),
+                            order=1,
+                        ).astype(np.float32)
 
-                    # Add image to plot
+                    # Use the canvas-native image glyph so the footprint stays clipped to the axes.
                     plot_overlay.image(
-                        image=[img_to_plot],
+                        image=[img_normalized],
                         x=float(ra_min),
                         y=float(dec_min),
                         dw=float(ra_max - ra_min),
@@ -2858,7 +2953,8 @@ def _source_astrometry_plotter(
                         palette="Greys256",
                         level="image",
                     )
-                    # Set plot ranges to match image bounds with x-axis flipped
+                    # Set plot ranges to match the image footprint exactly.
+                    # Keep the astronomical RA direction so source points stay in the correct sky orientation.
                     plot_overlay.x_range = Range1d(float(ra_max), float(ra_min))
                     plot_overlay.y_range = Range1d(float(dec_min), float(dec_max))
                     LOGGER.info(f"Added background image from {restored_image}")
@@ -4015,27 +4111,9 @@ def source_finding(sf_params, sf=None, mappings=None):
                 model.save(lsm_path)
             LOGGER.info("Created Tigger model: %s", lsm_path)
             return lsm_path
-        except Exception:
-            # Try best-effort conversion using provided mappings
-            if mappings:
-                try:
-                    model = convert_catalog_with_mapping(outfile, mappings)
-                    if not os.path.exists(lsm_path):
-                        model.save(lsm_path)
-                    LOGGER.info("Converted %s -> %s using provided mappings", outfile, lsm_path)
-                    return lsm_path
-                except Exception as e:
-                    LOGGER.warning("Mapping conversion failed: %s", e)
-                    raise RuntimeError(
-                        "Failed to generate lsm.html from source-finder output. "
-                        "Provide correct --flux-xaxis/--flux-yaxis and --position-xaxis/--position-yaxis mappings."
-                    )
-            else:
-                raise RuntimeError(
-                    "Failed to generate lsm.html from source-finder output. "
-                    "If your source-finder produced a non-standard catalog, re-run with "
-                    "--flux-xaxis/--flux-yaxis and --position-xaxis/--position-yaxis to specify column mappings."
-                )
+        except Exception as exc:
+            LOGGER.warning("Failed to load source-finder output as a Tigger model: %s", exc)
+            raise RuntimeError("Failed to generate lsm.html from source-finder output.")
     return outfile
 
 
@@ -4429,26 +4507,46 @@ def get_argparser():
         nargs="+",
         help="Title labels for the overlay position plots",
     )
-    # Position column mappings for non-lsm catalogs (RA/DEC and their errors)
+    # Position column mappings for non-lsm catalogs (per comparison catalog)
     argument(
-        "--position-xaxis",
-        dest="position_xaxis",
-        help="Column name for RA (or longitude) when providing non-lsm catalogs",
+        "--position1-ra",
+        dest="position1_ra",
+        help="Column name for RA (or longitude) in the first comparison catalog",
     )
     argument(
-        "--position-yaxis",
-        dest="position_yaxis",
-        help="Column name for DEC (or latitude) when providing non-lsm catalogs",
+        "--position1-dec",
+        dest="position1_dec",
+        help="Column name for DEC (or latitude) in the first comparison catalog",
     )
     argument(
-        "--position-err-xaxis",
-        dest="position_err_xaxis",
-        help="Column name for RA error when providing non-lsm catalogs",
+        "--position1-ra-err",
+        dest="position1_ra_err",
+        help="Column name for RA error in the first comparison catalog",
     )
     argument(
-        "--position-err-yaxis",
-        dest="position_err_yaxis",
-        help="Column name for DEC error when providing non-lsm catalogs",
+        "--position1-dec-err",
+        dest="position1_dec_err",
+        help="Column name for DEC error in the first comparison catalog",
+    )
+    argument(
+        "--position2-ra",
+        dest="position2_ra",
+        help="Column name for RA (or longitude) in the second comparison catalog",
+    )
+    argument(
+        "--position2-dec",
+        dest="position2_dec",
+        help="Column name for DEC (or latitude) in the second comparison catalog",
+    )
+    argument(
+        "--position2-ra-err",
+        dest="position2_ra_err",
+        help="Column name for RA error in the second comparison catalog",
+    )
+    argument(
+        "--position2-dec-err",
+        dest="position2_dec_err",
+        help="Column name for DEC error in the second comparison catalog",
     )
     # Plot labelling sizes for all plots
     argument(
@@ -4534,16 +4632,32 @@ def main():
     LOGGER.info(" ".join(f"{k}={v}" for k, v in vars(args).items()))
     DECIMALS = args.deci
     svg = args.svg
+
+    def _catalog_mappings(index):
+        position_ra = getattr(args, f"position{index}_ra", None)
+        position_dec = getattr(args, f"position{index}_dec", None)
+        position_ra_err = getattr(args, f"position{index}_ra_err", None)
+        position_dec_err = getattr(args, f"position{index}_dec_err", None)
+        if not any([position_ra, position_dec, position_ra_err, position_dec_err]):
+            return None
+        mappings = {}
+        if position_ra:
+            mappings["position_xaxis"] = position_ra
+        if position_dec:
+            mappings["position_yaxis"] = position_dec
+        if position_ra_err:
+            mappings["position_err_xaxis"] = position_ra_err
+        if position_dec_err:
+            mappings["position_err_yaxis"] = position_dec_err
+        return mappings
+
+    compare_model_mappings = [_catalog_mappings(1), _catalog_mappings(2)]
     # Build optional column mappings from CLI for conversion of non-lsm catalogs
     mappings = {
         "flux_xaxis": getattr(args, "flux_xaxis", None),
         "flux_yaxis": getattr(args, "flux_yaxis", None),
         "flux_err_xaxis": getattr(args, "flux_err_xaxis", None),
         "flux_err_yaxis": getattr(args, "flux_err_yaxis", None),
-        "position_xaxis": getattr(args, "position_xaxis", None),
-        "position_yaxis": getattr(args, "position_yaxis", None),
-        "position_err_xaxis": getattr(args, "position_err_xaxis", None),
-        "position_err_yaxis": getattr(args, "position_err_yaxis", None),
         "name": None,
     }
     if args.subcommand:
@@ -4734,6 +4848,7 @@ def main():
                 bar_major_size=args.bar_major_size,
                 svg=svg,
                 restored_image=args.restored,
+                model_mappings=compare_model_mappings,
             )
 
     if args.noise:
@@ -4904,6 +5019,7 @@ def main():
                 xmajor_size=args.xmaj_size,
                 ymajor_size=args.ymaj_size,
                 svg=svg,
+                model_mappings=compare_model_mappings,
             )
         else:
             LOGGER.warn(f"No object found around (ICRS) position {centre_coord}")

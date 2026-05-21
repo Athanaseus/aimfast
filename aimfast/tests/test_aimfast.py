@@ -355,3 +355,46 @@ class TestClass(object):
         assert source.pos.ra_err > 0
         assert source.pos.dec_err > 0
         assert source.getTag("I_peak_err") == pytest.approx(1e-06)
+
+    def test_catalog_default_extension(self):
+        """Test default filename extension selection for catalog formats"""
+        from aimfast.auxiliary import catalog_default_extension
+
+        assert catalog_default_extension("fits") == "fits"
+        assert catalog_default_extension("csv") == "csv"
+        assert catalog_default_extension("ascii") == "txt"
+        assert catalog_default_extension("ascii.ecsv") == "txt"
+        assert catalog_default_extension("tab") == "tab"
+        assert catalog_default_extension("ecsv") == "ecsv"
+        assert catalog_default_extension("unknown") == "txt"
+
+    def test_compare_models_with_per_catalog_mappings(self, tmp_path):
+        """Test compare_models accepts independent column mappings per catalog"""
+        catalog1 = tmp_path / "catalog_one.csv"
+        catalog2 = tmp_path / "catalog_two.csv"
+        catalog1.write_text("source_id,alpha,delta,flux_jy\nA,10.0,-30.0,0.0001\n")
+        catalog2.write_text("src_name,ra_deg,dec_deg,int_flux\nB,10.0,-30.0,0.0002\n")
+        models = [
+            [
+                dict(label="pair-model_a_0", path=str(catalog1)),
+                dict(label="pair-model_b_0", path=str(catalog2)),
+            ]
+        ]
+        model_mappings = [
+            {
+                "name": "source_id",
+                "position_xaxis": "alpha",
+                "position_yaxis": "delta",
+                "flux_xaxis": "flux_jy",
+            },
+            {
+                "name": "src_name",
+                "position_xaxis": "ra_deg",
+                "position_yaxis": "dec_deg",
+                "flux_xaxis": "int_flux",
+            },
+        ]
+        output = aimfast.compare_models(models, plot=False, all_sources=True, model_mappings=model_mappings)
+        result = output["pair-model_a_0"]
+        assert len(result["flux"]) == 1
+        assert len(result["position"]) == 1

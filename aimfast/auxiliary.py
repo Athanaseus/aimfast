@@ -186,6 +186,22 @@ def unwrap(angle):
     return angle
 
 
+def catalog_default_extension(output_format):
+    """Map a catalog writer format to a sensible filename extension."""
+    fmt = str(output_format or "").lower()
+    if fmt == "fits":
+        return "fits"
+    if fmt == "csv":
+        return "csv"
+    if fmt in {"tab", "tsv"}:
+        return "tab"
+    if fmt.startswith("ascii") or fmt in {"txt", "text"}:
+        return "txt"
+    if fmt == "ecsv":
+        return "ecsv"
+    return "txt"
+
+
 def compute_in_out_slice(N, N0, R, R0):
     """Given an input axis of size N, and an output axis of size N0,
     and reference pixels of R and R0 respectively, computes two slice
@@ -309,6 +325,13 @@ def get_online_catalog(
 
 
 def aegean(image, kwargs, log):
+    try:
+        import AegeanTools
+    except (ModuleNotFoundError, ImportError):
+        raise ModuleNotFoundError(
+            "Source finding module is not installed. Install with `pip install aimfast[aegean]`"
+        )
+
     args = ["aegean"]
     outfile = ""
     bool_options = ["progress", "island", "nopositive", "negative", "nocov", "noregroup"]
@@ -330,6 +353,11 @@ def aegean(image, kwargs, log):
     run = subprocess.run(args)
     log.info("The exit code was: {}".format(run.returncode))
 
+    if kwargs.get('island'):
+        outfile = outfile.replace('.tab', '_isle.tab')
+    else:
+        outfile = outfile.replace('.tab', '_comp.tab')
+
     if run.returncode in [143, -15] and outfile and os.path.exists(outfile):
         log.warning(
             "Aegean terminated but output catalog exists (%s); continuing with existing output",
@@ -339,6 +367,7 @@ def aegean(image, kwargs, log):
 
     if run.returncode != 0:
         raise RuntimeError("aegean source finder failed")
+
     return outfile
 
 
@@ -348,7 +377,7 @@ def bdsf(image, kwargs, log):
         import bdsf as bdsm
     except (ModuleNotFoundError, ImportError):
         raise ModuleNotFoundError(
-            "Source finding module is not  installed. Install with `pip install aimfast[bdsf]`"
+            "Source finding module is not installed. Install with `pip install aimfast[bdsf]`"
         )
 
     img_opts = {}
@@ -410,8 +439,8 @@ def bdsf(image, kwargs, log):
         img_opts["beam_spectrum"] = beams
 
     image = img_opts.pop("filename")
-    output_format = str(write_opts.get("format", "fits")).lower()
-    default_extension = "fits" if output_format == "fits" else "txt"
+    output_format = str(write_opts.get("format", "txt")).lower()
+    default_extension = catalog_default_extension(output_format)
     outfile = write_opts.pop("outfile") or f"{image[:-5]}-pybdsf.{default_extension}"
     img = bdsm.process_image(image, **img_opts, ncores=ncores)
     img.write_catalog(outfile=outfile, **write_opts)
