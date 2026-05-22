@@ -135,6 +135,10 @@ def generate_default_config(configfile):
     from shutil import copyfile
 
     LOGGER.info(f"Getting parameter file: {configfile}")
+    # Check if already exists
+    if os.path.exists(configfile):
+        LOGGER.warning(f"Config file already exists: {configfile}")
+        return
     aim_path = os.path.dirname(os.path.dirname(os.path.abspath(aimfast.__file__)))
     copyfile(f"{aim_path}/aimfast/source_finder.yml", configfile)
 
@@ -4277,6 +4281,27 @@ def apply_sf_cli_overrides(
     return sf_params, selected
 
 
+def _resolve_compare_source_finders(sourcery, pair_count):
+    if sourcery is None:
+        source_finders = ["pybdsf"]
+    elif isinstance(sourcery, str):
+        source_finders = [sourcery]
+    else:
+        source_finders = list(sourcery)
+
+    if len(source_finders) == 1:
+        return source_finders * (pair_count * 2)
+
+    if len(source_finders) == 2:
+        return source_finders * pair_count
+
+    expected = pair_count * 2
+    if len(source_finders) >= expected:
+        return source_finders[:expected]
+
+    return [source_finders[0], source_finders[-1]] * pair_count
+
+
 def source_finding(sf_params, sf=None, mappings=None):
     """Run configured source finder and ensure a Tigger .lsm.html is produced.
 
@@ -4391,6 +4416,13 @@ def get_argparser():
         action="version",
         version="{0:s} version {1:s}".format(parser.prog, _version),
     )
+    argument(
+        "-j",
+        "--ncpu",
+        dest="ncpu",
+        type=int,
+        help="Number of CPU cores to use for source finders during compare-images",
+    )
     # Inputs to analyse
     argument(
         "--compare-models",
@@ -4473,9 +4505,15 @@ def get_argparser():
         "-sf",
         "--source-finder",
         dest="sourcery",
-        choices=("aegean", "pybdsf", "breizorro"),
-        default="pybdsf",
-        help="Source finder to run if comparing restored images",
+        choices=("aegean", "breizorro", "pybdsf"),
+        nargs="+",
+        default=["pybdsf"],
+        help=(
+            "Source finder(s) to run if comparing restored images. "
+            "Use one value to reuse for every image, two values to reuse "
+            "the first and second finder for every pair, or 2*N values to "
+            "assign a finder per image in each pair."
+        ),
     )
     # Online catalog query
     argument(
@@ -5115,19 +5153,31 @@ def main():
             configfile = "default_sf_config.yml"
             generate_default_config(configfile)
         images = args.images
-        sourcery = args.sourcery
+        sourcery_list = _resolve_compare_source_finders(args.sourcery, len(images))
         images_list = []
         for i, comp_ims in enumerate(images):
+            sourcery1 = sourcery_list[2 * i]
+            sourcery2 = sourcery_list[2 * i + 1]
             if args.mask:
                 image1, image2 = get_image_products(comp_ims, args.mask)
             else:
                 image1, image2 = comp_ims[0], comp_ims[1]
             sf_params1 = get_sf_params(configfile)
-            sf_params1[sourcery]["filename"] = image1
-            out1 = source_finding(sf_params1, sourcery, mappings=mappings)
+            sf_params1, _ = apply_sf_cli_overrides(
+                sf_params1,
+                sourcery=sourcery1,
+                restored_image=image1,
+                ncpu=args.ncpu,
+            )
+            out1 = source_finding(sf_params1, sourcery1, mappings=mappings)
             sf_params2 = get_sf_params(configfile)
-            sf_params2[sourcery]["filename"] = image2
-            out2 = source_finding(sf_params2, sourcery, mappings=mappings)
+            sf_params2, _ = apply_sf_cli_overrides(
+                sf_params2,
+                sourcery=sourcery2,
+                restored_image=image2,
+                ncpu=args.ncpu,
+            )
+            out2 = source_finding(sf_params2, sourcery2, mappings=mappings)
             images_list.append(
                 [
                     dict(label="{}-model_a_{}".format(args.label, i), path=out1),
@@ -5159,7 +5209,7 @@ def main():
 
     if args.online:
         models = args.online
-        sourcery = args.sourcery
+        sourcery = args.sourcery[0] if isinstance(args.sourcery, list) else args.sourcery
         threshold = args.thresh
         width = args.width or "5.0d"
         LOGGER.info(f"Using sky width of {width}")

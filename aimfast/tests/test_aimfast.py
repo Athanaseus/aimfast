@@ -163,6 +163,41 @@ class TestClass(object):
         assert len(expected[expected_label]["flux"]) == len(output[expected_label]["flux"])
         assert len(expected[expected_label]["position"]) == len(output[expected_label]["position"])
 
+    def test_resolve_compare_source_finders(self):
+        """Test compare-image source finder list resolution"""
+        single = aimfast._resolve_compare_source_finders(["pybdsf"], 2)
+        assert single == ["pybdsf", "pybdsf", "pybdsf", "pybdsf"]
+
+        pairwise = aimfast._resolve_compare_source_finders(["breizorro", "pybdsf"], 3)
+        assert pairwise == ["breizorro", "pybdsf", "breizorro", "pybdsf", "breizorro", "pybdsf"]
+
+        exact = aimfast._resolve_compare_source_finders(
+            ["aegean", "pybdsf", "breizorro", "aegean"], 2
+        )
+        assert exact == ["aegean", "pybdsf", "breizorro", "aegean"]
+
+        fallback = aimfast._resolve_compare_source_finders(["aegean", "pybdsf", "breizorro"], 2)
+        assert fallback == ["aegean", "breizorro", "aegean", "breizorro"]
+
+    def test_get_argparser_compare_images_ncpu_and_sourcery_list(self):
+        """Test general compare-images CLI options parse as expected"""
+        parser = aimfast.get_argparser()
+        args = parser.parse_args(
+            [
+                "--compare-images",
+                "image1.fits",
+                "image2.fits",
+                "--ncpu",
+                "2",
+                "-sf",
+                "breizorro",
+                "pybdsf",
+            ]
+        )
+
+        assert args.ncpu == 2
+        assert args.sourcery == ["breizorro", "pybdsf"]
+
     def test_random_residual_results(self):
         """Test comparison of random residuals in images"""
         expected_label = "random-res_a_0"
