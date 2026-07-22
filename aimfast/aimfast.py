@@ -2515,6 +2515,7 @@ def _source_flux_plotter(
                 )
             else:
                 color_bar = None
+                flux_mapper = None
             # color_bar_plot = figure(title="Distance off-axis (deg)",
             # title_location="below",
             # height=color_bar_height,
@@ -2600,7 +2601,11 @@ def _source_flux_plotter(
                 size=7,
                 source=source,
                 line_color=None,
-                fill_color={"field": "phase_centre_dist", "transform": flux_mapper},
+                fill_color=(
+                    {"field": "phase_centre_dist", "transform": flux_mapper}
+                    if flux_mapper is not None
+                    else "navy"
+                ),
             )
             source = ColumnDataSource(data=stats)
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
@@ -2692,8 +2697,9 @@ def _source_flux_plotter(
             plot_flux.legend.label_text_font_size = legend_size
             plot_flux.title.align = "center"
             plot_flux.legend.click_policy = "hide"
-            # Colorbar position
-            plot_flux.add_layout(color_bar, "below")
+            # Colorbar position (only when we have a colour bar to place)
+            if color_bar is not None:
+                plot_flux.add_layout(color_bar, "below")
             # color_bar_plot.add_layout(color_bar, "below")
             # color_bar_plot.title.align = "center"
             # Append all plots
@@ -3073,6 +3079,7 @@ def _source_astrometry_plotter(
                 )
             else:
                 color_bar = None
+                position_mapper = None
 
             #            color_bar_plot = figure(title="Distance off-axis (deg)",
             #                                    title_location="below",
@@ -3112,7 +3119,11 @@ def _source_astrometry_plotter(
                 size=7,
                 line_color=None,
                 legend_label="Data",
-                fill_color={"field": "phase_centre_dist", "transform": position_mapper},
+                fill_color=(
+                    {"field": "phase_centre_dist", "transform": position_mapper}
+                    if position_mapper is not None
+                    else "navy"
+                ),
             )
             # Table with stats data
             deci = DECIMALS  # round off to this decimal places
@@ -3182,8 +3193,9 @@ def _source_astrometry_plotter(
             plot_position.legend.location = "top_left"
             plot_position.legend.click_policy = "hide"
             plot_position.title.align = "center"
-            # Colorbar position
-            plot_position.add_layout(color_bar, "below")
+            # Colorbar position (only when we have a colour bar to place)
+            if color_bar is not None:
+                plot_position.add_layout(color_bar, "below")
             plot_position.legend.label_text_font_size = legend_size
             #          color_bar_plot.add_layout(color_bar, "below")
             #          color_bar_plot.title.align = "center"
