@@ -990,20 +990,32 @@ def get_model(catalog, mappings=None):
         i_flux = _src_value(src, ["int_flux", "peak_flux", "i"], 0.0)
         i_flux_err = _clean_err(_src_value(src, ["err_int_flux", "err_peak_flux", "i_err"], 0.0))
         flux = ModelClasses.Polarization(i_flux, 0, 0, 0, I_err=i_flux_err)
-        ra, ra_err = map(
-            np.deg2rad,
-            (
-                _src_value(src, ["ra", "ra_d", "RA"], 0.0),
-                _src_value(src, ["err_ra", "ra_d_err", "E_RA"], 0.0),
-            ),
-        )
-        dec, dec_err = map(
-            np.deg2rad,
-            (
-                _src_value(src, ["dec", "dec_d", "DEC"], 0.0),
-                _src_value(src, ["err_dec", "dec_d_err", "E_DEC"], 0.0),
-            ),
-        )
+        if "ra" not in src.colnames and "lon" in src.colnames:
+            # aegean auto-detects Galactic-frame images and renames its
+            # ra/dec columns to lon/lat -- these are GLON/GLAT in degrees,
+            # not equatorial, so they require a frame conversion rather than
+            # a plain re-label (same bug class fixed for breizorro/pybdsf).
+            lon_deg = _src_value(src, ["lon"], 0.0)
+            lat_deg = _src_value(src, ["lat"], 0.0)
+            icrs = SkyCoord(l=lon_deg * u.deg, b=lat_deg * u.deg, frame="galactic").icrs
+            ra, dec = icrs.ra.rad, icrs.dec.rad
+            ra_err = np.deg2rad(_src_value(src, ["err_lon"], 0.0))
+            dec_err = np.deg2rad(_src_value(src, ["err_lat"], 0.0))
+        else:
+            ra, ra_err = map(
+                np.deg2rad,
+                (
+                    _src_value(src, ["ra", "ra_d", "RA"], 0.0),
+                    _src_value(src, ["err_ra", "ra_d_err", "E_RA"], 0.0),
+                ),
+            )
+            dec, dec_err = map(
+                np.deg2rad,
+                (
+                    _src_value(src, ["dec", "dec_d", "DEC"], 0.0),
+                    _src_value(src, ["err_dec", "dec_d_err", "E_DEC"], 0.0),
+                ),
+            )
         pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
         if {"a", "b", "pa"}.issubset(src.colnames):
             ex, ex_err = map(
@@ -1367,11 +1379,23 @@ def get_model(catalog, mappings=None):
         elif "_aegean_comp.csv" in catalog:
             fits_file = catalog.split("_aegean_comp.csv")[0] + ".fits"
 
-        if fits_file and os.path.exists(fits_file):
-            fitsinfo = fitsInfo(fits_file)
+        aegean_columns = {
+            "int_flux", "err_int_flux", "peak_flux", "err_peak_flux",
+            "a", "err_a", "b", "err_b", "pa", "err_pa",
+        }
+        has_position_cols = {"ra", "dec"}.issubset(data.colnames) or {
+            "lon", "lat",
+        }.issubset(data.colnames)
+        if aegean_columns.issubset(set(data.colnames)) and has_position_cols:
+            # Build sources regardless of whether fits_file resolved to an
+            # existing path -- a missing reference image (e.g. because the
+            # catalog was written under a custom --table name that doesn't
+            # match the input image's path/basename) should only cost us the
+            # phase-centre metadata, not silently drop every source.
             for i, src in enumerate(data):
                 model.sources.append(tigger_src_ascii(src, i))
-            centre = fitsinfo["centre"] or _get_phase_centre(model)
+            fitsinfo = fitsInfo(fits_file) if fits_file and os.path.exists(fits_file) else None
+            centre = (fitsinfo["centre"] if fitsinfo else None) or _get_phase_centre(model)
             model.ra0, model.dec0 = map(np.deg2rad, centre)
             model.save(catalog[:-4] + ".lsm.html")
         elif mappings:
