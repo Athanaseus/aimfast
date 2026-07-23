@@ -1281,11 +1281,12 @@ def get_model(catalog, mappings=None):
                     for i, src in enumerate(data):
                         model.sources.append(tigger_src_breizorro_txt(src, i))
                     fits_file = None
-                    for suffix in ("-breizorro_catalog.txt", "-breizorro.txt"):
-                        candidate = catalog.replace(suffix, ".fits")
-                        if candidate != catalog and os.path.exists(candidate):
-                            fits_file = candidate
-                            break
+                    for marker in ("-breizorro_catalog", "-breizorro"):
+                        if marker in catalog:
+                            candidate = catalog.split(marker)[0] + ".fits"
+                            if os.path.exists(candidate):
+                                fits_file = candidate
+                                break
                     centre = (
                         fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
                     )
@@ -1360,11 +1361,11 @@ def get_model(catalog, mappings=None):
         fits_file = None
         if ext == ".tab":
             if "_aegean_comp.tab" in catalog:
-                fits_file = catalog.replace("_aegean_comp.tab", ".fits")
+                fits_file = catalog.split("_aegean_comp.tab")[0] + ".fits"
             elif "_aegean_isle.tab" in catalog:
-                fits_file = catalog.replace("_aegean_isle.tab", ".fits")
+                fits_file = catalog.split("_aegean_isle.tab")[0] + ".fits"
         elif "_aegean_comp.csv" in catalog:
-            fits_file = catalog.replace("_aegean_comp.csv", ".fits")
+            fits_file = catalog.split("_aegean_comp.csv")[0] + ".fits"
 
         if fits_file and os.path.exists(fits_file):
             fitsinfo = fitsInfo(fits_file)
@@ -1380,12 +1381,12 @@ def get_model(catalog, mappings=None):
                 model.save(lsm_path)
     if ext in [".fits"]:
         data = Table.read(catalog, format="fits")
-        fits_file = catalog.replace("-pybdsf", "")
-        fitsinfo = fitsInfo(fits_file)
-        freq0 = fitsinfo["freq0"]
+        fits_file = catalog.split("-pybdsf")[0] + ".fits" if "-pybdsf" in catalog else None
+        fitsinfo = fitsInfo(fits_file) if fits_file and os.path.exists(fits_file) else None
+        freq0 = fitsinfo["freq0"] if fitsinfo else None
         for i, src in enumerate(data):
             model.sources.append(tigger_src_fits(src, i, freq0))
-        centre = fitsinfo["centre"] or _get_phase_centre(model)
+        centre = (fitsinfo["centre"] if fitsinfo else None) or _get_phase_centre(model)
         model.ra0, model.dec0 = map(np.deg2rad, centre)
         model.save(catalog[:-5] + ".lsm.html")
     # If an unsupported format was provided but mappings supplied, try conversion
