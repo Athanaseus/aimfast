@@ -1021,15 +1021,15 @@ def get_model(catalog, mappings=None):
             ex, ex_err = map(
                 np.deg2rad,
                 (
-                    _src_value(src, ["a"], 0.0),
-                    _clean_err(_src_value(src, ["err_a"], 0.0)),
+                    _src_value(src, ["a"], 0.0) / 3600.0,
+                    _clean_err(_src_value(src, ["err_a"], 0.0)) / 3600.0,
                 ),
             )
             ey, ey_err = map(
                 np.deg2rad,
                 (
-                    _src_value(src, ["b"], 0.0),
-                    _clean_err(_src_value(src, ["err_b"], 0.0)),
+                    _src_value(src, ["b"], 0.0) / 3600.0,
+                    _clean_err(_src_value(src, ["err_b"], 0.0)) / 3600.0,
                 ),
             )
             pa, pa_err = map(
