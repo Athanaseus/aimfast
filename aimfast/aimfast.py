@@ -1706,15 +1706,25 @@ def get_detected_sources_properties(
 
         if I_out_list[0] > 0.0:
             model2_source = model2_sources[0]
-            try:
+            if model1_source.shape:
                 shape_in = tuple(map(rad2arcsec, model1_source.shape.getShape()))
-                shape_in_err = tuple(map(rad2arcsec, model1_source.shape.getShapeErr()))
-            except AttributeError:
+                shape_in_err_raw = model1_source.shape.getShapeErr()
+                shape_in_err = (
+                    tuple(map(rad2arcsec, shape_in_err_raw))
+                    if shape_in_err_raw is not None
+                    else (0, 0, 0)
+                )
+            else:
                 shape_in = (0, 0, 0)
                 shape_in_err = (0, 0, 0)
             if model2_source.shape:
                 shape_out = tuple(map(rad2arcsec, model2_source.shape.getShape()))
-                shape_out_err = tuple(map(rad2arcsec, model2_source.shape.getShapeErr()))
+                shape_out_err_raw = model2_source.shape.getShapeErr()
+                shape_out_err = (
+                    tuple(map(rad2arcsec, shape_out_err_raw))
+                    if shape_out_err_raw is not None
+                    else (0, 0, 0)
+                )
             else:
                 shape_out = (0, 0, 0)
                 shape_out_err = (0, 0, 0)
