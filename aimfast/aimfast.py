@@ -1342,23 +1342,20 @@ def get_model(catalog, mappings=None):
             except Exception:
                 model = Tigger.load(catalog)
             else:
-                aegean_columns = {
-                    "ra",
-                    "err_ra",
-                    "dec",
-                    "err_dec",
-                    "int_flux",
-                    "err_int_flux",
-                    "peak_flux",
-                    "err_peak_flux",
-                    "a",
-                    "err_a",
-                    "b",
-                    "err_b",
-                    "pa",
-                    "err_pa",
-                }
-                if aegean_columns.issubset(set(data.colnames)):
+                # Only the flux + position columns are required to recognise an
+                # Aegean-style catalogue -- shape/error columns (a, err_a, b,
+                # err_b, pa, err_pa, err_peak_flux) vary between Aegean's
+                # "component" and "island" table variants and are already
+                # handled as optional by tigger_src_ascii itself (shape is
+                # built only `if {"a","b","pa"}.issubset(src.colnames)`,
+                # everything else falls back to sane defaults via
+                # _src_value/_clean_err). Requiring the full set here rejected
+                # genuine Aegean island-table catalogues outright.
+                aegean_columns = {"int_flux", "peak_flux"}
+                has_position_cols = {"ra", "dec"}.issubset(data.colnames) or {
+                    "lon", "lat",
+                }.issubset(data.colnames)
+                if aegean_columns.issubset(set(data.colnames)) and has_position_cols:
                     for i, src in enumerate(data):
                         model.sources.append(tigger_src_ascii(src, i))
                     fits_file = None
@@ -1386,10 +1383,13 @@ def get_model(catalog, mappings=None):
         elif "_aegean_comp.csv" in catalog:
             fits_file = catalog.split("_aegean_comp.csv")[0] + ".fits"
 
-        aegean_columns = {
-            "int_flux", "err_int_flux", "peak_flux", "err_peak_flux",
-            "a", "err_a", "b", "err_b", "pa", "err_pa",
-        }
+        # Only the flux + position columns are required to recognise an Aegean-
+        # style catalogue -- see the matching .txt branch above for why the
+        # full shape/error column set (a, err_a, b, err_b, pa, err_pa,
+        # err_peak_flux) must not be required here: it varies between
+        # Aegean's "component" and "island" table variants, and
+        # tigger_src_ascii already treats all of it as optional.
+        aegean_columns = {"int_flux", "peak_flux"}
         has_position_cols = {"ra", "dec"}.issubset(data.colnames) or {
             "lon", "lat",
         }.issubset(data.colnames)
