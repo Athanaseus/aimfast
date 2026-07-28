@@ -894,8 +894,12 @@ def get_src_scale(source_shape):
         shape_out_err = source_shape.getShapeErr()
         minx = shape_out[0]
         majx = shape_out[1]
-        minx_err = shape_out_err[0]
-        majx_err = shape_out_err[1]
+        if shape_out_err is not None:
+            minx_err = shape_out_err[0]
+            majx_err = shape_out_err[1]
+        else:
+            minx_err = 0.0
+            majx_err = 0.0
         if minx > 0 and majx > 0:
             scale_out = np.sqrt(minx * majx)
             scale_out_err = np.sqrt(minx_err * minx_err + majx_err * majx_err)
@@ -914,6 +918,22 @@ def get_src_scale(source_shape):
     scale_out_arc_sec = rad2arcsec(scale_out)
     scale_out_err_arc_sec = rad2arcsec(scale_out_err)
     return scale_out_arc_sec, scale_out_err_arc_sec
+
+
+def _resolve_phase_centre(fits_file, model):
+    """Try to get the phase centre from a (guessed) reference FITS image,
+    falling back to computing it from the model's own sources on *any*
+    failure -- missing file, wrong/corrupt file, or a filename heuristic
+    that guessed wrong. Callers should not need to pre-validate fits_file
+    themselves (e.g. os.path.exists or comparing it against the catalog
+    path): this is the single place that decides whether the guess was
+    usable."""
+    if fits_file:
+        try:
+            return fitsInfo(fits_file)["centre"]
+        except Exception:
+            pass
+    return _get_phase_centre(model)
 
 
 def get_model(catalog, mappings=None):
@@ -1295,13 +1315,9 @@ def get_model(catalog, mappings=None):
                     fits_file = None
                     for marker in ("-breizorro_catalog", "-breizorro"):
                         if marker in catalog:
-                            candidate = catalog.split(marker)[0] + ".fits"
-                            if os.path.exists(candidate):
-                                fits_file = candidate
-                                break
-                    centre = (
-                        fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
-                    )
+                            fits_file = catalog.split(marker)[0] + ".fits"
+                            break
+                    centre = _resolve_phase_centre(fits_file, model)
                     model.ra0, model.dec0 = map(np.deg2rad, centre)
                     model.save(catalog[:-4] + ".lsm.html")
                 else:
@@ -1317,11 +1333,7 @@ def get_model(catalog, mappings=None):
                 for i, src in enumerate(data):
                     model.sources.append(tigger_src_pybdsf_txt(src, i))
                 fits_file = catalog.replace("-pybdsf.txt", ".fits")
-                centre = (
-                    fitsInfo(fits_file)["centre"]
-                    if os.path.exists(fits_file)
-                    else _get_phase_centre(model)
-                )
+                centre = _resolve_phase_centre(fits_file, model)
                 model.ra0, model.dec0 = map(np.deg2rad, centre)
                 model.save(catalog[:-4] + ".lsm.html")
         elif ext == ".txt":
@@ -1351,17 +1363,12 @@ def get_model(catalog, mappings=None):
                         model.sources.append(tigger_src_ascii(src, i))
                     fits_file = None
                     for suffix in ("_aegean_isl.txt", "_aegean_comp.txt"):
-                        candidate = catalog.replace(suffix, ".fits")
-                        if candidate != catalog and os.path.exists(candidate):
-                            fits_file = candidate
+                        if suffix in catalog:
+                            fits_file = catalog.replace(suffix, ".fits")
                             break
                     if fits_file is None:
-                        candidate = os.path.splitext(catalog)[0] + ".fits"
-                        if os.path.exists(candidate):
-                            fits_file = candidate
-                    centre = (
-                        fitsInfo(fits_file)["centre"] if fits_file else _get_phase_centre(model)
-                    )
+                        fits_file = os.path.splitext(catalog)[0] + ".fits"
+                    centre = _resolve_phase_centre(fits_file, model)
                     model.ra0, model.dec0 = map(np.deg2rad, centre)
                     model.save(catalog[:-4] + ".lsm.html")
                 else:
@@ -1394,8 +1401,7 @@ def get_model(catalog, mappings=None):
             # phase-centre metadata, not silently drop every source.
             for i, src in enumerate(data):
                 model.sources.append(tigger_src_ascii(src, i))
-            fitsinfo = fitsInfo(fits_file) if fits_file and os.path.exists(fits_file) else None
-            centre = (fitsinfo["centre"] if fitsinfo else None) or _get_phase_centre(model)
+            centre = _resolve_phase_centre(fits_file, model)
             model.ra0, model.dec0 = map(np.deg2rad, centre)
             model.save(catalog[:-4] + ".lsm.html")
         elif mappings:
@@ -1406,7 +1412,10 @@ def get_model(catalog, mappings=None):
     if ext in [".fits"]:
         data = Table.read(catalog, format="fits")
         fits_file = catalog.split("-pybdsf")[0] + ".fits" if "-pybdsf" in catalog else None
-        fitsinfo = fitsInfo(fits_file) if fits_file and os.path.exists(fits_file) else None
+        try:
+            fitsinfo = fitsInfo(fits_file) if fits_file else None
+        except Exception:
+            fitsinfo = None
         freq0 = fitsinfo["freq0"] if fitsinfo else None
         for i, src in enumerate(data):
             model.sources.append(tigger_src_fits(src, i, freq0))
@@ -1962,6 +1971,7 @@ def compare_models(
             "{}".format(input_model["path"]),
             "{}".format(output_model["path"]),
             all_sources=all_sources,
+            shape_limit=shape_limit,
             tolerance=tolerance,
             flux_units=units,
             closest_only=closest_only,
@@ -4702,6 +4712,7 @@ def get_argparser():
         "-sl",
         "--shape-limit",
         dest="shape_limit",
+        type=float,
         default=6.0,
         help="Cross-match only sources with a maj-axis equal or less than this value",
     )
