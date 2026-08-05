@@ -9,6 +9,7 @@ import tempfile
 from collections import OrderedDict
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import scipy
@@ -189,6 +190,8 @@ def json_dump(data_dict, filename="fidelity_results.json"):
     repeated image assessments will be replaced.
 
     """
+    if not filename.endswith(".json"):
+        filename = f"{filename}.json"
     LOGGER.info(f"Dumping results into the '{filename}' file")
     try:
         # Extract data from the json data file
@@ -922,18 +925,76 @@ def get_src_scale(source_shape):
 
 def _resolve_phase_centre(fits_file, model):
     """Try to get the phase centre from a (guessed) reference FITS image,
-    falling back to computing it from the model's own sources on *any*
-    failure -- missing file, wrong/corrupt file, or a filename heuristic
-    that guessed wrong. Callers should not need to pre-validate fits_file
-    themselves (e.g. os.path.exists or comparing it against the catalog
-    path): this is the single place that decides whether the guess was
-    usable."""
+    falling back to the model's own sources on any failure."""
     if fits_file:
         try:
             return fitsInfo(fits_file)["centre"]
         except Exception:
             pass
     return _get_phase_centre(model)
+
+
+_KNOWN_CATALOG_EXTENSIONS = (".lsm.html", ".html", ".txt", ".csv", ".tab", ".fits")
+
+
+def _catalog_display_name(path):
+    """Basename of a catalogue path with its extension stripped, for plot
+    titles/axis labels/legends. Strips a known extension by suffix match
+    rather than splitting on the first dot, since filenames can contain
+    other dots."""
+    name = os.path.basename(path)
+    for ext in _KNOWN_CATALOG_EXTENSIONS:
+        if name.endswith(ext):
+            return name[: -len(ext)]
+    return os.path.splitext(name)[0]
+
+
+def _weighted_linregress(x, y, xerr=None, yerr=None):
+    """Weighted least-squares fit of y = slope*x + intercept.
+
+    Unlike `scipy.stats.linregress`, weights each point by the inverse of
+    its combined measurement variance, so precise points anchor the fit
+    and noisy/outlier points pull it less. Falls back to an unweighted fit
+    when no usable error information is available. Points with zero/
+    unknown error get the same weight as the most precise point, rather
+    than zero (dropped) or infinite (dominating) weight.
+
+    Returns an object with .slope, .intercept, .rvalue (non-negative sqrt
+    of weighted R^2, used only as a fit-quality score) and .sigma (the
+    error-weighted RMS of the residuals -- data scatter around the fit,
+    not the fit parameters' own uncertainty).
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    n = len(x)
+    xerr = np.zeros(n) if xerr is None else np.nan_to_num(np.asarray(xerr, dtype=float), nan=0.0)
+    yerr = np.zeros(n) if yerr is None else np.nan_to_num(np.asarray(yerr, dtype=float), nan=0.0)
+    variance = xerr**2 + yerr**2
+
+    if n < 2 or not np.any(variance > 0):
+        result = linregress(x, y)
+        residuals = y - (result.slope * x + result.intercept)
+        sigma = float(np.std(residuals)) if n > 2 else 0.0
+        return SimpleNamespace(
+            slope=result.slope, intercept=result.intercept, rvalue=result.rvalue, sigma=sigma
+        )
+
+    variance = np.where(variance > 0, variance, variance[variance > 0].min())
+    weights = 1.0 / np.sqrt(variance)
+
+    slope, intercept = np.polyfit(x, y, deg=1, w=weights)
+    fit_y = slope * x + intercept
+    residual_ss = np.sum((weights * (y - fit_y)) ** 2)
+    weighted_mean_y = np.average(y, weights=weights**2)
+    total_ss = np.sum((weights * (y - weighted_mean_y)) ** 2)
+    r_squared = 1.0 - residual_ss / total_ss if total_ss > 0 else 0.0
+    rvalue = np.sqrt(max(r_squared, 0.0))
+    # error-weighted RMS of the residuals -- the "1 sigma" data-scatter band
+    sigma = float(np.sqrt(np.average((y - fit_y) ** 2, weights=weights**2)))
+
+    return SimpleNamespace(
+        slope=float(slope), intercept=float(intercept), rvalue=float(rvalue), sigma=sigma
+    )
 
 
 def get_model(catalog, mappings=None):
@@ -1678,6 +1739,7 @@ def get_detected_sources_properties(
     #                 scale_out, scale_out_err, I_in, source_name]
     targets_scale = dict()  # recovered sources scale
     deci = DECIMALS  # round off to this decimal places
+    tolerance_arcsec = tolerance  # keep the original for the low-match-count hint below
     tolerance *= np.pi / (3600.0 * 180)  # Convert to radians
     names = dict()
     closest_only = True
@@ -1820,9 +1882,10 @@ def get_detected_sources_properties(
                 ra2 -= 2.0 * np.pi
             if ra1 > np.pi:
                 ra1 -= 2.0 * np.pi
-            delta_pos_angle_arc_sec = angular_dist_pos_angle(
-                rad2arcsec(ra1), rad2arcsec(dec1), rad2arcsec(ra2), rad2arcsec(dec2)
-            )[0]
+            # angular_dist_pos_angle expects/returns radians -- convert the
+            # output to arcsec, not the inputs.
+            delta_pos_angle_arc_sec = angular_dist_pos_angle(ra1, dec1, ra2, dec2)[0]
+            delta_pos_angle_arc_sec = rad2arcsec(delta_pos_angle_arc_sec)
             delta_pos_angle_arc_sec = float("{0:.7f}".format(delta_pos_angle_arc_sec))
             if RA0 is not None and DEC0 is not None:
                 delta_phase_centre = angular_dist_pos_angle(RA0, DEC0, ra2, dec2)
@@ -1847,12 +1910,14 @@ def get_detected_sources_properties(
 
                 targets_position[source1_name] = [
                     delta_pos_angle_arc_sec,
-                    rad2arcsec(ra2 - ra1),
+                    # RA offset scaled by cos(dec): a fixed RA difference
+                    # subtends a smaller true angle away from the equator.
+                    rad2arcsec((ra2 - ra1) * np.cos(dec1)),
                     rad2arcsec(dec2 - dec1),
                     delta_phase_centre_arc_sec,
                     I_in,
-                    rad2arcsec(ra_err2),
-                    rad2arcsec(dec_err2),
+                    rad2arcsec(ra_err2) if ra_err2 is not None else 0.0,
+                    rad2arcsec(dec_err2) if dec_err2 is not None else 0.0,
                     (round(rad2deg(ra1), deci), round(rad2deg(dec1), deci)),
                     (source1_name, source2_name),
                 ]
@@ -1880,6 +1945,15 @@ def get_detected_sources_properties(
     sources_overlay = get_source_overlay(sources1, sources2)
     num_of_sources = len(targets_flux)
     LOGGER.info(f"Number of sources matched: {num_of_sources}")
+    smaller_catalog = min(len(sources1), len(sources2))
+    if smaller_catalog > 0 and num_of_sources / smaller_catalog < 0.05:
+        LOGGER.warning(
+            f"Only {num_of_sources} source(s) matched out of {smaller_catalog} in the "
+            "smaller catalogue. If this is unexpected, try increasing "
+            f"-tol/--tolerance (currently {tolerance_arcsec}\") and/or "
+            f"-sl/--shape-limit (currently {shape_limit}\") -- a too-tight shape_limit "
+            "is a common silent cause of few or no matches."
+        )
     return (
         targets_flux,
         targets_scale,
@@ -1900,6 +1974,7 @@ def compare_models(
     closest_only=False,
     prefix=None,
     flux_plot="log",
+    flux_sigma_shade=False,
     fxlabels=None,
     fylabels=None,
     ftitles=None,
@@ -2006,6 +2081,7 @@ def compare_models(
             units=units,
             prefix=prefix,
             plot_type=flux_plot,
+            sigma_shade=flux_sigma_shade,
             titles=ftitles,
             xlabels=fxlabels,
             ylabels=fylabels,
@@ -2288,6 +2364,7 @@ def _source_flux_plotter(
     units="milli",
     prefix=None,
     plot_type="log",
+    sigma_shade=False,
     titles=None,
     svg=False,
     xlabels=None,
@@ -2377,8 +2454,8 @@ def _source_flux_plotter(
             err_ys1 = []
             err_xs2 = []
             err_ys2 = []
-            model_1_name = model_pair[0]["path"].split("/")[-1].split(".")[0]
-            model_2_name = model_pair[1]["path"].split("/")[-1].split(".")[0]
+            model_1_name = _catalog_display_name(model_pair[0]["path"])
+            model_2_name = _catalog_display_name(model_pair[1]["path"])
             # Format data points value to a readable units
             # and select type of comparison plot
             x = np.array(flux_in_data, dtype=float) * FLUX_UNIT_SCALER[units][0]
@@ -2445,19 +2522,28 @@ def _source_flux_plotter(
                 # mark that we must not create a colorbar
                 z = np.zeros(len(phase_centre_dist))
                 has_phase_dist = False
-            # Compute some fit stats of the two models being compared
+            # Compute some fit stats of the two models being compared.
+            # Weighted by flux error (see _weighted_linregress) rather than
+            # scipy.stats.linregress's plain OLS -- otherwise the many
+            # faint/noisy points (which also tend to include the outliers)
+            # count equally with the few precise bright ones and can drag
+            # the fit away from the true 1:1 relation.
             if plot_type in ["log", "inout"]:
                 if plot_type == "log":
                     log_x1 = np.log10(x1)
                     log_y1 = np.log10(y1)
                     flux_MSE = mean_squared_error(log_x1, log_y1)
-                    reg1 = linregress(log_x1, log_y1)
+                    # propagate linear-space flux errors into log10 space:
+                    # d(log10(v))/dv = 1/(v * ln(10))
+                    log_xerr1 = xerr1 / (x1 * np.log(10.0))
+                    log_yerr1 = yerr1 / (y1 * np.log(10.0))
+                    reg1 = _weighted_linregress(log_x1, log_y1, log_xerr1, log_yerr1)
                 else:
                     flux_MSE = mean_squared_error(x1, y1)
-                    reg1 = linregress(x1, y1)
+                    reg1 = _weighted_linregress(x1, y1, xerr1, yerr1)
                 flux_R_score = reg1.rvalue
             elif plot_type in ["snr"]:
-                reg1 = linregress(x1, y1)
+                reg1 = _weighted_linregress(x1, y1, xerr1, yerr1)
                 mean_val = np.mean(y1)
                 median = np.median(y1)
                 std_val = np.std(y1)
@@ -2596,6 +2682,18 @@ def _source_flux_plotter(
                 intercept = reg1.intercept
                 fit_xs = np.linspace(0 if 0 < min(x1) else min(x1), max(x1), fit_points)
                 fit_ys = slope * fit_xs + intercept
+                if sigma_shade:
+                    # +/-1 sigma band = error-weighted RMS scatter of the
+                    # data around the fit (see _weighted_linregress), drawn
+                    # first so the fit line renders on top of it.
+                    plot_flux.varea(
+                        x=fit_xs,
+                        y1=fit_ys - reg1.sigma,
+                        y2=fit_ys + reg1.sigma,
+                        fill_color="blue",
+                        fill_alpha=0.15,
+                        legend_label="1σ",
+                    )
                 # Regression fit plot
                 fit = plot_flux.line(fit_xs, fit_ys, legend_label="Fit", color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
@@ -2628,6 +2726,19 @@ def _source_flux_plotter(
                 # Regression fit plot
                 fit_xs = np.geomspace(min_val, max_val, fit_points)
                 fit_ys = np.power(10.0, reg1.intercept) * np.power(fit_xs, reg1.slope)
+                if sigma_shade:
+                    # reg1.sigma is in log10(y) space here (the fit itself
+                    # was done in log space) -- a band that's additive in
+                    # log-space is multiplicative in linear space.
+                    shade_factor = np.power(10.0, reg1.sigma)
+                    plot_flux.varea(
+                        x=fit_xs,
+                        y1=fit_ys / shade_factor,
+                        y2=fit_ys * shade_factor,
+                        fill_color="blue",
+                        fill_alpha=0.15,
+                        legend_label="1σ",
+                    )
                 fit = plot_flux.line(fit_xs, fit_ys, legend_label="Fit", color="blue")
                 # Create a plot object for I_out = I_in line .i.e. Perfect match
                 equal = plot_flux.line(
@@ -2853,8 +2964,8 @@ def _source_astrometry_plotter(
             source_labels.append(results[heading]["position"][n][8])
         # Compute some stats of the two models being compared
         if len(flux_in_data) > 1:
-            model_1_name = model_pair[0]["path"].split("/")[-1].split(".")[0]
-            model_2_name = model_pair[1]["path"].split("/")[-1].split(".")[0]
+            model_1_name = _catalog_display_name(model_pair[0]["path"])
+            model_2_name = _catalog_display_name(model_pair[1]["path"])
             RA_mean = np.mean(RA_offset)
             DEC_mean = np.mean(DEC_offset)
             r1, r2 = np.array(RA_offset).std(), np.array(DEC_offset).std()
@@ -2920,16 +3031,18 @@ def _source_astrometry_plotter(
             s1_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s1_ra_rad]
             s1_dec_rad = [src[5] for src in overlays if src[-1] == 1]
             s1_dec_deg = [rad2deg(s_dec) for s_dec in s1_dec_rad]
-            s1_ra_err = [rad2deg(src[4] * 3600.0) for src in overlays if src[-1] == 1]
-            s1_dec_err = [rad2deg(src[6] * 3600.0) for src in overlays if src[-1] == 1]
+            # ra_err/dec_err can be None (dropped on a Tigger save/reload
+            # round-trip) -- treat as 0.0 rather than crash.
+            s1_ra_err = [rad2deg((src[4] or 0.0) * 3600.0) for src in overlays if src[-1] == 1]
+            s1_dec_err = [rad2deg((src[6] or 0.0) * 3600.0) for src in overlays if src[-1] == 1]
             s1_labels = [src[0] for src in overlays if src[-1] == 1]
             s1_flux = [src[1] for src in overlays if src[-1] == 1]
             s2_ra_rad = [src[3] for src in overlays if src[-1] == 2]
             s2_ra_deg = [unwrap(rad2deg(s_ra)) for s_ra in s2_ra_rad]
             s2_dec_rad = [src[5] for src in overlays if src[-1] == 2]
             s2_dec_deg = [rad2deg(s_dec) for s_dec in s2_dec_rad]
-            s2_ra_err = [rad2deg(src[4] * 3600.0) for src in overlays if src[-1] == 2]
-            s2_dec_err = [rad2deg(src[6] * 3600.0) for src in overlays if src[-1] == 2]
+            s2_ra_err = [rad2deg((src[4] or 0.0) * 3600.0) for src in overlays if src[-1] == 2]
+            s2_dec_err = [rad2deg((src[6] or 0.0) * 3600.0) for src in overlays if src[-1] == 2]
             s2_labels = [src[0] for src in overlays if src[-1] == 2]
             s2_flux = [src[1] for src in overlays if src[-1] == 2]
             overlay_source1 = ColumnDataSource(
@@ -2965,6 +3078,7 @@ def _source_astrometry_plotter(
             )
 
             # Add background image if restored_image is provided
+            image_range_set = False
             if restored_image:
                 try:
                     # Read FITS file
@@ -3056,9 +3170,19 @@ def _source_astrometry_plotter(
                     # Keep the astronomical RA direction so source points stay in the correct sky orientation.
                     plot_overlay.x_range = Range1d(float(ra_max), float(ra_min))
                     plot_overlay.y_range = Range1d(float(dec_min), float(dec_max))
+                    image_range_set = True
                     LOGGER.info(f"Added background image from {restored_image}")
                 except Exception as e:
                     LOGGER.warning(f"Failed to load restored image {restored_image}: {e}")
+
+            if not image_range_set:
+                # No background image -- still flip RA to increase
+                # leftward, using the scatter data's own extent.
+                all_overlay_ra = s1_ra_deg + s2_ra_deg
+                if all_overlay_ra:
+                    ra_lo, ra_hi = min(all_overlay_ra), max(all_overlay_ra)
+                    if ra_lo != ra_hi:
+                        plot_overlay.x_range = Range1d(float(ra_hi), float(ra_lo))
 
             plot_overlay.ellipse(
                 "ra1",
@@ -3106,7 +3230,6 @@ def _source_astrometry_plotter(
             plot_overlay.legend.location = "top_left"
             plot_overlay.legend.click_policy = "hide"
             color_bar_height = 100
-            # plot_overlay.x_range.flipped = True
             # Colorbar Mapper (only when we have valid phase centre distances)
             if has_phase_dist:
                 position_mapper = LinearColorMapper(palette="Plasma11", low=min(z), high=max(z))
@@ -3182,9 +3305,10 @@ def _source_astrometry_plotter(
                 ],
                 "Value": [
                     recovered_sources,
-                    f"({round(deg2arcsec(RA_mean), deci)},{round(deg2arcsec(DEC_mean), deci)})",
+                    # already in arcsec -- do not convert again
+                    f"({round(RA_mean, deci)},{round(DEC_mean, deci)})",
                     one_sigma_sources,
-                    f"({round(deg2arcsec(r1), deci)},{round(deg2arcsec(r2), deci)})",
+                    f"({round(r1, deci)},{round(r2, deci)})",
                 ],
             }
             source = ColumnDataSource(data=stats)
@@ -4645,6 +4769,15 @@ def get_argparser():
         help="Type of plot for flux comparison of the two catalogs",
     )
     argument(
+        "-fss",
+        "--flux-sigma-shade",
+        dest="flux_sigma_shade",
+        action="store_true",
+        help="Shade a +/-1 sigma band around the flux comparison fit line, showing the "
+        "(error-weighted) scatter of the data around the trend -- not the formal "
+        "uncertainty on the fit parameters themselves.",
+    )
+    argument(
         "-units",
         "--units",
         dest="units",
@@ -5144,6 +5277,7 @@ def main():
                 closest_only=args.closest_only,
                 prefix=args.htmlprefix,
                 flux_plot=args.fluxplot,
+                flux_sigma_shade=args.flux_sigma_shade,
                 ftitles=args.ftitles,
                 fxlabels=args.fxlabels,
                 fylabels=args.fylabels,
@@ -5252,6 +5386,7 @@ def main():
             closest_only=args.closest_only,
             prefix=args.htmlprefix,
             flux_plot=args.fluxplot,
+            flux_sigma_shade=args.flux_sigma_shade,
             ftitles=args.ftitles,
             fxlabels=args.fxlabels,
             fylabels=args.fylabels,
@@ -5329,6 +5464,7 @@ def main():
                 closest_only=args.closest_only,
                 prefix=args.htmlprefix,
                 flux_plot=args.fluxplot,
+                flux_sigma_shade=args.flux_sigma_shade,
                 restored_image=args.restored,
                 ftitles=args.ftitles,
                 fxlabels=args.fxlabels,
