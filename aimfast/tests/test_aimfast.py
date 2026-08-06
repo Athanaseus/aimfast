@@ -1077,3 +1077,74 @@ class TestClass(object):
         aimfast.main()
 
         assert captured_thresholds == [3.5, 3.5]
+
+    def test_default_tolerance_and_shape_limit_widened(self):
+        """Defaults were 0.2" tolerance / 6.0" shape_limit -- too tight for
+        this project's ~8" beam data (real matches sit 0.07-0.5" apart,
+        real breizorro island shapes commonly exceed 6" and up to ~15")."""
+        parser = aimfast.get_argparser()
+        args = parser.parse_args(["--compare-models", "model1.lsm.html", "model2.lsm.html"])
+        assert args.tolerance == 1.0
+        assert args.shape_limit == 16.0
+
+        import inspect
+
+        assert inspect.signature(aimfast.compare_models).parameters["tolerance"].default == 1.0
+        assert (
+            inspect.signature(aimfast.compare_models).parameters["shape_limit"].default == 16.0
+        )
+        assert (
+            inspect.signature(aimfast.get_detected_sources_properties)
+            .parameters["tolerance"]
+            .default
+            == 1.0
+        )
+        assert (
+            inspect.signature(aimfast.get_detected_sources_properties)
+            .parameters["shape_limit"]
+            .default
+            == 16.0
+        )
+
+    def test_combined_report_produces_single_tabbed_html(self, tmp_path):
+        """--combined-report / combined_report=True should produce one
+        <prefix>-Report.html with both Flux and Position tabs, instead of
+        separate FluxOffset.html/PositionOffset.html files."""
+        sources1, sources2 = [], []
+        for i in range(5):
+            ra = 210.0 + i * 0.5
+            dec = -61.0
+            flux = 0.001 * (1.0 + i)
+            sources1.append(self._make_source(f"S1_{i}", ra, dec, flux, 8.0, 6.0))
+            sources2.append(
+                self._make_source(f"S2_{i}", ra + 1.0 / 3600.0, dec, flux, 8.0, 6.0)
+            )
+        model1 = SkyModel.SkyModel(*sources1)
+        model2 = SkyModel.SkyModel(*sources2)
+        path1 = str(tmp_path / "model1.lsm.html")
+        path2 = str(tmp_path / "model2.lsm.html")
+        model1.save(path1)
+        model2.save(path2)
+
+        models = [[
+            dict(label="pair-model_a_0", path=path1),
+            dict(label="pair-model_b_0", path=path2),
+        ]]
+
+        import os
+
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            aimfast.compare_models(
+                models, tolerance=8.0, shape_limit=12.0, plot=True,
+                combined_report=True, prefix="combo",
+            )
+        finally:
+            os.chdir(cwd)
+
+        assert (tmp_path / "combo-CrossMatchReport.html").exists()
+        assert not (tmp_path / "combo-FluxOffset.html").exists()
+        assert not (tmp_path / "combo-PositionOffset.html").exists()
+        content = (tmp_path / "combo-CrossMatchReport.html").read_text()
+        assert "Catalogs Overlay" in content

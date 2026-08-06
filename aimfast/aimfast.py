@@ -33,6 +33,8 @@ from bokeh.models import (
     LogColorMapper,
     LogTicker,
     Range1d,
+    TabPanel,
+    Tabs,
 )
 from bokeh.models.widgets import DataTable, Div, PreText, TableColumn
 from bokeh.plotting import figure, output_file, save, show
@@ -1658,8 +1660,8 @@ def convert_catalog_with_mapping(catalog, mappings):
 def get_detected_sources_properties(
     model_1,
     model_2,
-    tolerance,
-    shape_limit=6.0,
+    tolerance=1.0,
+    shape_limit=16.0,
     all_sources=False,
     closest_only=False,
     off_axis=None,
@@ -1966,10 +1968,10 @@ def get_detected_sources_properties(
 
 def compare_models(
     models,
-    tolerance=0.2,
+    tolerance=1.0,
     plot=True,
     all_sources=False,
-    shape_limit=6.0,
+    shape_limit=16.0,
     off_axis=None,
     closest_only=False,
     prefix=None,
@@ -1991,6 +1993,7 @@ def compare_models(
     restored_image=None,
     model_mappings=None,
     phase_centre=None,
+    combined_report=False,
 ):
     """Plot model1 source properties against that of model2
 
@@ -2075,7 +2078,7 @@ def compare_models(
             results[heading]["overlay"].append(no_match_prop2[i][-1])
         results[heading]["tolerance"] = tolerance
     if plot:
-        _source_flux_plotter(
+        flux_layout = _source_flux_plotter(
             results,
             models,
             units=units,
@@ -2094,8 +2097,9 @@ def compare_models(
             ymajor_size=ymajor_size,
             bar_size=bar_size,
             bar_major_size=bar_major_size,
+            return_layout=combined_report,
         )
-        _source_astrometry_plotter(
+        position_layout = _source_astrometry_plotter(
             results,
             models,
             prefix=prefix,
@@ -2109,7 +2113,21 @@ def compare_models(
             bar_size=bar_size,
             bar_major_size=bar_major_size,
             restored_image=restored_image,
+            return_layout=combined_report,
         )
+        if combined_report:
+            tabs = []
+            if flux_layout is not None:
+                tabs.append(TabPanel(child=flux_layout, title="Flux"))
+            if position_layout is not None:
+                tabs.append(TabPanel(child=position_layout, title="Position"))
+            if tabs:
+                report_outfile = (
+                    f"{prefix}-CrossMatchReport.html" if prefix else "CrossMatchReport.html"
+                )
+                output_file(report_outfile)
+                save(Tabs(tabs=tabs), title=report_outfile)
+                LOGGER.info("Saving combined flux+position report in {}".format(report_outfile))
     return results
 
 
@@ -2240,12 +2258,12 @@ def get_source_overlay(sources1, sources2):
 def plot_photometry(
     models,
     label=None,
-    tolerance=0.2,
+    tolerance=1.0,
     phase_centre=None,
     all_sources=False,
     flux_plot="log",
     off_axis=None,
-    shape_limit=6.0,
+    shape_limit=16.0,
 ):
     """Plot model-model fluxes from lsm.html/txt models
 
@@ -2282,7 +2300,7 @@ def plot_photometry(
 def plot_astrometry(
     models,
     label=None,
-    tolerance=0.2,
+    tolerance=1.0,
     phase_centre=None,
     all_sources=False,
     off_axis=None,
@@ -2377,6 +2395,7 @@ def _source_flux_plotter(
     ymajor_size="8pt",
     bar_size="12pt",
     bar_major_size="8pt",
+    return_layout=False,
 ):
     """Plot flux results and save output as html file.
 
@@ -2420,12 +2439,16 @@ def _source_flux_plotter(
         Colorbar major axis text font size
     svg : bool
         Whether to save svg plots in addition to the standard html
+    return_layout : bool
+        Return the built Bokeh layout instead of saving it to its own
+        html file (used to combine flux+position into one report).
     """
     if prefix:
         outfile = f"{prefix}-FluxOffset.html"
     else:
         outfile = "FluxOffset.html"
-    output_file(outfile)
+    if not return_layout:
+        output_file(outfile)
     flux_plot_list = []
     for pair, model_pair in enumerate(all_models):
         heading = model_pair[0]["label"]
@@ -2869,11 +2892,14 @@ def _source_flux_plotter(
         flux_plots = column(flux_plot_list)
         if svg:
             plot_flux.output_backend = "svg"
-            prefix = ".".join(outfile.split(".")[:-1])
-            export_svgs(flux_plots, filename=f"{prefix}.svg")
+            svg_prefix = ".".join(outfile.split(".")[:-1])
+            export_svgs(flux_plots, filename=f"{svg_prefix}.svg")
+        if return_layout:
+            return flux_plots
         # Save the plot (html)
         save(flux_plots, title=outfile)
         LOGGER.info("Saving photometry comparisons in {}".format(outfile))
+    return None
 
 
 def _source_astrometry_plotter(
@@ -2892,6 +2918,7 @@ def _source_astrometry_plotter(
     bar_size="8pt",
     bar_major_size="8pt",
     restored_image=None,
+    return_layout=False,
 ):
     """Plot astrometry results and save output as html file.
 
@@ -2935,7 +2962,8 @@ def _source_astrometry_plotter(
         outfile = f"{prefix}-PositionOffset.html"
     else:
         outfile = "PositionOffset.html"
-    output_file(outfile)
+    if not return_layout:
+        output_file(outfile)
     position_plot_list = []
     for model_pair in all_models:
         RA_offset = []
@@ -3371,9 +3399,9 @@ def _source_astrometry_plotter(
             if svg:
                 plot_overlay.output_backend = "svg"
                 plot_position.output_backend = "svg"
-                prefix = ".".join(outfile.split(".")[:-1])
-                export_svgs(column(plot_overlay), filename=f"{prefix}_1.svg")
-                export_svgs(column(plot_position), filename=f"{prefix}_2.svg")
+                svg_prefix = ".".join(outfile.split(".")[:-1])
+                export_svgs(column(plot_overlay), filename=f"{svg_prefix}_1.svg")
+                export_svgs(column(plot_position), filename=f"{svg_prefix}_2.svg")
             # Append object to plot list
             position_plot_list.append(column(row(plot_position, plot_overlay, column(stats_table))))
 
@@ -3382,9 +3410,12 @@ def _source_astrometry_plotter(
     if position_plot_list:
         # Make the plots in a column layout
         position_plots = column(position_plot_list)
+        if return_layout:
+            return position_plots
         # Save the plot (html)
         save(position_plots, title=outfile)
         LOGGER.info("Saving astrometry comparisons in {}".format(outfile))
+    return None
 
 
 def _residual_plotter(
@@ -4799,6 +4830,15 @@ def get_argparser():
         "uncertainty on the fit parameters themselves.",
     )
     argument(
+        "-cr",
+        "--combined-report",
+        dest="combined_report",
+        action="store_true",
+        help="Combine the flux and position comparison plots into a single "
+        "html report (tabbed), instead of two separate FluxOffset.html/"
+        "PositionOffset.html files.",
+    )
+    argument(
         "-units",
         "--units",
         dest="units",
@@ -4842,7 +4882,7 @@ def get_argparser():
         "--tolerance",
         dest="tolerance",
         type=float,
-        default=0.2,
+        default=1.0,
         help="Tolerance to cross-match sources in arcsec",
     )
     argument(
@@ -4867,7 +4907,7 @@ def get_argparser():
         "--shape-limit",
         dest="shape_limit",
         type=float,
-        default=6.0,
+        default=16.0,
         help="Cross-match only sources with a maj-axis equal or less than this value",
     )
     argument(
@@ -5316,6 +5356,7 @@ def main():
                 svg=svg,
                 restored_image=args.restored,
                 model_mappings=compare_model_mappings,
+                combined_report=args.combined_report,
             )
 
     if args.noise:
@@ -5424,6 +5465,7 @@ def main():
             ymajor_size=args.ymaj_size,
             svg=svg,
             restored_image=args.restored,
+            combined_report=args.combined_report,
         )
 
     if args.online:
@@ -5503,6 +5545,7 @@ def main():
                 ymajor_size=args.ymaj_size,
                 svg=svg,
                 model_mappings=compare_model_mappings,
+                combined_report=args.combined_report,
             )
         else:
             LOGGER.warn(f"No object found around (ICRS) position {centre_coord}")
