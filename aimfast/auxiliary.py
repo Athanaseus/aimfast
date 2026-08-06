@@ -290,14 +290,43 @@ def get_online_catalog(
         Table with online catalog data
 
     """
+    # "catalog" here is the short, familiar user-facing name (upper-cased
+    # by the caller). These are not valid Vizier catalog identifiers on
+    # their own (e.g. bare "SUMSS"/"NVSS" resolve to zero results), so map
+    # to the actual Vizier catalog ID. RACS returns more than one table per
+    # query (source-level + Gaussian-component-level); pin to the
+    # source-level one specifically via its table-name suffix.
+    vizier_catalog_ids = {
+        "NVSS": "VIII/65/nvss",
+        "SUMSS": "VIII/81B/sumss212",
+        "RACS-LOW": "J/other/PASA/38.58",
+        "RACS-MID": "J/other/PASA/41.3",
+        "RACS-HIGH": "J/other/PASA/42.38",
+        "VLASS": "J/ApJS/255/30",
+    }
+    racs_table_suffix = {
+        "RACS-LOW": "/galreg",
+        "RACS-MID": "/sourcesm",
+        "RACS-HIGH": "/sourcesh",
+    }
+    vizier_id = vizier_catalog_ids.get(catalog, catalog)
+
     Vizier.ROW_LIMIT = -1
     C = Vizier.query_region(
         coord.SkyCoord(centre_coord[0], centre_coord[1], unit=(u.hourangle, u.deg), frame="icrs"),
         width=width,
-        catalog=catalog,
+        catalog=vizier_id,
     )
     if C.values():
-        table = C[0]
+        if catalog in racs_table_suffix:
+            table = next(
+                (C[key] for key in C.keys() if key.endswith(racs_table_suffix[catalog])),
+                None,
+            )
+            if table is None:
+                return None
+        else:
+            table = C[0]
         ra_deg = []
         dec_deg = []
 
@@ -316,6 +345,18 @@ def get_online_catalog(
 
                 for i in range(1, len(table.colnames)):
                     table[table.colnames[i]][above_thresh] = np.nan
+        elif catalog in racs_table_suffix or catalog == "VLASS":
+            # RACS/VLASS RAJ2000/DEJ2000 are already decimal degrees,
+            # unlike NVSS/SUMSS's sexagesimal strings, no conversion
+            # needed.
+            if thresh:
+                above_thresh = table["Ftot"] < thresh
+                for i in range(1, len(table.colnames)):
+                    try:
+                        table[table.colnames[i]][above_thresh] = np.nan
+                    except (ValueError, TypeError):
+                        # Non-float columns (e.g. SCode, Flag) can't hold NaN
+                        pass
 
         table = Table(table, masked=True)
         ascii.write(table, catalog_table, overwrite=True)

@@ -6,6 +6,7 @@ import random
 import string
 import sys
 import tempfile
+import time
 from collections import OrderedDict
 from functools import partial
 from pathlib import Path
@@ -19,6 +20,7 @@ from astropy.coordinates import Angle, SkyCoord
 from astropy.io import fits as fitsio
 from astropy.table import Table
 from astropy.wcs import WCS
+from astropy.wcs.utils import wcs_to_celestial_frame
 from bokeh.io import export_svgs
 from bokeh.layouts import column, grid, gridplot, row
 from bokeh.models import (
@@ -204,8 +206,14 @@ def json_dump(data_dict, filename="fidelity_results.json"):
     except IOError:
         data = data_dict
     if data:
+
+        def _json_default(obj):
+            if isinstance(obj, np.generic):
+                return obj.item()
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
         with open(filename, "w") as f:
-            json.dump(data, f)
+            json.dump(data, f, default=_json_default)
 
 
 def fitsInfo(fitsname=None):
@@ -242,7 +250,13 @@ def fitsInfo(fitsname=None):
     except:
         beam_size = None
     try:
-        centre = (hdr["CRVAL1"], hdr["CRVAL2"])
+        # CRVAL1/2 are in the image's own native WCS frame, for a
+        # Galactic-projected image (GLON-SIN/GLAT-SIN) that's (l, b), not
+        # RA/Dec. Every caller of "centre" treats it as genuine ICRS
+        centre_native = SkyCoord(
+            hdr["CRVAL1"], hdr["CRVAL2"], unit="deg", frame=wcs_to_celestial_frame(wcs)
+        ).icrs
+        centre = (centre_native.ra.deg, centre_native.dec.deg)
     except:
         centre = None
     try:
@@ -963,7 +977,7 @@ def _weighted_linregress(x, y, xerr=None, yerr=None):
 
     Returns an object with .slope, .intercept, .rvalue (non-negative sqrt
     of weighted R^2, used only as a fit-quality score) and .sigma (the
-    error-weighted RMS of the residuals -- data scatter around the fit,
+    error-weighted RMS of the residuals, data scatter around the fit,
     not the fit parameters' own uncertainty).
     """
     x = np.asarray(x, dtype=float)
@@ -991,7 +1005,7 @@ def _weighted_linregress(x, y, xerr=None, yerr=None):
     total_ss = np.sum((weights * (y - weighted_mean_y)) ** 2)
     r_squared = 1.0 - residual_ss / total_ss if total_ss > 0 else 0.0
     rvalue = np.sqrt(max(r_squared, 0.0))
-    # error-weighted RMS of the residuals -- the "1 sigma" data-scatter band
+    # error-weighted RMS of the residuals, the "1 sigma" data-scatter band
     sigma = float(np.sqrt(np.average((y - fit_y) ** 2, weights=weights**2)))
 
     return SimpleNamespace(
@@ -1075,7 +1089,7 @@ def get_model(catalog, mappings=None):
         flux = ModelClasses.Polarization(i_flux, 0, 0, 0, I_err=i_flux_err)
         if "ra" not in src.colnames and "lon" in src.colnames:
             # aegean auto-detects Galactic-frame images and renames its
-            # ra/dec columns to lon/lat -- these are GLON/GLAT in degrees,
+            # ra/dec columns to lon/lat, these are GLON/GLAT in degrees,
             # not equatorial, so they require a frame conversion rather than
             # a plain re-label (same bug class fixed for breizorro/pybdsf).
             lon_deg = _src_value(src, ["lon"], 0.0)
@@ -1196,6 +1210,67 @@ def get_model(catalog, mappings=None):
         # and to avoid null values for point sources I_peak = src["Total_flux"]
         source.setAttribute("I_peak", float(src["Sp"] / 1000.0))
         source.setAttribute("I_peak_err", float(src["e_Sp"] / 1000.0))
+        return source
+
+    def tigger_src_racs(src, idx):
+        """Get RACS (racs-low, racs-mid, or racs-high) catalog source as
+        a tigger source. Column names differ slightly between the Vizier
+        tables (racs-low: amaj/bmin/Fpk, plus per-source errors;
+        racs-mid/racs-high: Maj/Min/Fpeak, no per-source errors at all)."""
+
+        def _col(names, default=0.0):
+            for name in names:
+                if name in src.colnames:
+                    return float(src[name])
+            return default
+
+        name = "SRC%d" % idx
+        flux = ModelClasses.Polarization(
+            _col(["Ftot"]) / 1000.0, 0, 0, 0, I_err=_col(["e_Ftot"]) / 1000.0
+        )
+        # RACS RAJ2000/DEJ2000 are already decimal degrees (unlike NVSS/
+        # SUMSS's sexagesimal strings)
+        ra, ra_err = map(
+            np.deg2rad, (_col(["RAJ2000"]), _col(["e_RAJ2000"]) / 3600.0)
+        )
+        dec, dec_err = map(
+            np.deg2rad, (_col(["DEJ2000"]), _col(["e_DEJ2000"]) / 3600.0)
+        )
+        pos = ModelClasses.Position(ra, dec, ra_err=ra_err, dec_err=dec_err)
+        ex, ex_err = map(np.deg2rad, (_col(["amaj", "Maj"]) / 3600.0, _col(["e_amaj"]) / 3600.0))
+        ey, ey_err = map(np.deg2rad, (_col(["bmin", "Min"]) / 3600.0, _col(["e_bmin"]) / 3600.0))
+        pa, pa_err = map(np.deg2rad, (_col(["PA"]), _col(["e_PA"])))
+        if ex and ey:
+            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=ex_err, ey_err=ey_err, pa_err=pa_err)
+        else:
+            shape = None
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        source.setAttribute("I_peak", _col(["Fpk", "Fpeak"]) / 1000.0)
+        source.setAttribute("I_peak_err", _col(["e_Fpk", "e_Fpeak"]) / 1000.0)
+        return source
+
+    def tigger_src_vlass(src, idx):
+        """Get VLASS (CIRADA component catalogue) source as a tigger
+        source. RAJ2000/DEJ2000 already decimal degrees; deconvolved
+        shape (DCMaj/DCMin/DCPA) has no per-source shape errors."""
+
+        name = "SRC%d" % idx
+        flux = ModelClasses.Polarization(
+            float(src["Ftot"]) / 1000.0, 0, 0, 0, I_err=float(src["e_Ftot"]) / 1000.0
+        )
+        ra = np.deg2rad(float(src["RAJ2000"]))
+        dec = np.deg2rad(float(src["DEJ2000"]))
+        pos = ModelClasses.Position(ra, dec, ra_err=0.0, dec_err=0.0)
+        ex = np.deg2rad(float(src["DCMaj"]) / 3600.0)
+        ey = np.deg2rad(float(src["DCMin"]) / 3600.0)
+        pa = np.deg2rad(float(src["DCPA"]))
+        if ex and ey:
+            shape = ModelClasses.Gaussian(ex, ey, pa, ex_err=0.0, ey_err=0.0, pa_err=0.0)
+        else:
+            shape = None
+        source = SkyModel.Source(name, pos, flux, shape=shape)
+        source.setAttribute("I_peak", float(src["Fpeak"]) / 1000.0)
+        source.setAttribute("I_peak_err", float(src["e_Fpeak"]) / 1000.0)
         return source
 
     def tigger_src_fits(src, idx, freq0=None):
@@ -1345,6 +1420,10 @@ def get_model(catalog, mappings=None):
                     model.sources.append(tigger_src_nvss(src, i))
                 if "sumss" in catalog and not catalog.endswith(".html"):
                     model.sources.append(tigger_src_sumss(src, i))
+                if "racs" in catalog and not catalog.endswith(".html"):
+                    model.sources.append(tigger_src_racs(src, i))
+                if "vlass" in catalog and not catalog.endswith(".html"):
+                    model.sources.append(tigger_src_vlass(src, i))
             centre = _get_phase_centre(model)
             model.ra0, model.dec0 = map(np.deg2rad, centre)
             model.save(catalog[:-4] + ".lsm.html")
@@ -1406,7 +1485,7 @@ def get_model(catalog, mappings=None):
                 model = Tigger.load(catalog)
             else:
                 # Only the flux + position columns are required to recognise an
-                # Aegean-style catalogue -- shape/error columns (a, err_a, b,
+                # Aegean-style catalogue, shape/error columns (a, err_a, b,
                 # err_b, pa, err_pa, err_peak_flux) vary between Aegean's
                 # "component" and "island" table variants and are already
                 # handled as optional by tigger_src_ascii itself (shape is
@@ -1447,7 +1526,7 @@ def get_model(catalog, mappings=None):
             fits_file = catalog.split("_aegean_comp.csv")[0] + ".fits"
 
         # Only the flux + position columns are required to recognise an Aegean-
-        # style catalogue -- see the matching .txt branch above for why the
+        # style catalogue, see the matching .txt branch above for why the
         # full shape/error column set (a, err_a, b, err_b, pa, err_pa,
         # err_peak_flux) must not be required here: it varies between
         # Aegean's "component" and "island" table variants, and
@@ -1458,7 +1537,7 @@ def get_model(catalog, mappings=None):
         }.issubset(data.colnames)
         if aegean_columns.issubset(set(data.colnames)) and has_position_cols:
             # Build sources regardless of whether fits_file resolved to an
-            # existing path -- a missing reference image (e.g. because the
+            # existing path, a missing reference image (e.g. because the
             # catalog was written under a custom --table name that doesn't
             # match the input image's path/basename) should only cost us the
             # phase-centre metadata, not silently drop every source.
@@ -1499,7 +1578,7 @@ def get_model(catalog, mappings=None):
     try:
         ra0 = getattr(model, "ra0", None)
         dec0 = getattr(model, "dec0", None)
-        if not ra0 or not dec0:
+        if ra0 is None or dec0 is None:
             LOGGER.warning(
                 "Phase centre unspecified for %s; plots will omit colorbar unless a phase centre is provided.",
                 catalog,
@@ -1745,7 +1824,22 @@ def get_detected_sources_properties(
     tolerance *= np.pi / (3600.0 * 180)  # Convert to radians
     names = dict()
     closest_only = True
-    for model1_source in model1_sources:
+    n_sources1 = len(model1_sources)
+    match_start_time = time.time()
+    last_progress_log = match_start_time
+    for i, model1_source in enumerate(model1_sources):
+        # Cross-matching large catalogues can take
+        # several minutes, therefore log periodically so a
+        # slow-but-working run isn't indistinguishable from a hang.
+        now = time.time()
+        if now - last_progress_log > 30:
+            LOGGER.info(
+                "Cross-matching: %d/%d sources checked (%.0fs elapsed)",
+                i,
+                n_sources1,
+                now - match_start_time,
+            )
+            last_progress_log = now
         I_out = 0.0
         I_out_err = 0.0
         source1_name = model1_source.name
@@ -1884,7 +1978,7 @@ def get_detected_sources_properties(
                 ra2 -= 2.0 * np.pi
             if ra1 > np.pi:
                 ra1 -= 2.0 * np.pi
-            # angular_dist_pos_angle expects/returns radians -- convert the
+            # angular_dist_pos_angle expects/returns radians, convert the
             # output to arcsec, not the inputs.
             delta_pos_angle_arc_sec = angular_dist_pos_angle(ra1, dec1, ra2, dec2)[0]
             delta_pos_angle_arc_sec = rad2arcsec(delta_pos_angle_arc_sec)
@@ -1953,7 +2047,7 @@ def get_detected_sources_properties(
             f"Only {num_of_sources} source(s) matched out of {smaller_catalog} in the "
             "smaller catalogue. If this is unexpected, try increasing "
             f"-tol/--tolerance (currently {tolerance_arcsec}\") and/or "
-            f"-sl/--shape-limit (currently {shape_limit}\") -- a too-tight shape_limit "
+            f"-sl/--shape-limit (currently {shape_limit}\"), a too-tight shape_limit "
             "is a common silent cause of few or no matches."
         )
     return (
@@ -2547,7 +2641,7 @@ def _source_flux_plotter(
                 has_phase_dist = False
             # Compute some fit stats of the two models being compared.
             # Weighted by flux error (see _weighted_linregress) rather than
-            # scipy.stats.linregress's plain OLS -- otherwise the many
+            # scipy.stats.linregress's plain OLS, otherwise the many
             # faint/noisy points (which also tend to include the outliers)
             # count equally with the few precise bright ones and can drag
             # the fit away from the true 1:1 relation.
@@ -2751,7 +2845,7 @@ def _source_flux_plotter(
                 fit_ys = np.power(10.0, reg1.intercept) * np.power(fit_xs, reg1.slope)
                 if sigma_shade:
                     # reg1.sigma is in log10(y) space here (the fit itself
-                    # was done in log space) -- a band that's additive in
+                    # was done in log space), a band that's additive in
                     # log-space is multiplicative in linear space.
                     shade_factor = np.power(10.0, reg1.sigma)
                     plot_flux.varea(
@@ -3060,7 +3154,7 @@ def _source_astrometry_plotter(
             s1_dec_rad = [src[5] for src in overlays if src[-1] == 1]
             s1_dec_deg = [rad2deg(s_dec) for s_dec in s1_dec_rad]
             # ra_err/dec_err can be None (dropped on a Tigger save/reload
-            # round-trip) -- treat as 0.0 rather than crash.
+            # round-trip), treat as 0.0 rather than crash.
             s1_ra_err = [rad2deg((src[4] or 0.0) * 3600.0) for src in overlays if src[-1] == 1]
             s1_dec_err = [rad2deg((src[6] or 0.0) * 3600.0) for src in overlays if src[-1] == 1]
             s1_labels = [src[0] for src in overlays if src[-1] == 1]
@@ -3204,7 +3298,7 @@ def _source_astrometry_plotter(
                     LOGGER.warning(f"Failed to load restored image {restored_image}: {e}")
 
             if not image_range_set:
-                # No background image -- still flip RA to increase
+                # No background image, still flip RA to increase
                 # leftward, using the scatter data's own extent.
                 all_overlay_ra = s1_ra_deg + s2_ra_deg
                 if all_overlay_ra:
@@ -3333,7 +3427,7 @@ def _source_astrometry_plotter(
                 ],
                 "Value": [
                     recovered_sources,
-                    # already in arcsec -- do not convert again
+                    # already in arcsec, do not convert again
                     f"({round(RA_mean, deci)},{round(DEC_mean, deci)})",
                     one_sigma_sources,
                     f"({round(r1, deci)},{round(r2, deci)})",
@@ -3499,8 +3593,8 @@ def _residual_plotter(
                 title=title,
                 x_axis_label="Sources",
                 y_axis_label="Res1-to-Res2",
-                plot_width=1200,
-                plot_height=800,
+                width=1200,
+                height=800,
                 tools=TOOLS,
             )
             plot_residual.y_range = Range1d(start=min(y1) - 0.01, end=max(y1) + 0.01)
@@ -3621,7 +3715,16 @@ def _random_residual_results(res_noise_images, data_points=None, fov_factor=None
         # Get data from residual images
         res_data1 = res_hdu1[0].data
         res_data2 = res_hdu2[0].data
-        # Get random pixel coordinates
+        # Plain 2D images (no freq/Stokes axes) are common ,
+        # pad up to the (1, 1, y, x) shape the indexing
+        # to always supply a 4D cube.
+        while res_data1.ndim < 4:
+            res_data1 = res_data1[np.newaxis]
+        while res_data2.ndim < 4:
+            res_data2 = res_data2[np.newaxis]
+        # Get random pixel coordinates (fits_info["centre"] is already
+        # genuine ICRS, fitsInfo() converts from the image's native WCS
+        # frame, e.g. Galactic, once at the source)
         pix_coord_deg = _get_random_pixel_coord(
             data_points,
             phase_centre=fits_info["centre"],
@@ -3730,6 +3833,12 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
         # Get data from residual images
         res_data1 = res_hdu1[0].data
         res_data2 = res_hdu2[0].data
+        # Plain 2D images (no freq/Stokes axes) are common, pad up to the
+        # (1, 1, y, x) shape the indexing below assumes.
+        while res_data1.ndim < 4:
+            res_data1 = res_data1[np.newaxis]
+        while res_data2.ndim < 4:
+            res_data2 = res_data2[np.newaxis]
         # Load skymodel to get source positions
         model_lsm = Tigger.load(skymodel)
         # Get all sources in the model
@@ -3854,8 +3963,8 @@ def plot_aimfast_stats(fidelity_results_file, units="micro", prefix=""):
         x_range=im_keys,
         x_axis_label="Image",
         y_axis_label="Flux density (µJy)",
-        plot_width=width,
-        plot_height=height,
+        width=width,
+        height=height,
         title="Residual Variance",
     )
     variance_plotter.line(
@@ -3874,8 +3983,8 @@ def plot_aimfast_stats(fidelity_results_file, units="micro", prefix=""):
         x_range=im_keys,
         x_axis_label="Image",
         y_axis_label="Value",
-        plot_width=width,
-        plot_height=height,
+        width=width,
+        height=height,
         title="Skewness & Kurtosis",
     )
     mom34_plotter.line(im_keys, skew_values, legend_label="Skewness", color="blue")
@@ -3888,8 +3997,8 @@ def plot_aimfast_stats(fidelity_results_file, units="micro", prefix=""):
         x_range=im_keys,
         x_axis_label="Image",
         y_axis_label="Value",
-        plot_width=width,
-        plot_height=height,
+        width=width,
+        height=height,
         title="Normality Tests",
     )
     norm_plotter.vbar(x=im_keys, top=normalised, width=0.9)
@@ -3906,8 +4015,8 @@ def plot_aimfast_stats(fidelity_results_file, units="micro", prefix=""):
         x_range=dr_keys,
         x_axis_label="Image",
         y_axis_label="Value",
-        plot_width=width,
-        plot_height=height,
+        width=width,
+        height=height,
         title="Dynamic Range",
     )
     dr_plotter.vbar(x=dr_keys, top=dr_values, width=0.9)
@@ -4756,9 +4865,12 @@ def get_argparser():
         "-oc",
         "--online-catalog",
         dest="online_catalog",
-        choices=("sumss", "nvss"),
+        choices=("sumss", "nvss", "racs-low", "racs-mid", "racs-high", "vlass"),
         default="nvss",
-        help="Online catalog to compare local image/model.",
+        help="Online catalog to compare local image/model. sumss (843MHz), "
+        "nvss (1.4GHz, Dec>-40 only), racs-low (887.5MHz), racs-mid "
+        "(1367.5MHz), racs-high (1655.5MHz), all full Southern-sky; "
+        "vlass (2-4GHz S-band, Dec>-40 only).",
     )
     argument(
         "-ptc",
@@ -4826,7 +4938,7 @@ def get_argparser():
         dest="flux_sigma_shade",
         action="store_true",
         help="Shade a +/-1 sigma band around the flux comparison fit line, showing the "
-        "(error-weighted) scatter of the data around the trend -- not the formal "
+        "(error-weighted) scatter of the data around the trend, not the formal "
         "uncertainty on the fit parameters themselves.",
     )
     argument(

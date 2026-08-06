@@ -62,6 +62,14 @@ class TestClass(object):
             val = output_value[param]
             if param == "wcs":
                 assert isinstance(val, value)
+            elif param == "centre":
+                # "centre" now round-trips through SkyCoord(...).icrs (fix
+                # for Galactic-frame images), introduces ~1e-5 deg noise
+                # even for already-equatorial images, and can wrap e.g.
+                # RA=0.0 to ~359.99997. Compare angle-aware, not exact.
+                for got, want in zip(val, value):
+                    diff = min(abs(got - want), abs(got - want + 360), abs(got - want - 360))
+                    assert diff < 1e-3
             else:
                 assert val == value
 
@@ -524,7 +532,7 @@ class TestClass(object):
     @staticmethod
     def _make_source(name, ra_deg, dec_deg, flux_jy, maj_arcsec, min_arcsec, pa_deg=0.0):
         """Build a Tigger source with a real Gaussian shape but no explicit
-        shape-error kwargs -- reproduces getShapeErr() returning None the
+        shape-error kwargs, reproduces getShapeErr() returning None the
         same way real Legacy/Cosmetic Aegean .lsm.html catalogues do after
         a Tigger save/load round-trip (Tigger's serialiser omits shape-error
         tags that were never set, rather than writing zeros)."""
@@ -553,7 +561,7 @@ class TestClass(object):
     def test_get_detected_sources_properties_handles_sources_without_shape_errors(self, tmp_path):
         """Regression test: matching two catalogues whose sources have a
         real shape but no shape-error info must not crash
-        get_detected_sources_properties -- previously crashed in three
+        get_detected_sources_properties, previously crashed in three
         places (model1_source's shape_in_err, model2_source's
         shape_out_err, and get_src_scale) whenever getShapeErr() returned
         None, which is the common case for real Aegean .lsm.html output."""
@@ -576,7 +584,7 @@ class TestClass(object):
 
     def test_compare_models_forwards_shape_limit(self, tmp_path):
         """Regression test: compare_models() must actually forward its
-        shape_limit argument to get_detected_sources_properties() -- it
+        shape_limit argument to get_detected_sources_properties(), it
         previously silently dropped it, so the CLI's -sl/--shape-limit
         flag had zero effect regardless of value (the underlying function
         always used its own default, 6.0")."""
@@ -607,7 +615,7 @@ class TestClass(object):
 
     def test_shape_limit_argparser_type(self):
         """Regression test: -sl/--shape-limit must parse as a float, not a
-        bare string -- it previously had no type=float (unlike the
+        bare string, it previously had no type=float (unlike the
         neighbouring -tol/--tolerance argument), so any CLI-provided value
         crashed downstream with a float-vs-str TypeError the first time it
         reached a numeric comparison."""
@@ -649,13 +657,13 @@ class TestClass(object):
 
     def test_catalog_display_name_handles_decimal_in_tilename(self):
         """Regression test: _catalog_display_name must not truncate at the
-        first '.' in a path -- naive `basename.split(".")[0]` (the previous
+        first '.' in a path, naive `basename.split(".")[0]` (the previous
         approach) collapses any two catalogues sharing a tile name with a
         literal decimal point (e.g. 'G312.5', common in this project's
         naming) to the same string, e.g. both
         'cosmetic_G312.5_full_breizorro_catalog.txt' and
         'cosmetic_G312.5_full_aegean_icrs.lsm.html' truncated to
-        'cosmetic_G312' -- which made aimfast's flux-plot axis labels and
+        'cosmetic_G312', which made aimfast's flux-plot axis labels and
         position-overlay legend indistinguishable between the two
         catalogues (Bokeh merges glyphs sharing an identical legend_label
         into a single legend entry)."""
@@ -674,8 +682,8 @@ class TestClass(object):
     def test_weighted_linregress_downweights_noisy_outlier(self):
         """Regression test: the flux comparison fit must be weighted by
         measurement error, not plain OLS (scipy.stats.linregress), so that
-        the many faint/noisy points -- which also tend to include the
-        outliers -- don't pull the fit away from where the few precise,
+        the many faint/noisy points, which also tend to include the
+        outliers, don't pull the fit away from where the few precise,
         bright points actually sit."""
         rng = np.random.default_rng(0)
         n_good = 30
@@ -686,7 +694,7 @@ class TestClass(object):
         # one bright, precise point that should anchor the fit near 1:1 ...
         x_bright, y_bright, err_bright = 10.0, 10.0, 0.01
         # ... and one very noisy outlier, well off the 1:1 line, with a
-        # correspondingly large error -- exactly the case the supervisor
+        # correspondingly large error, exactly the case the supervisor
         # described (faint/noisy points dragging the fit below 1:1)
         x_outlier, y_outlier, err_outlier = 5.0, 1.0, 5.0
 
@@ -698,8 +706,8 @@ class TestClass(object):
         weighted = aimfast._weighted_linregress(x, y, xerr=err, yerr=err)
 
         # both should be pulled from the true slope=1 by the outlier, but
-        # the weighted fit -- which discounts the outlier for its large
-        # error -- must end up closer to the true relation than OLS.
+        # the weighted fit, which discounts the outlier for its large
+        # error, must end up closer to the true relation than OLS.
         assert abs(weighted.slope - 1.0) < abs(unweighted.slope - 1.0)
 
     def test_weighted_linregress_falls_back_without_errors(self):
@@ -714,7 +722,7 @@ class TestClass(object):
 
     def test_get_detected_sources_properties_ra_offset_uses_cos_dec(self, tmp_path):
         """Regression test: the RA offset stored per matched source must be
-        scaled by cos(dec) -- a fixed RA difference subtends a smaller true
+        scaled by cos(dec), a fixed RA difference subtends a smaller true
         angle away from the equator. Without it, the RA offset is
         overstated by 1/cos(dec) (about 2x at this project's ~-61 deg
         declination)."""
@@ -744,7 +752,7 @@ class TestClass(object):
     def test_get_detected_sources_properties_delta_pos_angle_is_physically_sane(self, tmp_path):
         """Regression test: delta_pos_angle_arc_sec (the true angular
         separation between a matched pair) must be a small, physically
-        sane value for a close match -- previously this was computed by
+        sane value for a close match, previously this was computed by
         passing arcsec-scaled values into angular_dist_pos_angle (which
         expects radians for its internal sin/cos calls), producing an
         essentially meaningless angle roughly 206265x too large."""
@@ -776,11 +784,11 @@ class TestClass(object):
         )
 
         assert delta_pos_angle_arc_sec == pytest.approx(expected, rel=1e-2)
-        assert delta_pos_angle_arc_sec < 8.0  # sane -- well within the match tolerance used
+        assert delta_pos_angle_arc_sec < 8.0  # sane, well within the match tolerance used
 
     def test_weighted_linregress_sigma_attribute(self):
         """_weighted_linregress must expose .sigma (the error-weighted RMS
-        of the residuals around the fit) -- used by --flux-sigma-shade to
+        of the residuals around the fit), used by --flux-sigma-shade to
         draw a +/-1 sigma data-scatter band around the flux comparison fit
         line. A perfect y=x fit with zero scatter should report sigma~=0;
         adding real scatter should increase it."""
@@ -813,7 +821,7 @@ class TestClass(object):
 
     def test_json_dump_appends_json_extension(self, tmp_path):
         """Regression test: json_dump() must append .json if the caller's
-        filename doesn't already have it -- --outfile's own docstring says
+        filename doesn't already have it, --outfile's own docstring says
         the convention is a .json-suffixed name (default
         'fidelity_results.json'), but a user-supplied prefix without the
         extension was previously written completely literally, producing
@@ -824,7 +832,7 @@ class TestClass(object):
         assert not os.path.exists(prefix)
         assert os.path.exists(prefix + ".json")
 
-        # already has the extension -- must not double it up
+        # already has the extension, must not double it up
         with_ext = str(tmp_path / "already_named.json")
         aimfast.json_dump({"b": 2}, filename=with_ext)
         assert os.path.exists(with_ext)
@@ -835,7 +843,7 @@ class TestClass(object):
         DEC) mean/sigma offset values must not be double-converted.
         RA_mean/DEC_mean/r1/r2 are computed from RA_offset/DEC_offset,
         which get_detected_sources_properties already returns in arcsec
-        (via rad2arcsec()) -- the table code previously ran them through
+        (via rad2arcsec()), the table code previously ran them through
         deg2arcsec() again (x3600), producing implausible thousands-of-
         arcsec values for genuinely sub-arcsec matches. Checks the actual
         rendered PositionOffset.html output, not just the underlying data,
@@ -881,7 +889,7 @@ class TestClass(object):
         idx = content.find('"Stats",[')
         assert idx != -1
         snippet = content[idx:idx + 300]
-        # the true offsets here are all sub-2" by construction -- if the
+        # the true offsets here are all sub-2" by construction, if the
         # double-conversion bug is present, the reported mean/sigma will
         # be in the hundreds/thousands instead
         import re
@@ -894,13 +902,13 @@ class TestClass(object):
 
     def test_catalogs_overlay_ra_axis_flipped_without_background_image(self, tmp_path, monkeypatch):
         """Regression test: the 'Catalogs Overlay' panel's RA axis must
-        increase leftward (standard astronomical convention -- viewing the
+        increase leftward (standard astronomical convention, viewing the
         sky from inside looking out, not a ground map from above), even
         when no --restored-image background is supplied. Bokeh's Range1d
         has no working 'flipped' toggle (a previous attempt at
         `x_range.flipped = True` here was dead code, commented out); the
-        correct approach -- already used correctly in the with-background-
-        image branch -- is swapping start/end. Verified by intercepting the
+        correct approach, already used correctly in the with-background-
+        image branch, is swapping start/end. Verified by intercepting the
         actual Bokeh figure object passed to save() (monkeypatched),
         rather than parsing the serialized HTML/JSON output."""
         sources1, sources2 = [], []
@@ -954,8 +962,8 @@ class TestClass(object):
 
     def test_low_match_count_logs_helpful_warning(self, tmp_path, caplog):
         """When very few/no sources match, get_detected_sources_properties
-        should hint at the two most common silent causes -- tolerance and
-        shape_limit -- rather than leave the user to rediscover this the
+        should hint at the two most common silent causes, tolerance and
+        shape_limit, rather than leave the user to rediscover this the
         hard way (as happened repeatedly this session)."""
         # model2 deliberately far away (>> tolerance) from model1, so
         # nothing matches
@@ -977,7 +985,7 @@ class TestClass(object):
 
     def test_healthy_match_count_does_not_warn(self, tmp_path, caplog):
         """The low-match-count hint must not fire when matching is healthy
-        -- it should only appear when genuinely few/no sources matched."""
+       , it should only appear when genuinely few/no sources matched."""
         sources1, sources2 = [], []
         for i in range(20):
             ra = 10.0 + i * 0.01
@@ -1079,7 +1087,7 @@ class TestClass(object):
         assert captured_thresholds == [3.5, 3.5]
 
     def test_default_tolerance_and_shape_limit_widened(self):
-        """Defaults were 0.2" tolerance / 6.0" shape_limit -- too tight for
+        """Defaults were 0.2" tolerance / 6.0" shape_limit, too tight for
         this project's ~8" beam data (real matches sit 0.07-0.5" apart,
         real breizorro island shapes commonly exceed 6" and up to ~15")."""
         parser = aimfast.get_argparser()
@@ -1148,3 +1156,218 @@ class TestClass(object):
         assert not (tmp_path / "combo-PositionOffset.html").exists()
         content = (tmp_path / "combo-CrossMatchReport.html").read_text()
         assert "Catalogs Overlay" in content
+
+    @staticmethod
+    def _make_galactic_rms_fits(path, naxis=60, seed=0):
+        """Build a small 2D (no freq/Stokes axes), Galactic-frame FITS
+        image with standard CRPIX (=NAXIS/2), mimicking this project's own
+        full-tile RMS map products, used to reproduce the
+        --compare-residuals crash chain end to end."""
+        from astropy.io import fits
+
+        rng = np.random.default_rng(seed)
+        data = np.abs(rng.normal(1e-4, 1e-5, size=(naxis, naxis))).astype(np.float32)
+        hdu = fits.PrimaryHDU(data)
+        hdr = hdu.header
+        hdr["CTYPE1"] = "GLON-SIN"
+        hdr["CTYPE2"] = "GLAT-SIN"
+        hdr["CRVAL1"] = 312.5
+        hdr["CRVAL2"] = 0.0
+        hdr["CRPIX1"] = naxis / 2.0
+        hdr["CRPIX2"] = naxis / 2.0
+        hdr["CDELT1"] = -0.001
+        hdr["CDELT2"] = 0.001
+        hdr["CUNIT1"] = "deg"
+        hdr["CUNIT2"] = "deg"
+        hdr["BMAJ"] = 0.0022222
+        hdr["BMIN"] = 0.0022222
+        hdr["BPA"] = 0.0
+        hdu.writeto(str(path))
+
+    def test_compare_residuals_on_galactic_2d_image(self, tmp_path, monkeypatch):
+        """--compare-residuals on a Galactic-frame, plain-2D (no freq/
+        Stokes axes) image used to crash three different ways in a row:
+        (1) fits_info["centre"] is raw CRVAL, (l, b) for a Galactic
+        image, not RA/Dec, so get_box()'s ICRS SkyCoord landed random
+        sample points nowhere near the image, producing NaN pixel coords;
+        (2) res_data[0, 0, :, :] assumed a 4D cube, crashing on a plain 2D
+        array; (3) figure(plot_width=..., plot_height=...) is removed in
+        Bokeh 3.x. All three are fixed now, this exercises the full
+        compare_residuals() -> _random_residual_results() ->
+        _residual_plotter() path end to end and checks a real html report
+        is produced."""
+        path1 = tmp_path / "res1.fits"
+        path2 = tmp_path / "res2.fits"
+        self._make_galactic_rms_fits(path1, seed=1)
+        self._make_galactic_rms_fits(path2, seed=2)
+
+        residuals = [[
+            dict(label="galtest-res_a_0", path=str(path1)),
+            dict(label="galtest-res_b_0", path=str(path2)),
+        ]]
+
+        monkeypatch.chdir(tmp_path)
+        aimfast.compare_residuals(
+            residuals, points=30, fov_factor=0.9, area_factor=2, prefix="galtest"
+        )
+
+        html_files = list(tmp_path.glob("galtest-*.html"))
+        assert html_files, "compare_residuals should produce an html report"
+
+    def test_json_dump_handles_numpy_float32(self, tmp_path):
+        """json_dump() crashed with 'Object of type float32 is not JSON
+        serializable' whenever a results dict (as produced by the
+        residual/flux comparison pipelines, which compute with numpy)
+        contained a raw numpy scalar rather than a plain Python float."""
+        outfile = str(tmp_path / "results.json")
+        aimfast.json_dump({"a": np.float32(1.5), "b": [np.float64(2.5)]}, filename=outfile)
+
+        import json
+
+        with open(outfile) as f:
+            data = json.load(f)
+        assert data["a"] == pytest.approx(1.5)
+        assert data["b"] == [pytest.approx(2.5)]
+
+    def test_get_online_catalog_maps_friendly_names_to_vizier_ids(self, tmp_path, monkeypatch):
+        """--compare-online has never actually worked: bare 'SUMSS'/'NVSS'
+        (the CLI's own -oc choices) aren't valid Vizier catalog
+        identifiers and silently resolve to zero results regardless of
+        sky position. Fixed by mapping the short, familiar CLI name to
+        the real Vizier catalog ID internally."""
+        from aimfast import auxiliary
+        from astroquery.utils import TableList
+        from astropy.table import Table
+
+        captured = {}
+
+        def _fake_query_region(coord_obj, width=None, catalog=None):
+            captured["catalog"] = catalog
+            return TableList([("VIII/81B/sumss212", Table({"RAJ2000": [], "DEJ2000": []}))])
+
+        monkeypatch.setattr(auxiliary.Vizier, "query_region", staticmethod(_fake_query_region))
+
+        auxiliary.get_online_catalog(
+            catalog="SUMSS", catalog_table=str(tmp_path / "out.txt")
+        )
+        assert captured["catalog"] == "VIII/81B/sumss212"
+
+        auxiliary.get_online_catalog(
+            catalog="RACS-MID", catalog_table=str(tmp_path / "out2.txt")
+        )
+        assert captured["catalog"] == "J/other/PASA/41.3"
+
+    def test_get_online_catalog_racs_picks_source_level_table(self, tmp_path, monkeypatch):
+        """RACS queries return multiple tables (source-level +
+        Gaussian-component-level), must pick the source-level one by
+        name, not just blindly use whichever came first."""
+        from aimfast import auxiliary
+        from astroquery.utils import TableList
+        from astropy.table import Table
+
+        gauss_table = Table({"RAJ2000": [1.0], "DEJ2000": [2.0], "Ftot": [5.0]})
+        source_table = Table({"RAJ2000": [3.0], "DEJ2000": [4.0], "Ftot": [7.0]})
+
+        def _fake_query_region(coord_obj, width=None, catalog=None):
+            return TableList([
+                ("J/other/PASA/41.3/gcompsm", gauss_table),
+                ("J/other/PASA/41.3/sourcesm", source_table),
+            ])
+
+        monkeypatch.setattr(auxiliary.Vizier, "query_region", staticmethod(_fake_query_region))
+
+        result = auxiliary.get_online_catalog(
+            catalog="RACS-MID", catalog_table=str(tmp_path / "out.txt")
+        )
+        assert list(result["Ftot"]) == [7.0]
+
+    def test_tigger_src_racs_handles_missing_error_columns(self):
+        """RACS-mid/high's source table has no per-source error columns
+        at all (unlike racs-low); tigger_src_racs must not crash, just
+        default those to 0.0."""
+        from astropy.table import Row, Table
+
+        row = Table({
+            "RAJ2000": [212.6], "DEJ2000": [-61.5],
+            "Ftot": [4.0], "Fpeak": [4.5],
+            "Maj": [16.9], "Min": [9.5], "PA": [1.0],
+        })
+
+        # tigger_src_racs is nested inside get_model(); exercise it via a
+        # real online-catalog-style ascii table + get_model() round trip
+        # instead of reaching into the closure directly.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            catalog_path = os.path.join(d, "default_racs-mid_catalog_table.txt")
+            from astropy.io import ascii as io_ascii
+
+            io_ascii.write(row, catalog_path, overwrite=True)
+            model = aimfast.get_model(catalog_path)
+            assert len(model.sources) == 1
+            src = model.sources[0]
+            assert src.flux.I == pytest.approx(4.0 / 1000.0)
+            assert src.flux.I_err == 0.0
+
+    def test_tigger_src_vlass_round_trip(self):
+        """VLASS has real per-source errors (unlike racs-mid/high) and
+        different column names (DCMaj/DCMin/DCPA), exercised through
+        the same get_model() ascii-catalog path."""
+        from astropy.table import Table
+        from astropy.io import ascii as io_ascii
+        import tempfile
+
+        row = Table({
+            "RAJ2000": [179.845], "DEJ2000": [19.89],
+            "Ftot": [2.862], "e_Ftot": [0.373],
+            "Fpeak": [2.476], "e_Fpeak": [0.192],
+            "DCMaj": [1.514], "DCMin": [0.3055], "DCPA": [71.0],
+        })
+
+        with tempfile.TemporaryDirectory() as d:
+            catalog_path = os.path.join(d, "default_vlass_catalog_table.txt")
+            io_ascii.write(row, catalog_path, overwrite=True)
+            model = aimfast.get_model(catalog_path)
+            assert len(model.sources) == 1
+            src = model.sources[0]
+            assert src.flux.I == pytest.approx(2.862 / 1000.0)
+            assert src.flux.I_err == pytest.approx(0.373 / 1000.0)
+
+    def test_cross_matching_logs_periodic_progress(self, tmp_path, monkeypatch, caplog):
+        """Cross-matching large catalogues can take minutes with zero
+        other output (confirmed directly: the full-tile grid test took
+        ~30min for a single pair), indistinguishable from a hang while
+        it's running. A periodic progress log should fire without
+        needing to actually wait, simulate elapsed time via a
+        monkeypatched time.time() rather than a real multi-minute test."""
+        sources1, sources2 = [], []
+        for i in range(5):
+            ra = 210.0 + i * 0.5
+            sources1.append(self._make_source(f"S1_{i}", ra, -61.0, 0.001, 8.0, 6.0))
+            sources2.append(
+                self._make_source(f"S2_{i}", ra + 1.0 / 3600.0, -61.0, 0.001, 8.0, 6.0)
+            )
+        model1 = SkyModel.SkyModel(*sources1)
+        model2 = SkyModel.SkyModel(*sources2)
+        path1 = str(tmp_path / "model1.lsm.html")
+        path2 = str(tmp_path / "model2.lsm.html")
+        model1.save(path1)
+        model2.save(path2)
+
+        import aimfast.aimfast as aimfast_module
+
+        fake_now = [1000.0]
+
+        def _fake_time():
+            # Jump 31s forward every call after the first, so the 30s
+            # progress-log threshold is crossed on the very next source
+            # without a real wait.
+            fake_now[0] += 31.0
+            return fake_now[0]
+
+        monkeypatch.setattr(aimfast_module.time, "time", _fake_time)
+
+        with caplog.at_level("INFO"):
+            aimfast.get_detected_sources_properties(path1, path2, tolerance=8.0, shape_limit=12.0)
+
+        assert any("Cross-matching:" in rec.message for rec in caplog.records)
