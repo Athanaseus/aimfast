@@ -4483,7 +4483,7 @@ def _resolve_compare_source_finders(sourcery, pair_count):
     return [source_finders[0], source_finders[-1]] * pair_count
 
 
-def source_finding(sf_params, sf=None, mappings=None):
+def source_finding(sf_params, sf=None, mappings=None, outdir=None):
     """Run configured source finder and ensure a Tigger .lsm.html is produced.
 
     Parameters
@@ -4494,8 +4494,15 @@ def source_finding(sf_params, sf=None, mappings=None):
         Optional selected source finder key
     mappings: dict
         Optional column mappings for conversion (flux/position)
+    outdir: str
+        Optional directory to write output catalogs to (default: next to
+        the input image). Ignored for a finder if its config already sets
+        an explicit output path (pybdsf's ``outfile``, breizorro's
+        ``outcatalog``, aegean's ``table``).
 
     """
+    if outdir:
+        os.makedirs(outdir, exist_ok=True)
     outfile = None
     aegean_sf = sf_params.pop("aegean", {"enable": False})
     pybd_sf = sf_params.pop("pybdsf", {"enable": False})
@@ -4506,15 +4513,15 @@ def source_finding(sf_params, sf=None, mappings=None):
     if enable_pybdsf or sf in ["pybdsf"]:
         filename = pybd_sf["filename"]
         LOGGER.info(f"Running pybdsf source finder on image: {filename}")
-        outfile = bdsf(filename, pybd_sf, LOGGER)
+        outfile = bdsf(filename, pybd_sf, LOGGER, outdir=outdir)
     elif enable_aegean or sf in ["aegean"]:
         filename = aegean_sf["filename"]
         LOGGER.info(f"Running aegean source finder on image: {filename}")
-        outfile = aegean(filename, aegean_sf, LOGGER)
+        outfile = aegean(filename, aegean_sf, LOGGER, outdir=outdir)
     elif enable_breizorro or sf in ["breizorro"]:
         filename = breizorro_sf["filename"]
         LOGGER.info(f"Running breizorro source finder on image: {filename}")
-        outfile = breizorro(filename, breizorro_sf, LOGGER)
+        outfile = breizorro(filename, breizorro_sf, LOGGER, outdir=outdir)
     else:
         LOGGER.warn(f"{WARNING}No source finder selected.{ENDC}")
     # Try to produce a Tigger .lsm.html model alongside native output.
@@ -4589,6 +4596,13 @@ def get_argparser():
         dest="sf_ncpu",
         type=int,
         help="Number of CPU cores to use for selected source finder",
+    )
+    sf.add_argument(
+        "-od",
+        "--outdir",
+        dest="sf_outdir",
+        help="Directory to write source-finder output catalogs to "
+        "(default: next to the input image)",
     )
     argument = partial(parser.add_argument)
     argument(
@@ -4695,6 +4709,13 @@ def get_argparser():
             "the first and second finder for every pair, or 2*N values to "
             "assign a finder per image in each pair."
         ),
+    )
+    argument(
+        "--sf-threshold",
+        dest="sf_threshold",
+        type=float,
+        help="Threshold override for the source finder(s) run by --compare-images "
+        "(thresh_pix for pybdsf, floodclip for aegean, threshold for breizorro).",
     )
     # Online catalog query
     argument(
@@ -5117,7 +5138,7 @@ def main():
             threshold=args.sf_thresh,
             ncpu=args.sf_ncpu,
         )
-        source_finding(sf_params, selected_sf, mappings=mappings)
+        source_finding(sf_params, selected_sf, mappings=mappings, outdir=args.sf_outdir)
     elif args.json:
         plot_aimfast_stats(args.json, prefix=args.htmlprefix)
     elif (
@@ -5362,6 +5383,7 @@ def main():
                 sf_params1,
                 sourcery=sourcery1,
                 restored_image=image1,
+                threshold=args.sf_threshold,
                 ncpu=args.ncpu,
             )
             out1 = source_finding(sf_params1, sourcery1, mappings=mappings)
@@ -5370,6 +5392,7 @@ def main():
                 sf_params2,
                 sourcery=sourcery2,
                 restored_image=image2,
+                threshold=args.sf_threshold,
                 ncpu=args.ncpu,
             )
             out2 = source_finding(sf_params2, sourcery2, mappings=mappings)

@@ -324,7 +324,7 @@ def get_online_catalog(
         return None
 
 
-def aegean(image, kwargs, log):
+def aegean(image, kwargs, log, outdir=None):
     try:
         import AegeanTools
     except (ModuleNotFoundError, ImportError):
@@ -343,7 +343,11 @@ def aegean(image, kwargs, log):
         if name == "filename":  # positional argument
             args += ["{0}".format(value)]
         elif name == "table":
-            outfile = "{}_aegean.tab".format(kwargs["filename"][:-5])
+            if outdir:
+                basename = os.path.splitext(os.path.basename(kwargs["filename"]))[0]
+                outfile = os.path.join(outdir, f"{basename}_aegean.tab")
+            else:
+                outfile = "{}_aegean.tab".format(kwargs["filename"][:-5])
             args += ["{0}{1}".format("--", name), "{0}".format(outfile)]
         elif name in bool_options:
             args += ["{0}{1}".format("--", name)]
@@ -371,7 +375,7 @@ def aegean(image, kwargs, log):
     return outfile
 
 
-def bdsf(image, kwargs, log):
+def bdsf(image, kwargs, log, outdir=None):
 
     try:
         import bdsf as bdsm
@@ -441,15 +445,23 @@ def bdsf(image, kwargs, log):
     image = img_opts.pop("filename")
     output_format = str(write_opts.get("format", "txt")).lower()
     default_extension = catalog_default_extension(output_format)
-    outfile = write_opts.pop("outfile") or f"{image[:-5]}-pybdsf.{default_extension}"
+    explicit_outfile = write_opts.pop("outfile")
+    if explicit_outfile:
+        outfile = explicit_outfile
+    elif outdir:
+        basename = os.path.splitext(os.path.basename(image))[0]
+        outfile = os.path.join(outdir, f"{basename}-pybdsf.{default_extension}")
+    else:
+        outfile = f"{image[:-5]}-pybdsf.{default_extension}"
     img = bdsm.process_image(image, **img_opts, ncores=ncores)
     img.write_catalog(outfile=outfile, **write_opts)
     return outfile
 
 
-def breizorro(image, kwargs, log):
+def breizorro(image, kwargs, log, outdir=None):
     args = ["breizorro"]
     outfile = kwargs.get("outcatalog")
+    mask_outfile = kwargs.get("outfile")
 
     bool_options = ["make_binary", "invert", "fill_holes", "gui"]
 
@@ -467,10 +479,17 @@ def breizorro(image, kwargs, log):
         else:
             args.extend([f"--{cli_name}", str(value)])
 
+    basename = os.path.splitext(os.path.basename(kwargs["filename"]))[0]
     if not outfile:
-        base = os.path.splitext(kwargs["filename"])[0]
-        outfile = f"{base}-breizorro.txt"
+        if outdir:
+            outfile = os.path.join(outdir, f"{basename}-breizorro.txt")
+        else:
+            outfile = f"{os.path.splitext(kwargs['filename'])[0]}-breizorro.txt"
         args.extend(["--outcatalog", outfile])
+
+    if not mask_outfile and outdir:
+        mask_outfile = os.path.join(outdir, f"{basename}.mask.fits")
+        args.extend(["--outfile", mask_outfile])
 
     args.extend(["--restored-image", kwargs["filename"]])
     log.info("Running: {}".format(" ".join(args)))

@@ -1020,3 +1020,60 @@ class TestClass(object):
             "when -c/--config is omitted, not silently no-op"
         )
         assert any("No source finder selected" in rec.message for rec in caplog.records)
+
+    def test_source_finder_subcommand_forwards_outdir(self, tmp_path, monkeypatch):
+        """`source-finder --outdir DIR` should be threaded through to
+        source_finding() so output catalogs land in DIR instead of always
+        next to the input image (previously no such override existed)."""
+        import sys
+
+        monkeypatch.chdir(tmp_path)
+        captured = {}
+
+        def _fake_source_finding(sf_params, sf=None, mappings=None, outdir=None):
+            captured["outdir"] = outdir
+
+        monkeypatch.setattr(aimfast, "source_finding", _fake_source_finding)
+        outdir = str(tmp_path / "results")
+        monkeypatch.setattr(
+            sys, "argv", ["aimfast", "source-finder", "-sf", "pybdsf", "--outdir", outdir]
+        )
+
+        aimfast.main()
+
+        assert captured["outdir"] == outdir
+
+    def test_compare_images_forwards_sf_threshold(self, tmp_path, monkeypatch):
+        """--compare-images should let --sf-threshold override the selected
+        finder's detection threshold, matching what the `source-finder`
+        subcommand's --threshold already does (previously --compare-images
+        had no way to override this at all)."""
+        import sys
+
+        monkeypatch.chdir(tmp_path)
+        captured_thresholds = []
+
+        def _fake_source_finding(sf_params, sf=None, mappings=None, outdir=None):
+            captured_thresholds.append(sf_params[sf]["thresh_pix"])
+            return None
+
+        monkeypatch.setattr(aimfast, "source_finding", _fake_source_finding)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "aimfast",
+                "--compare-images",
+                "image1.fits",
+                "image2.fits",
+                "-sf",
+                "pybdsf",
+                "pybdsf",
+                "--sf-threshold",
+                "3.5",
+            ],
+        )
+
+        aimfast.main()
+
+        assert captured_thresholds == [3.5, 3.5]
