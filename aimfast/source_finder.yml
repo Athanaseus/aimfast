@@ -11,13 +11,13 @@ pybdsf:
   thresh_pix: 5.0              # Source detection threshold: threshold for the island peak in number of sigma above the mean
   catalog_type: srl           # Type of catalog to write:  'gaul' - Gaussian list, 'srl' - source list (formed by grouping Gaussians), 'shap' - shapelet list (FITS format only)
   group_tol: 1.0               # Tolerance for grouping of Gaussians into sources: larger values will result in larger sources
-  group_by_isl: false          # Group all Gaussians in each island into a single source
+  group_by_isl: true          # Group all Gaussians in each island into a single source
   aperture_posn: centroid      # Position the aperture (if aperture is not None) on: 'centroid' or 'peak' of the source
   thresh:                      # Type of thresholding: None => calculate inside program, 'fdr' => use false detection rate algorithm, 'hard' => use sigma clipping
   mean_map:                    # Background mean map: 'default' => calc whether to use or not, 'zero' => 0, 'const' => clipped mean, 'map' => use 2-D map
   rms_box:                     # Box size, step size for rms/mean map calculation. Specify as (box, step) in pixels
   rms_map:                     # Background rms map: True => use 2-D rms map; False => use constant rms; None => calculate inside program
-  format: fits                 # Format of output catalog ["bbs", "ds9", "fits", "star", "kvis", "ascii", "csv", "casabox", "sagecal"]
+  format: ascii                # Format of output catalog ["bbs", "ds9", "fits", "star", "kvis", "ascii", "csv", "casabox", "sagecal"]
   stop_at:                     # Stops after: 'isl' = island finding step or 'read' = image reading step
   pi_thresh_isl:               # Correct source parameters for image projection (BBS format only)
   pi_thresh_pix:               # Source detection threshold for PI image: threshold for the island peak in number of sigma above the mean. Uses thresh_pix if not set
@@ -71,7 +71,9 @@ aegean:
   enable: false
   filename:                   # Image to extract radio sources
   table: ascii                # Additional table outputs, format inferred from extension (database: .db, votable: .vot, and ascii: .csv/.tab)
-  slice: 0                       # If the input data is a cube, then this slice will determine the array index of the image which will be processed by aegean
+  slice: 0                    # If the input data is a cube, then this slice will determine the array index of the image which will be processed by aegean
+  progress: true              # Provide a progress bar as islands are being fit
+  island: true                # Also calculate the island flux
   psf:                        # A .fits file that represents the local psf
   noise:                      # A .fits file that represents the image noise
   region:                     # Use this regions file to restrict source finding in this image. Use MIMAS region (.mim) files
@@ -80,3 +82,22 @@ aegean:
   maxsummits:                 # If more than *maxsummits* summits are detected in an island, no fitting is done, only estimation. [default: no limit]
   seedclip: 5                 # The clipping value (in sigmas) for seeding islands
   floodclip: 4                # The clipping value (in sigmas) for growing islands
+breizorro:
+  enable: false
+  filename:                   # Input image file name
+  minimum_size:               # Remove islands with areas fewer than or equal to this number of pixels
+  make_binary: false          # Replace all island numbers with 1
+  invert: false               # Invert the mask
+  dilate:                     # Apply dilation with a radius (pixels)
+  erode:                      # Apply N iterations of erosion
+  fill_holes: false           # Fill holes (closed regions) in the mask
+  sum_peak:                   # Sum-to-peak ratio of flux islands to mask in original image
+  ncpu: 4                     # Number of processors to use for cataloging
+  beam_size:                  # Average beam size in arcsec if missing in header
+  source_fitting:             # Source fitting method for catalog generation
+  threshold: 6                # Flux detection threshold
+  boxsize: 50                 # Box size over which to compute stats
+  gui: false                  # Open mask in bokeh html gui
+  outfile:                    # Output mask image
+  outcatalog:                 # Output catalog from mask
+  outregion:                  # Output polygon regions from mask

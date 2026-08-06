@@ -5,9 +5,10 @@ name: Python package
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, 'prepare*' ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, 'prepare*' ]
+  workflow_dispatch: {}
 
 jobs:
   test:
@@ -15,8 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-22.04 ]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        os: [ ubuntu-22.04, ubuntu-latest ]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -34,17 +35,58 @@ jobs:
           fetch-depth: 1
 
       - name: Install aimfast with test dependencies
-        run: uv sync --extra source_finders --extra tests --all-groups
+        run: |
+          uv sync --group tests --extra all
+          uv pip install -U --force-reinstall "breizorro[all] @ git+https://github.com/ratt-ru/breizorro.git@updates"
 
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          uv run flake8 aimfast --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          uv run flake8 aimfast --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Test command
-        run: aimfast -h
+        run: uv run aimfast -h
 
       - name: Run testsuite
-        run: pytest -vvv aimfast/
+        run: uv run pytest -vvv aimfast/
+
+      - name: Run basic catalog CLI test
+        run: |
+          uv run aimfast -x ra_d -y dec_d -catalog aimfast/tests/files/catalog1.txt --html-prefix basic-catalog
+          test -f basic-catalog.html
+
+      - name: Download test dataset
+        run: |
+          curl --fail --retry 3 --retry-delay 5 -L -o mypipelinerun_circinus_p3_3-MFS-image.tar "https://www.dropbox.com/scl/fi/xoaqth4jhjnx098xbegvn/mypipelinerun_circinus_p3_3-MFS-image.tar?rlkey=vdgkz2xpjgpp7v7hjxm7kg6g2&st=isg70eve&dl=1"
+          tar -xvf mypipelinerun_circinus_p3_3-MFS-image.tar
+
+      - name: Run source-finder end-to-end tests
+        run: |
+          uv run aimfast source-finder -gc my-source-finder.yml
+          for sf in pybdsf aegean breizorro; do
+            uv run aimfast source-finder -c my-source-finder.yml -sf "$sf" -r mypipelinerun_circinus_p3_3-MFS-image.fits --threshold 10 --ncpu 1
+          done
+          cat mypipelinerun_circinus_p3_3-MFS-image_aegean_isle.tab
+          cat mypipelinerun_circinus_p3_3-MFS-image-breizorro.txt
+          cat mypipelinerun_circinus_p3_3-MFS-image-pybdsf.txt
+
+      - name: Run compare-images test
+        run: |
+          uv run aimfast --compare-images mypipelinerun_circinus_p3_3-MFS-image.fits mypipelinerun_circinus_p3_3-MFS-image.fits --html-prefix cluster --units milli -x-size 16pt -y-size 16pt -title-size 28pt -legend-size 16pt -x-maj-size 16pt -y-maj-size 16pt -bar-size 16pt -bar-major-size 14pt -units micro
+          find . -name '*.html' -o -name '*.lsm.html'
+
+      - name: Run compare-models test
+        run: |
+          uv run aimfast --compare-models mypipelinerun_circinus_p3_3-MFS-image-pybdsf.txt mypipelinerun_circinus_p3_3-MFS-image-breizorro.txt -tol 6
+
+      - name: Upload HTML artifacts
+        if: always() && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-artifacts
+          path: |
+            *.html
+            **/*.lsm.html
+          if-no-files-found: warn

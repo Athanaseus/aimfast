@@ -5,7 +5,6 @@ import numpy
 import numpy as np
 from astropy import coordinates as coord
 from astropy import units as u
-from astropy.coordinates import SkyCoord
 from astropy.io import ascii
 from astropy.io import fits as fitsio
 from astropy.io import fits as pyfits
@@ -187,6 +186,22 @@ def unwrap(angle):
     return angle
 
 
+def catalog_default_extension(output_format):
+    """Map a catalog writer format to a sensible filename extension."""
+    fmt = str(output_format or "").lower()
+    if fmt == "fits":
+        return "fits"
+    if fmt == "csv":
+        return "csv"
+    if fmt in {"tab", "tsv"}:
+        return "tab"
+    if fmt.startswith("ascii") or fmt in {"txt", "text"}:
+        return "txt"
+    if fmt == "ecsv":
+        return "ecsv"
+    return "txt"
+
+
 def compute_in_out_slice(N, N0, R, R0):
     """Given an input axis of size N, and an output axis of size N0,
     and reference pixels of R and R0 respectively, computes two slice
@@ -275,14 +290,43 @@ def get_online_catalog(
         Table with online catalog data
 
     """
+    # "catalog" here is the short, familiar user-facing name (upper-cased
+    # by the caller). These are not valid Vizier catalog identifiers on
+    # their own (e.g. bare "SUMSS"/"NVSS" resolve to zero results), so map
+    # to the actual Vizier catalog ID. RACS returns more than one table per
+    # query (source-level + Gaussian-component-level); pin to the
+    # source-level one specifically via its table-name suffix.
+    vizier_catalog_ids = {
+        "NVSS": "VIII/65/nvss",
+        "SUMSS": "VIII/81B/sumss212",
+        "RACS-LOW": "J/other/PASA/38.58",
+        "RACS-MID": "J/other/PASA/41.3",
+        "RACS-HIGH": "J/other/PASA/42.38",
+        "VLASS": "J/ApJS/255/30",
+    }
+    racs_table_suffix = {
+        "RACS-LOW": "/galreg",
+        "RACS-MID": "/sourcesm",
+        "RACS-HIGH": "/sourcesh",
+    }
+    vizier_id = vizier_catalog_ids.get(catalog, catalog)
+
     Vizier.ROW_LIMIT = -1
     C = Vizier.query_region(
         coord.SkyCoord(centre_coord[0], centre_coord[1], unit=(u.hourangle, u.deg), frame="icrs"),
         width=width,
-        catalog=catalog,
+        catalog=vizier_id,
     )
     if C.values():
-        table = C[0]
+        if catalog in racs_table_suffix:
+            table = next(
+                (C[key] for key in C.keys() if key.endswith(racs_table_suffix[catalog])),
+                None,
+            )
+            if table is None:
+                return None
+        else:
+            table = C[0]
         ra_deg = []
         dec_deg = []
 
@@ -301,6 +345,18 @@ def get_online_catalog(
 
                 for i in range(1, len(table.colnames)):
                     table[table.colnames[i]][above_thresh] = np.nan
+        elif catalog in racs_table_suffix or catalog == "VLASS":
+            # RACS/VLASS RAJ2000/DEJ2000 are already decimal degrees,
+            # unlike NVSS/SUMSS's sexagesimal strings, no conversion
+            # needed.
+            if thresh:
+                above_thresh = table["Ftot"] < thresh
+                for i in range(1, len(table.colnames)):
+                    try:
+                        table[table.colnames[i]][above_thresh] = np.nan
+                    except (ValueError, TypeError):
+                        # Non-float columns (e.g. SCode, Flag) can't hold NaN
+                        pass
 
         table = Table(table, masked=True)
         ascii.write(table, catalog_table, overwrite=True)
@@ -309,9 +365,17 @@ def get_online_catalog(
         return None
 
 
-def aegean(image, kwargs, log):
+def aegean(image, kwargs, log, outdir=None):
+    try:
+        import AegeanTools
+    except (ModuleNotFoundError, ImportError):
+        raise ModuleNotFoundError(
+            "Source finding module is not installed. Install with `pip install aimfast[aegean]`"
+        )
+
     args = ["aegean"]
     outfile = ""
+    bool_options = ["progress", "island", "nopositive", "negative", "nocov", "noregroup"]
     for name, value in kwargs.items():
         if value is None:
             continue
@@ -320,25 +384,45 @@ def aegean(image, kwargs, log):
         if name == "filename":  # positional argument
             args += ["{0}".format(value)]
         elif name == "table":
-            outfile = "{}.tab".format(kwargs["filename"][:-5])
-            args += ["{0}{1} {2}".format("--", name, outfile)]
-            # Aegean add '_comp' to the file name e.g. im_comp.tab
-            outfile = "{}_comp.tab".format(kwargs["filename"][:-5])
+            if outdir:
+                basename = os.path.splitext(os.path.basename(kwargs["filename"]))[0]
+                outfile = os.path.join(outdir, f"{basename}_aegean.tab")
+            else:
+                outfile = "{}_aegean.tab".format(kwargs["filename"][:-5])
+            args += ["{0}{1}".format("--", name), "{0}".format(outfile)]
+        elif name in bool_options:
+            args += ["{0}{1}".format("--", name)]
         else:
-            args += ["{0}{1} {2}".format("--", name, value)]
+            args += ["{0}{1}".format("--", name), "{0}".format(value)]
     log.info("Running: {}".format(" ".join(args)))
-    run = subprocess.run(" ".join(args), shell=True)
+    run = subprocess.run(args)
     log.info("The exit code was: {}".format(run.returncode))
+
+    if kwargs.get("island"):
+        outfile = outfile.replace(".tab", "_isle.tab")
+    else:
+        outfile = outfile.replace(".tab", "_comp.tab")
+
+    if run.returncode in [143, -15] and outfile and os.path.exists(outfile):
+        log.warning(
+            "Aegean terminated but output catalog exists (%s); continuing with existing output",
+            outfile,
+        )
+        return outfile
+
+    if run.returncode != 0:
+        raise RuntimeError("aegean source finder failed")
+
     return outfile
 
 
-def bdsf(image, kwargs, log):
+def bdsf(image, kwargs, log, outdir=None):
 
     try:
         import bdsf as bdsm
     except (ModuleNotFoundError, ImportError):
         raise ModuleNotFoundError(
-            "Source finding module is not  installed. Install with `pip install aimfast[bdsf]`"
+            "Source finding module is not installed. Install with `pip install aimfast[bdsf]`"
         )
 
     img_opts = {}
@@ -400,7 +484,58 @@ def bdsf(image, kwargs, log):
         img_opts["beam_spectrum"] = beams
 
     image = img_opts.pop("filename")
-    outfile = write_opts.pop("outfile") or "{}-pybdsf.fits".format(image[:-5])
+    output_format = str(write_opts.get("format", "txt")).lower()
+    default_extension = catalog_default_extension(output_format)
+    explicit_outfile = write_opts.pop("outfile")
+    if explicit_outfile:
+        outfile = explicit_outfile
+    elif outdir:
+        basename = os.path.splitext(os.path.basename(image))[0]
+        outfile = os.path.join(outdir, f"{basename}-pybdsf.{default_extension}")
+    else:
+        outfile = f"{image[:-5]}-pybdsf.{default_extension}"
     img = bdsm.process_image(image, **img_opts, ncores=ncores)
     img.write_catalog(outfile=outfile, **write_opts)
+    return outfile
+
+
+def breizorro(image, kwargs, log, outdir=None):
+    args = ["breizorro"]
+    outfile = kwargs.get("outcatalog")
+    mask_outfile = kwargs.get("outfile")
+
+    bool_options = ["make_binary", "invert", "fill_holes", "gui"]
+
+    for name, value in kwargs.items():
+        if name in ["enable"]:
+            continue
+        if name == "filename":
+            continue
+        if value is None:
+            continue
+
+        cli_name = name.replace("_", "-")
+        if name in bool_options:
+            args.append(f"--{cli_name}" if value else f"--no-{cli_name}")
+        else:
+            args.extend([f"--{cli_name}", str(value)])
+
+    basename = os.path.splitext(os.path.basename(kwargs["filename"]))[0]
+    if not outfile:
+        if outdir:
+            outfile = os.path.join(outdir, f"{basename}-breizorro.txt")
+        else:
+            outfile = f"{os.path.splitext(kwargs['filename'])[0]}-breizorro.txt"
+        args.extend(["--outcatalog", outfile])
+
+    if not mask_outfile and outdir:
+        mask_outfile = os.path.join(outdir, f"{basename}.mask.fits")
+        args.extend(["--outfile", mask_outfile])
+
+    args.extend(["--restored-image", kwargs["filename"]])
+    log.info("Running: {}".format(" ".join(args)))
+    run = subprocess.run(args)
+    log.info("The exit code was: {}".format(run.returncode))
+    if run.returncode != 0:
+        raise RuntimeError("breizorro source finder failed")
     return outfile

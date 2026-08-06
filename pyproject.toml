@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.rst"
 license = { text = "GNU GPL v3" }
-requires-python = ">=3.9,<3.14"
+requires-python = ">=3.10,<3.14"
 keywords = ["fits", "dataset", "lsm", "models", "statistics", "html", "catalogs"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -15,7 +15,6 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -24,7 +23,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries"
 ]
 dependencies = [
-    "astLib>=0.10.0",
+    "astLib",
     "astropy",
     "astroquery",
     "astro-tigger",
@@ -41,10 +40,11 @@ dependencies = [
 
 [project.optional-dependencies]
 aegean = ["AegeanTools"]
-pybdsf = ["bdsf", "matplotlib"]
-source_finders = ["bdsf", "matplotlib", "AegeanTools", "breizorro"]
+pybdsf = ["bdsf"]
+breizorro = ["breizorro[all]"]
+source_finders = ["bdsf", "AegeanTools", "breizorro[all]"]
 svg_images = ["matplotlib", "selenium"]
-all = ["AegeanTools", "bdsf", "matplotlib", "selenium", "breizorro"]
+all = ["AegeanTools", "bdsf", "matplotlib", "selenium", "breizorro[all]"]
 
 [project.urls]
 Homepage = "https://github.com/Athanaseus/aimfast"
@@ -70,6 +70,9 @@ docs = [
     "numpydoc"
 ]
 
+[tool.uv.extra-build-dependencies]
+astlib = ["setuptools"]
+
 [tool.uv]
 default-groups = ["tests", "docs"]
 
@@ -78,11 +81,16 @@ allow-direct-references = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N"]
-ignore = ["E501"]
+ignore = [
+    "E501", # Line length
+    "N806", # Upper case variables (skyArea)
+    "N802", # Upper case functions (maxDist)
+    "N803", # Upper case arguments (maxDist)
+]
 
 [tool.ruff.format]
 quote-style = "double"
