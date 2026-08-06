@@ -21,8 +21,12 @@ build:
       # Install uv instead of poetry
       - pip install uv
     post_install:
-      # Use uv to sync your dependencies globally in the RTD environment
-      # --system allows uv to install packages without a virtualenv
-      # --group docs ensures your documentation tools are included
-      - uv sync --system --group docs
+      # uv sync has no --system flag (that belongs to uv pip install, a
+      # different command family); it always manages its own project
+      # venv. Point it at RTD's own pre-created virtualenv instead of
+      # letting it create a separate one, so the sphinx-build step below
+      # (which runs in RTD's venv) can actually see the installed
+      # packages. --group docs ensures the documentation tools are
+      # included.
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv sync --group docs
 
