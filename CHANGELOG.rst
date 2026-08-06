@@ -94,3 +94,71 @@
 - New policy starting this release: every bug fix or new function gets a
   test. Test suite grew from 27 (with 2 known-failing, pre-existing) to 41
   passing as part of this pass -- see ``aimfast/tests/test_aimfast.py``.
+- Fixed the "Cross Matching Statistics" table double-converting the
+  reported mean/sigma position offset (an extra ``deg2arcsec()`` applied
+  to values already in arcsec).
+- Fixed a crash when a matched source's position error is ``None`` (the
+  common case after a Tigger save/load round-trip), and a matching crash
+  for shape errors.
+- Fixed the "Catalogs Overlay" RA axis not being flipped to the correct
+  astronomical convention when no background restored image is supplied.
+- Added a friendly warning when very few sources match between two
+  catalogues, naming the two most common silent causes (tolerance,
+  shape_limit) rather than leaving the user to debug it manually.
+- Fixed the ``source-finder`` subcommand silently doing nothing unless
+  ``--config`` was explicitly passed, even though ``-sf``/``-r``/
+  ``--threshold`` are documented as standalone overrides. Now falls back
+  to an auto-generated default config, matching ``--compare-images``'s
+  existing behaviour.
+- Added ``-od``/``--outdir`` to the ``source-finder`` subcommand: source
+  finders previously always wrote output next to the input image, with no
+  way to redirect it.
+- Added ``--sf-threshold`` to ``--compare-images``, matching the
+  standalone ``source-finder`` subcommand's existing ``--threshold``
+  override.
+- Widened the default cross-match ``tolerance`` (0.2" -> 1.0") and
+  ``shape_limit`` (6.0" -> 16.0"). The old defaults were confirmed (by
+  testing real catalogue matches with each parameter varied independently)
+  to be silently filtering out genuine matches rather than reflecting
+  real positional/shape differences.
+- Added ``-cr``/``--combined-report``: combines the flux and position
+  comparison plots into a single tabbed html report
+  (``<prefix>-CrossMatchReport.html``) instead of two separate files.
+- Fixed ``fitsInfo()``'s reported image centre being the raw FITS
+  ``CRVAL1``/``CRVAL2`` regardless of the image's coordinate frame, so a
+  Galactic-projected image (common for this project's own data) reported
+  its centre as if the raw (l, b) values were already RA/Dec. Now
+  converts through the image's actual WCS frame. This was the root cause
+  of several downstream issues: ``--compare-residuals`` scattering its
+  random sample points at the wrong sky position entirely (a chain of
+  further fixes was needed to get this feature working at all -- see
+  below), and a source-finder's own phase-centre metadata being wrong for
+  Galactic-frame inputs.
+- Fixed ``--compare-residuals`` being completely non-functional: it
+  crashed on Galactic-frame images (the centre-conversion fix above),
+  crashed on plain 2D FITS images (assumed a 4-axis freq/Stokes cube),
+  used a Bokeh API removed since Bokeh 3.x (``plot_width``/
+  ``plot_height``), and could not serialise results containing raw numpy
+  scalar types to JSON. All four are fixed; verified end-to-end against
+  real full-tile residual/noise maps.
+- Fixed ``--compare-online``: the two originally supported catalogues,
+  ``sumss`` and ``nvss``, never actually returned results regardless of
+  sky position, since the bare catalogue names aren't valid Vizier
+  catalogue identifiers. Fixed the underlying lookup, and added four more
+  catalogue options: ``racs-low`` (887.5MHz), ``racs-mid`` (1367.5MHz),
+  ``racs-high`` (1655.5MHz), and ``vlass`` (2-4GHz S-band, Dec>-40 only).
+  Verified against live Vizier queries.
+- Added periodic progress logging (every 30s) to the source cross-matching
+  routine. Matching two large catalogues can take several minutes with no
+  other output; this was previously indistinguishable from a hang.
+- Flux comparison plots: a source whose flux error exceeds its own value
+  (seen in practice for sources in crowded/blended source-finder islands)
+  previously stretched its error-bar segment across the entire visible
+  log-axis range, distorting the plot. Such points now get their own,
+  independently click-to-hide legend entry ("Errors (>100%)") instead of
+  being mixed into the normal error display; the underlying fit is
+  unaffected either way (already down-weighted by the existing
+  error-weighted regression). The "Cross Matching Statistics" table also
+  now reports the count directly. New ``-hlfe``/``--hide-large-flux-errors``
+  controls whether this group starts hidden or shown.
+- Test suite: 61 passing (from 41 at the start of this pass).

@@ -629,7 +629,7 @@ class TestClass(object):
 
     def test_resolve_phase_centre_falls_back_on_bad_fits_file(self, tmp_path, monkeypatch):
         """Regression test: _resolve_phase_centre must fall back to the
-        model's own computed centre for *any* failure reading fits_file --
+        model's own computed centre for *any* failure reading fits_file,
         missing file, wrong/corrupt file, or (as happened in practice) a
         filename heuristic elsewhere in get_model() that guessed a fits_file
         path equal to the catalogue itself."""
@@ -1371,3 +1371,139 @@ class TestClass(object):
             aimfast.get_detected_sources_properties(path1, path2, tolerance=8.0, shape_limit=12.0)
 
         assert any("Cross-matching:" in rec.message for rec in caplog.records)
+
+    @staticmethod
+    def _make_source_with_flux_err(name, ra_deg, dec_deg, flux_jy, flux_err_jy):
+        """Like _make_source but with an explicit flux error, needed to
+        reproduce a source whose flux error exceeds its own value (a real
+        pattern seen for sources in crowded/blended Aegean islands)."""
+        from Tigger.Models import ModelClasses, SkyModel
+
+        pos = ModelClasses.Position(np.deg2rad(ra_deg), np.deg2rad(dec_deg))
+        flux = ModelClasses.Polarization(flux_jy, 0, 0, 0, I_err=flux_err_jy)
+        return SkyModel.Source(name, pos, flux)
+
+    def _find_legend_labels(self, node):
+        labels = []
+        legend = getattr(node, "legend", None)
+        if legend:
+            for leg in legend:
+                for item in leg.items:
+                    label = item.label
+                    labels.append(getattr(label, "value", label))
+        for child in getattr(node, "children", []) or []:
+            candidate = child[0] if isinstance(child, tuple) else child
+            labels.extend(self._find_legend_labels(candidate))
+        return labels
+
+    def test_flux_plot_large_error_gets_own_legend_entry(self, tmp_path, monkeypatch):
+        """A source whose flux error exceeds its own flux value used to
+        stretch its error-bar segment across the whole visible log-axis
+        range (clamped near-zero lower bound), distorting the plot.
+        Fixed by routing it into its own, separately click-to-hide legend
+        entry ('Errors (>100%)') rather than dropping it or leaving it in
+        the normal 'Errors' group."""
+        s1_normal = self._make_source_with_flux_err("S1", 10.0, -61.0, 0.005, 0.0005)
+        s1_large = self._make_source_with_flux_err("S2", 10.5, -61.0, 0.005, 0.02)
+        s2_normal = self._make_source_with_flux_err("T1", 10.0 + 1 / 3600.0, -61.0, 0.005, 0.0005)
+        s2_large = self._make_source_with_flux_err("T2", 10.5 + 1 / 3600.0, -61.0, 0.006, 0.0)
+
+        model1 = SkyModel.SkyModel(s1_normal, s1_large)
+        model2 = SkyModel.SkyModel(s2_normal, s2_large)
+        path1 = str(tmp_path / "model1.lsm.html")
+        path2 = str(tmp_path / "model2.lsm.html")
+        model1.save(path1)
+        model2.save(path2)
+
+        captured = {}
+
+        def _fake_save(obj, title=None):
+            # compare_models() saves both FluxOffset.html and
+            # PositionOffset.html, must not overwrite the flux one with
+            # the later position-plot save() call.
+            if title and "Flux" in title:
+                captured["obj"] = obj
+
+        monkeypatch.setattr(aimfast, "save", _fake_save)
+
+        models = [[dict(label="p-model_a_0", path=path1), dict(label="p-model_b_0", path=path2)]]
+        aimfast.compare_models(models, tolerance=8.0, shape_limit=12.0, plot=True)
+
+        labels = self._find_legend_labels(captured["obj"])
+        assert "Errors" in labels
+        assert "Errors (>100%)" in labels
+
+    def test_flux_plot_no_large_error_legend_when_all_errors_normal(self, tmp_path, monkeypatch):
+        """The 'Errors (>100%)' legend entry must not appear at all when
+        no source actually has one, Bokeh adds a legend item even for
+        an empty-data glyph, so this needs an explicit guard."""
+        s1a = self._make_source_with_flux_err("S1", 10.0, -61.0, 0.005, 0.0005)
+        s1b = self._make_source_with_flux_err("S2", 10.5, -61.0, 0.005, 0.0004)
+        s2a = self._make_source_with_flux_err("T1", 10.0 + 1 / 3600.0, -61.0, 0.005, 0.0005)
+        s2b = self._make_source_with_flux_err("T2", 10.5 + 1 / 3600.0, -61.0, 0.005, 0.0004)
+
+        model1 = SkyModel.SkyModel(s1a, s1b)
+        model2 = SkyModel.SkyModel(s2a, s2b)
+        path1 = str(tmp_path / "model1.lsm.html")
+        path2 = str(tmp_path / "model2.lsm.html")
+        model1.save(path1)
+        model2.save(path2)
+
+        captured = {}
+
+        def _fake_save(obj, title=None):
+            captured["obj"] = obj
+
+        monkeypatch.setattr(aimfast, "save", _fake_save)
+
+        models = [[dict(label="p-model_a_0", path=path1), dict(label="p-model_b_0", path=path2)]]
+        aimfast.compare_models(models, tolerance=8.0, shape_limit=12.0, plot=True)
+
+        labels = self._find_legend_labels(captured["obj"])
+        assert "Errors" in labels
+        assert "Errors (>100%)" not in labels
+
+    @staticmethod
+    def _find_stats_table(node):
+        from bokeh.models.widgets import DataTable
+
+        if isinstance(node, DataTable):
+            return node
+        for child in getattr(node, "children", []) or []:
+            candidate = child[0] if isinstance(child, tuple) else child
+            found = TestClass._find_stats_table(candidate)
+            if found is not None:
+                return found
+        return None
+
+    def test_flux_plot_stats_table_counts_large_flux_errors(self, tmp_path, monkeypatch):
+        """The Cross Matching Statistics table should report how many
+        matched sources had a flux error exceeding their own value, so a
+        reader can tell at a glance without inspecting the plot itself."""
+        s1_normal = self._make_source_with_flux_err("S1", 10.0, -61.0, 0.005, 0.0005)
+        s1_large = self._make_source_with_flux_err("S2", 10.5, -61.0, 0.005, 0.02)
+        s2_normal = self._make_source_with_flux_err("T1", 10.0 + 1 / 3600.0, -61.0, 0.005, 0.0005)
+        s2_large = self._make_source_with_flux_err("T2", 10.5 + 1 / 3600.0, -61.0, 0.006, 0.0)
+
+        model1 = SkyModel.SkyModel(s1_normal, s1_large)
+        model2 = SkyModel.SkyModel(s2_normal, s2_large)
+        path1 = str(tmp_path / "model1.lsm.html")
+        path2 = str(tmp_path / "model2.lsm.html")
+        model1.save(path1)
+        model2.save(path2)
+
+        captured = {}
+
+        def _fake_save(obj, title=None):
+            if title and "Flux" in title:
+                captured["obj"] = obj
+
+        monkeypatch.setattr(aimfast, "save", _fake_save)
+
+        models = [[dict(label="p-model_a_0", path=path1), dict(label="p-model_b_0", path=path2)]]
+        aimfast.compare_models(models, tolerance=8.0, shape_limit=12.0, plot=True)
+
+        table = self._find_stats_table(captured["obj"])
+        data = table.source.data
+        idx = data["Stats"].index("Errors >100%")
+        assert data["Value"][idx] == "1"

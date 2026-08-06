@@ -2088,6 +2088,7 @@ def compare_models(
     model_mappings=None,
     phase_centre=None,
     combined_report=False,
+    hide_large_flux_errors=False,
 ):
     """Plot model1 source properties against that of model2
 
@@ -2192,6 +2193,7 @@ def compare_models(
             bar_size=bar_size,
             bar_major_size=bar_major_size,
             return_layout=combined_report,
+            hide_large_flux_errors=hide_large_flux_errors,
         )
         position_layout = _source_astrometry_plotter(
             results,
@@ -2490,6 +2492,7 @@ def _source_flux_plotter(
     bar_size="12pt",
     bar_major_size="8pt",
     return_layout=False,
+    hide_large_flux_errors=False,
 ):
     """Plot flux results and save output as html file.
 
@@ -2536,6 +2539,14 @@ def _source_flux_plotter(
     return_layout : bool
         Return the built Bokeh layout instead of saving it to its own
         html file (used to combine flux+position into one report).
+    hide_large_flux_errors : bool
+        Skip drawing the error-bar segment (data point itself still
+        shown) for any point whose flux error exceeds its own flux
+        value. On a log-scaled axis such a segment's lower bound clamps
+        to a near-zero epsilon, stretching across the whole visible
+        decade range and distorting both the plot and its auto-ranged
+        axis. Does not affect the fit, the weighted regression already
+        down-weights these points on its own.
     """
     if prefix:
         outfile = f"{prefix}-FluxOffset.html"
@@ -2566,11 +2577,17 @@ def _source_flux_plotter(
             positions_in_out.append(results[heading]["position"][n][7])
             source_scale.append(results[heading]["shape"][n][3])
         if len(flux_in_data) > 1:
-            # Error lists
+            # Error lists (large_* are for the sub-set whose error exceeds
+            # its own value, kept as a separate, independently
+            # click-to-hide legend entry, not dropped)
             err_xs1 = []
             err_ys1 = []
             err_xs2 = []
             err_ys2 = []
+            large_err_xs1 = []
+            large_err_ys1 = []
+            large_err_xs2 = []
+            large_err_ys2 = []
             model_1_name = _catalog_display_name(model_pair[0]["path"])
             model_2_name = _catalog_display_name(model_pair[1]["path"])
             # Format data points value to a readable units
@@ -2667,18 +2684,31 @@ def _source_flux_plotter(
                 mad_val = scipy.stats.median_abs_deviation(y1)
                 max_val = y1.max()
                 min_val = y1.min()
+            # Count of sources whose flux error exceeds its own value on
+            # either axis (same condition used to route them into the
+            # separate "Errors (>100%)" legend group below), lets a
+            # reader see at a glance whether this pair had any without
+            # needing to inspect the plot itself.
+            n_large_flux_error = int(np.sum((xerr1 >= x1) | (yerr1 >= y1)))
             # Table with stats data
             deci = DECIMALS  # Round off to this decimal places
             cols = ["Stats", "Value"]
             if plot_type in ["log", "inout"]:
                 if plot_type == "log":
                     stats = {
-                        "Stats": ["Slope", "Intercept (log10)", "RMS_Error (log10)", "R2"],
+                        "Stats": [
+                            "Slope",
+                            "Intercept (log10)",
+                            "RMS_Error (log10)",
+                            "R2",
+                            "Errors >100%",
+                        ],
                         "Value": [
                             f"{reg1.slope:.{deci}f}",
                             f"{reg1.intercept:.{deci}f}",
                             f"{np.sqrt(flux_MSE):.{deci}e}",
                             f"{flux_R_score:.{deci}f}",
+                            f"{n_large_flux_error}",
                         ],
                     }
                 else:
@@ -2688,12 +2718,14 @@ def _source_flux_plotter(
                             f"Intercept ({FLUX_UNIT_SCALER[units][1]})",
                             f"RMS_Error ({FLUX_UNIT_SCALER[units][1]})",
                             "R2",
+                            "Errors >100%",
                         ],
                         "Value": [
                             f"{reg1.slope:.{deci}f}",
                             f"{reg1.intercept:.{deci}f}",
                             f"{np.sqrt(flux_MSE):.{deci}e}",
                             f"{flux_R_score:.{deci}f}",
+                            f"{n_large_flux_error}",
                         ],
                     }
             elif plot_type in ["snr"]:
@@ -2778,17 +2810,54 @@ def _source_flux_plotter(
                 np.array(flux_in_err_data) * FLUX_UNIT_SCALER[units][0],
                 np.array(flux_out_err_data) * FLUX_UNIT_SCALER[units][0],
             ):
+                # An error bigger than the value itself clamps to ~0 on a
+                # log-scaled axis, stretching the segment across the whole
+                # visible decade range and distorting the plot. Route
+                # those into a separate, independently click-to-hide
+                # legend group rather than dropping them.
+                x_is_large = xerr >= xval
+                y_is_large = yerr >= yval
                 if plot_type == "log":
-                    err_xs1.append((max(xval - xerr, epsilon), xval + xerr))
-                    err_ys2.append((max(yval - yerr, epsilon), yval + yerr))
+                    x_seg = (max(xval - xerr, epsilon), xval + xerr)
+                    y_seg = (max(yval - yerr, epsilon), yval + yerr)
                 else:
-                    err_xs1.append((xval - xerr, xval + xerr))
-                    err_ys2.append((yval - yerr, yval + yerr))
-                err_ys1.append((yval, yval))
-                err_xs2.append((xval, xval))
+                    x_seg = (xval - xerr, xval + xerr)
+                    y_seg = (yval - yerr, yval + yerr)
+                if x_is_large:
+                    large_err_xs1.append(x_seg)
+                    large_err_ys1.append((yval, yval))
+                else:
+                    err_xs1.append(x_seg)
+                    err_ys1.append((yval, yval))
+                if y_is_large:
+                    large_err_xs2.append((xval, xval))
+                    large_err_ys2.append(y_seg)
+                else:
+                    err_xs2.append((xval, xval))
+                    err_ys2.append(y_seg)
             # Create S2plot object for errors
             error1_plot = plot_flux.multi_line(err_xs1, err_ys1, legend_label="Errors", color="red")
             error2_plot = plot_flux.multi_line(err_xs2, err_ys2, legend_label="Errors", color="red")
+            # Errors bigger than their own value get their own legend
+            # entry (a different color, orange), independently
+            # click-to-hide via the legend (click_policy="hide" below),
+            # not dropped. hide_large_flux_errors only controls whether
+            # this group starts hidden or visible; the point itself is
+            # always plotted either way. Bokeh adds a legend entry even
+            # for a glyph with zero data, so only create it when there's
+            # actually at least one such point, otherwise every plot
+            # would show a stray, always-empty toggle.
+            if large_err_xs1 or large_err_xs2:
+                large_error1_plot = plot_flux.multi_line(
+                    large_err_xs1, large_err_ys1, legend_label="Errors (>100%)", color="orange"
+                )
+                large_error2_plot = plot_flux.multi_line(
+                    large_err_xs2, large_err_ys2, legend_label="Errors (>100%)", color="orange"
+                )
+                large_error1_plot.visible = not hide_large_flux_errors
+                large_error2_plot.visible = not hide_large_flux_errors
+                large_error1_plot.hover_glyph = None
+                large_error2_plot.hover_glyph = None
             # Disable hover on error bars
             error1_plot.hover_glyph = None
             error2_plot.hover_glyph = None
@@ -4951,6 +5020,18 @@ def get_argparser():
         "PositionOffset.html files.",
     )
     argument(
+        "-hlfe",
+        "--hide-large-flux-errors",
+        dest="hide_large_flux_errors",
+        action="store_true",
+        help="Start the flux plot with error bars hidden for any point whose "
+        "flux error exceeds its own value (still shown as their own "
+        "click-to-hide legend entry, 'Errors (>100%%)', on the flux "
+        "figure, just starts hidden instead of shown). The point itself "
+        "is always plotted either way; the fit is unaffected regardless "
+        "(already down-weighted).",
+    )
+    argument(
         "-units",
         "--units",
         dest="units",
@@ -5469,6 +5550,7 @@ def main():
                 restored_image=args.restored,
                 model_mappings=compare_model_mappings,
                 combined_report=args.combined_report,
+                hide_large_flux_errors=args.hide_large_flux_errors,
             )
 
     if args.noise:
@@ -5578,6 +5660,7 @@ def main():
             svg=svg,
             restored_image=args.restored,
             combined_report=args.combined_report,
+            hide_large_flux_errors=args.hide_large_flux_errors,
         )
 
     if args.online:
@@ -5658,6 +5741,7 @@ def main():
                 svg=svg,
                 model_mappings=compare_model_mappings,
                 combined_report=args.combined_report,
+                hide_large_flux_errors=args.hide_large_flux_errors,
             )
         else:
             LOGGER.warn(f"No object found around (ICRS) position {centre_coord}")
