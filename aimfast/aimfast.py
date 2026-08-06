@@ -5103,18 +5103,21 @@ def main():
         "name": None,
     }
     if args.subcommand:
-        if args.config:
-            sf_params = get_sf_params(args.config)
-            sf_params, selected_sf = apply_sf_cli_overrides(
-                sf_params,
-                sourcery=args.sf_sourcery,
-                restored_image=args.sf_restored,
-                threshold=args.sf_thresh,
-                ncpu=args.sf_ncpu,
-            )
-            source_finding(sf_params, selected_sf, mappings=mappings)
         if args.generate:
             generate_default_config(args.generate)
+        configfile = args.config
+        if not configfile:
+            configfile = "default_sf_config.yml"
+            generate_default_config(configfile)
+        sf_params = get_sf_params(configfile)
+        sf_params, selected_sf = apply_sf_cli_overrides(
+            sf_params,
+            sourcery=args.sf_sourcery,
+            restored_image=args.sf_restored,
+            threshold=args.sf_thresh,
+            ncpu=args.sf_ncpu,
+        )
+        source_finding(sf_params, selected_sf, mappings=mappings)
     elif args.json:
         plot_aimfast_stats(args.json, prefix=args.htmlprefix)
     elif (

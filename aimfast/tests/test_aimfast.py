@@ -1000,3 +1000,23 @@ class TestClass(object):
 
         assert len(props[0]) == 20
         assert not any("shape_limit" in rec.message for rec in caplog.records)
+
+    def test_source_finder_subcommand_runs_without_dash_c(self, tmp_path, monkeypatch, caplog):
+        """The `source-finder` subcommand used to silently do nothing unless
+        --config was explicitly passed, even though -sf/-r/--threshold are
+        documented as standalone overrides. It should instead fall back to
+        an auto-generated default config, matching --compare-images'
+        existing behaviour."""
+        import sys
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(sys, "argv", ["aimfast", "source-finder"])
+
+        with caplog.at_level("WARNING"):
+            aimfast.main()
+
+        assert (tmp_path / "default_sf_config.yml").exists(), (
+            "source-finder subcommand should auto-generate a default config "
+            "when -c/--config is omitted, not silently no-op"
+        )
+        assert any("No source finder selected" in rec.message for rec in caplog.records)
