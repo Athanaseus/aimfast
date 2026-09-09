@@ -1742,7 +1742,6 @@ def get_detected_sources_properties(
     tolerance=1.0,
     shape_limit=16.0,
     all_sources=False,
-    closest_only=False,
     off_axis=None,
     flux_units="milli",
     model_1_mappings=None,
@@ -1761,8 +1760,6 @@ def get_detected_sources_properties(
         Tolerace to cross-match sources
     shape_limit: float
         Cross match only sources with maj-axis less than this value
-    closest_only: bool
-        Returns the closest source only as the matching source
     off_axis: float
         Cross-match only sources within this distance from the centre
 
@@ -1823,6 +1820,12 @@ def get_detected_sources_properties(
     tolerance_arcsec = tolerance  # keep the original for the low-match-count hint below
     tolerance *= np.pi / (3600.0 * 180)  # Convert to radians
     names = dict()
+    # Always take only the closest source as the match. This is deliberate and not
+    # configurable: admitting several nearby sources as one match merges them, which
+    # distorts both the flux and the position residuals and has repeatedly produced
+    # misleading comparison statistics. A -closest/--closest CLI flag used to advertise
+    # this as configurable while being overwritten here, so it was removed rather than
+    # made to work.
     closest_only = True
     n_sources1 = len(model1_sources)
     match_start_time = time.time()
@@ -2067,7 +2070,6 @@ def compare_models(
     all_sources=False,
     shape_limit=16.0,
     off_axis=None,
-    closest_only=False,
     prefix=None,
     flux_plot="log",
     flux_sigma_shade=False,
@@ -2104,8 +2106,6 @@ def compare_models(
         Compare all sources in the catalog (else only point-like source)
     shape_limit: float
         Cross match only sources with maj-axis less than this value
-    closest_only: bool
-        Returns the closest source only as the matching source
     flux_plot: str
         The type of output flux comparison plot (options:log,snr,inout)
     prefix : str
@@ -2147,7 +2147,6 @@ def compare_models(
             shape_limit=shape_limit,
             tolerance=tolerance,
             flux_units=units,
-            closest_only=closest_only,
             off_axis=off_axis,
             model_1_mappings=(model_mappings[0] if model_mappings else None),
             model_2_mappings=(model_mappings[1] if model_mappings else None),
@@ -4653,10 +4652,19 @@ def apply_sf_cli_overrides(
         sf_params[selected]["filename"] = restored_image
 
     if threshold is not None and selected in sf_params:
+        # -t/--threshold means the DETECTION threshold for every finder, i.e. the level a
+        # source peak must exceed to be found at all. Each finder spells that differently:
+        #   pybdsf    thresh_pix  - island peak threshold in sigma
+        #   aegean    seedclip    - the clipping value for SEEDING islands
+        #   breizorro threshold   - flux detection threshold
+        # aegean's floodclip is NOT the detection threshold: it only controls how far an
+        # island grows around a peak already detected at seedclip. Mapping -t to floodclip
+        # (as this previously did) left detection at aegean's default while silently
+        # shrinking islands, so "same threshold, three finders" was not like-for-like.
         if selected == "pybdsf":
             sf_params[selected]["thresh_pix"] = threshold
         elif selected == "aegean":
-            sf_params[selected]["floodclip"] = threshold
+            sf_params[selected]["seedclip"] = threshold
         elif selected == "breizorro":
             sf_params[selected]["threshold"] = threshold
 
@@ -5086,14 +5094,6 @@ def get_argparser():
         action="store_true",
         help="Compare all sources irrespective of shape, otherwise only "
         "point-like sources are compared",
-    )
-    argument(
-        "-closest",
-        "--closest",
-        dest="closest_only",
-        default=False,
-        action="store_true",
-        help="Use the closest source only when cross matching sources",
     )
     argument(
         "-sl",
@@ -5531,7 +5531,6 @@ def main():
                 all_sources=args.all,
                 units=args.units,
                 shape_limit=args.shape_limit,
-                closest_only=args.closest_only,
                 prefix=args.htmlprefix,
                 flux_plot=args.fluxplot,
                 flux_sigma_shade=args.flux_sigma_shade,
@@ -5644,7 +5643,6 @@ def main():
             units=args.units,
             shape_limit=args.shape_limit,
             all_sources=args.all,
-            closest_only=args.closest_only,
             prefix=args.htmlprefix,
             flux_plot=args.fluxplot,
             flux_sigma_shade=args.flux_sigma_shade,
@@ -5724,7 +5722,6 @@ def main():
                 off_axis=args.off_axis,
                 all_sources=args.all,
                 units=args.units,
-                closest_only=args.closest_only,
                 prefix=args.htmlprefix,
                 flux_plot=args.fluxplot,
                 flux_sigma_shade=args.flux_sigma_shade,
