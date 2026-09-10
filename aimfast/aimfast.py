@@ -3957,6 +3957,23 @@ def _random_residual_results(res_noise_images, data_points=None, fov_factor=None
     return results
 
 
+#: Column names for the per-source rows returned by _source_residual_results.
+#: The rows are positional lists and several plotters index them by number, so new
+#: statistics are appended at the end and existing positions never move.
+SOURCE_RESIDUAL_FIELDS = [
+    "res1_rms",
+    "res2_rms",
+    "rms_ratio",
+    "phase_centre_dist",
+    "name",
+    "model_flux",
+    "res1_min",
+    "res2_min",
+    "res1_sum_neg",
+    "res2_sum_neg",
+]
+
+
 def _source_residual_results(res_noise_images, skymodel, area_factor=None):
     """Plot ratios of source residuals and noise
 
@@ -4045,6 +4062,13 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
                 continue
             res1_rms = res1_area.std()
             res2_rms = res2_area.std()
+            # std() is sign-blind: a -24 mJy hole and a +24 mJy spike raise it
+            # identically, so over-subtraction is invisible to it. Record the signed
+            # statistics too, using the same definitions as residual_image_stats.
+            res1_min = float(np.nanmin(res1_area))
+            res2_min = float(np.nanmin(res2_area))
+            res1_sum_neg = float(np.nansum(res1_area[res1_area < 0.0]))
+            res2_sum_neg = float(np.nansum(res2_area[res2_area < 0.0]))
             # if image is cube then average along freq axis
             if nchan1 > 1:
                 flux_rms1 = 0.0
@@ -4079,6 +4103,10 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
                     phase_centre_dist,
                     model_source.name,
                     model_source.flux.I,
+                    res1_min,
+                    res2_min,
+                    res1_sum_neg,
+                    res2_sum_neg,
                 ]
             )
     return results
