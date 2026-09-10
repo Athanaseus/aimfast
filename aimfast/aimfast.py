@@ -815,16 +815,79 @@ def model_dynamic_range(lsmname, fitsname, beam_size=5, area_factor=2):
     min_flux = source_res_area.min()
     local_std = source_res_area.std()
     global_std = residual_data[0, 0, ...].std()
-    # Compute dynamic range
+    # Compute dynamic range. Report the position measured at, so DR values from
+    # different images can be seen to refer to the same source (or not).
     DR = {
         "deepest_negative": peak_flux / abs(min_flux) * 1e0,
         "local_rms": peak_flux / local_std * 1e0,
         "global_rms": peak_flux / global_std * 1e0,
+        "ref_position": (float(RA), float(DEC)),
+        "ref_peak_flux": float(peak_flux),
     }
     return DR
 
 
-def image_dynamic_range(fitsname, residual, area_factor=6):
+def _parse_sky_position(text):
+    """Parse 'RA,DEC' into degrees, accepting decimal degrees or sexagesimal.
+
+    Sexagesimal is accepted because -ptc/--centre_coord already uses it, so a user
+    reaching for the same format here should not hit a parse error:
+        "355.2791,0.3096"          decimal degrees
+        "23:41:07,+00:18:34"       RA hh:mm:ss, Dec dd:mm:ss
+    """
+    if not text:
+        return None
+    parts = [p.strip() for p in str(text).split(",")]
+    if len(parts) != 2:
+        raise ValueError(
+            f"--reference-position expects 'RA,DEC', got {text!r}"
+        )
+    ra_str, dec_str = parts
+    try:
+        if ":" in ra_str or ":" in dec_str:
+            return (float(ra2deg(ra_str)), float(dec2deg(dec_str)))
+        return (float(ra_str), float(dec_str))
+    except (ValueError, IndexError) as err:
+        raise ValueError(
+            f"--reference-position could not parse {text!r}: expected decimal degrees "
+            f"('355.2791,0.3096') or sexagesimal ('23:41:07,+00:18:34') - {err}"
+        )
+
+
+def _warn_on_mismatched_dr_positions(output_dict, tolerance_arcsec=1.0):
+    """Warn if dynamic ranges in a results dict were measured at different sky positions.
+
+    DR values are only comparable when measured at the same place. Because each image
+    picks its own peak by default, anything that changes which source is brightest -
+    peeling, subtraction, a bright transient - silently moves the measurement to a
+    different source, and the resulting DR values look comparable while referring to
+    different objects.
+    """
+    positions = {
+        label: tuple(entry["DR_ref_position"])
+        for label, entry in output_dict.items()
+        if isinstance(entry, dict) and entry.get("DR_ref_position")
+    }
+    if len(positions) < 2:
+        return
+    labels = list(positions)
+    ref_label = labels[0]
+    ra0, dec0 = positions[ref_label]
+    for label in labels[1:]:
+        ra, dec = positions[label]
+        # small-angle separation is ample for deciding "same source or not"
+        dra = (ra - ra0) * np.cos(np.deg2rad((dec + dec0) / 2.0))
+        sep = np.hypot(dra, dec - dec0) * 3600.0
+        if sep > tolerance_arcsec:
+            LOGGER.warning(
+                f"{R}Dynamic ranges are not comparable: '{ref_label}' was measured at "
+                f"RA={ra0:.6f} DEC={dec0:.6f} but '{label}' at RA={ra:.6f} DEC={dec:.6f} "
+                f"({sep:.1f}\" apart, i.e. a different source). Pass "
+                f"--reference-position to measure both at the same place.{W}"
+            )
+
+
+def image_dynamic_range(fitsname, residual, area_factor=6, ref_position=None):
     """Gets the dynamic range in a restored image.
 
     Parameters
@@ -852,33 +915,64 @@ def image_dynamic_range(fitsname, residual, area_factor=6):
     # Get the header data unit for the peak and residual rms
     restored_data = restored_hdu[0].data
     residual_data = residual_hdu[0].data
-    # Get the max value
-    peak_flux = abs(restored_data.max())
-    # Get pixel coordinates of the peak flux
-    pix_coord = np.argwhere(restored_data == peak_flux)[0]
+    # Locate the reference position the DR is measured at.
+    # Default (ref_position=None) is this image's own peak - the historical behaviour.
+    # NOTE this is why DR values from two images are not automatically comparable: each
+    # image nominates its own reference source, so anything that changes which source is
+    # brightest (peeling, subtraction, a bright transient) silently relocates the
+    # measurement. Pin ref_position to compare two images at the same sky position.
+    if ref_position is None:
+        peak_value = np.nanmax(restored_data)
+        if not np.isfinite(peak_value):
+            raise ValueError(f"{fitsname} contains no finite pixels")
+        pix_coord = np.argwhere(restored_data == peak_value)[0]
+        peak_flux = abs(float(peak_value))
+    else:
+        ref_ra, ref_dec = ref_position
+        wcs = fits_info["wcs"].celestial if hasattr(fits_info["wcs"], "celestial") else fits_info["wcs"]
+        x, y = wcs.wcs_world2pix(ref_ra, ref_dec, 0)
+        ny, nx = restored_data.shape[-2], restored_data.shape[-1]
+        if not (np.isfinite(x) and np.isfinite(y)):
+            raise ValueError(
+                f"ref_position ({ref_ra}, {ref_dec}) falls outside {fitsname}: the "
+                "projection cannot represent that position"
+            )
+        x, y = int(round(float(x))), int(round(float(y)))
+        if not (0 <= x < nx and 0 <= y < ny):
+            raise ValueError(
+                f"ref_position ({ref_ra}, {ref_dec}) falls outside {fitsname} "
+                f"(pixel {x},{y} vs image {nx}x{ny})"
+            )
+        peak_flux = abs(float(restored_data[..., y, x].max()))
+        if not np.isfinite(peak_flux):
+            # Do not fall back to this image's own peak: silently measuring somewhere
+            # other than the position asked for is exactly the failure this argument
+            # exists to prevent.
+            raise ValueError(
+                f"ref_position ({ref_ra}, {ref_dec}) lands on blanked pixels in {fitsname}"
+            )
+        # np.argwhere returns [stokes, chan, y, x]; match that layout
+        pix_coord = np.array([0, 0, y, x])
     nchan = restored_data.shape[1] if restored_data.shape[0] == 1 else restored_data.shape[0]
-    # Compute number of pixel in beam and extend by factor area_factor
-    ra_num_pix = round((beam_deg[0] * area_factor) / fits_info["dra"])
-    dec_num_pix = round((beam_deg[1] * area_factor) / fits_info["ddec"])
-    # Create target image slice
-    imslice = np.array(
-        [
-            pix_coord[2] - ra_num_pix / 2,
-            pix_coord[2] + ra_num_pix / 2,
-            pix_coord[3] - dec_num_pix / 2,
-            pix_coord[3] + dec_num_pix / 2,
-        ]
-    )
-    imslice = np.array(list(map(int, imslice)))
+    # Box of area_factor beams around the reference position.
+    # pix_coord is [stokes, chan, y, x]: dec runs along y, ra along x. abs() because
+    # CDELT1 is normally negative (RA decreases with increasing x).
+    ra_num_pix = abs(round((beam_deg[0] * area_factor) / fits_info["dra"]))
+    dec_num_pix = abs(round((beam_deg[1] * area_factor) / fits_info["ddec"]))
+    ny, nx = restored_data.shape[-2], restored_data.shape[-1]
+    y0 = max(0, int(pix_coord[2] - dec_num_pix // 2))
+    y1 = min(ny, int(pix_coord[2] + dec_num_pix // 2) + 1)
+    x0 = max(0, int(pix_coord[3] - ra_num_pix // 2))
+    x1 = min(nx, int(pix_coord[3] + ra_num_pix // 2) + 1)
     # If image is cube then average along freq axis
     min_flux = 0.0
     for frq_ax in range(nchan):
         # In the case where the 0th and 1st axis of the image are not in order
         # i.e. (0, nchan, x_pix, y_pix)
         if residual_data.shape[0] == 1:
-            target_area = residual_data[0, frq_ax, :, :][imslice]
+            target_area = residual_data[0, frq_ax, y0:y1, x0:x1]
         else:
-            target_area = residual_data[frq_ax, 0, :, :][imslice]
+            target_area = residual_data[frq_ax, 0, y0:y1, x0:x1]
         min_flux += target_area.min()
         if frq_ax == nchan - 1:
             min_flux = min_flux / float(nchan)
@@ -886,10 +980,16 @@ def image_dynamic_range(fitsname, residual, area_factor=6):
     local_std = target_area.std()
     global_std = residual_data[0, 0, ...].std()
     # Compute dynamic range
+    # Report where this was measured. Without it, two DR values cannot be compared
+    # safely, because there is nothing to show they refer to different sky positions.
+    wcs = fits_info["wcs"].celestial if hasattr(fits_info["wcs"], "celestial") else fits_info["wcs"]
+    used_ra, used_dec = wcs.wcs_pix2world(pix_coord[3], pix_coord[2], 0)
     DR = {
         "deepest_negative": peak_flux / abs(min_flux) * 1e0,
         "local_rms": peak_flux / local_std * 1e0,
         "global_rms": peak_flux / global_std * 1e0,
+        "ref_position": (float(used_ra), float(used_dec)),
+        "ref_peak_flux": float(peak_flux),
     }
     return DR
 
@@ -5063,6 +5163,19 @@ def get_argparser():
         " less than this value",
     )
     argument(
+        # No single-dash "-refpos" alias: argparse resolves abbreviations against the
+        # main parser before dispatching to a subcommand, so any second "-r*" option
+        # makes the source-finder subcommand's "-r" ambiguous with "-reg".
+        "--reference-position",
+        dest="ref_position",
+        default=None,
+        help="Sky position 'RA,DEC' in degrees at which to measure the dynamic range, "
+        "instead of this image's own peak. Pin this to the same value across images so "
+        "their DR values are measured at the same place and are therefore comparable "
+        "(a peeled or subtracted source otherwise moves the peak, silently relocating "
+        "the measurement).",
+    )
+    argument(
         "-af",
         "--area-factor",
         dest="factor",
@@ -5498,16 +5611,27 @@ def main():
             output_dict[residual_label] = stats
 
     if args.restored and args.residual:
+        ref_position = _parse_sky_position(args.ref_position)
+        kw = {"ref_position": ref_position}
         if args.factor:
-            DR = image_dynamic_range(args.restored, args.residual, area_factor=args.factor)
-        else:
-            DR = image_dynamic_range(args.restored, args.residual)
+            kw["area_factor"] = args.factor
+        DR = image_dynamic_range(args.restored, args.residual, **kw)
+        LOGGER.info(
+            "DR measured at RA={:.6f} DEC={:.6f} (peak {:.4g} Jy/beam){}".format(
+                DR["ref_position"][0], DR["ref_position"][1], DR["ref_peak_flux"],
+                "" if ref_position else " - this image's own peak; pin "
+                "--reference-position to compare images at the same place",
+            )
+        )
         output_dict[restored_label] = {
             "DR": DR["global_rms"],
             "DR_deepest_negative": DR["deepest_negative"],
             "DR_global_rms": DR["global_rms"],
             "DR_local_rms": DR["local_rms"],
+            "DR_ref_position": DR["ref_position"],
+            "DR_ref_peak_flux": DR["ref_peak_flux"],
         }
+        _warn_on_mismatched_dr_positions(output_dict)
 
     if args.models:
         models = args.models

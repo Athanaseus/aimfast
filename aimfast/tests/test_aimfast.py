@@ -283,12 +283,25 @@ class TestClass(object):
         output_value = aimfast.image_dynamic_range(
             restored_image_path, residual_image_path, area_factor=1
         )
+        # deepest_negative and local_rms changed when the measured region was fixed to
+        # be a real 2D box. Previously `imslice` was a 4-element index array used as
+        # arr[imslice], which numpy read as fancy indexing and selected four whole image
+        # rows rather than a box around the reference position. global_rms is unchanged
+        # because it was always computed over the whole residual.
         expected_value = {
-            "deepest_negative": 1.4872031158104637,
-            "local_rms": 3.098743200302124,
+            "deepest_negative": 2.0671444,
+            "local_rms": 3.4428473,
             "global_rms": 3.394456386566162,
+            "ref_position": (359.99807546678034, -30.00166665267129),
+            "ref_peak_flux": 9.984278585761786e-05,
         }
-        assert expected_value == output_value
+        assert output_value["global_rms"] == pytest.approx(expected_value["global_rms"])
+        assert output_value["deepest_negative"] == pytest.approx(
+            expected_value["deepest_negative"]
+        )
+        assert output_value["local_rms"] == pytest.approx(expected_value["local_rms"])
+        assert output_value["ref_position"] == pytest.approx(expected_value["ref_position"])
+        assert output_value["ref_peak_flux"] == pytest.approx(expected_value["ref_peak_flux"])
 
     def test_ra2deg_conversion(self):
         """Test ra2deg method with standard input"""
