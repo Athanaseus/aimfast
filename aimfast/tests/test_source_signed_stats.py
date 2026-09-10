@@ -131,3 +131,140 @@ class TestRowLayout(object):
         assert aimfast.SOURCE_RESIDUAL_FIELDS[:6] == [
             "res1_rms", "res2_rms", "rms_ratio", "phase_centre_dist", "name", "model_flux",
         ]
+
+
+class TestSorting(object):
+    """Catalogue order is arbitrary, so trends read as noise until sorted."""
+
+    # rows are [res1_rms, res2_rms, ratio, dist, name, flux, min1, min2, sn1, sn2]
+    ROWS = [
+        [1.0, 1.0, 1.0, 5.0, "far_faint", 0.001] + [0.0] * 4,
+        [1.0, 1.0, 1.0, 1.0, "near_bright", 0.100] + [0.0] * 4,
+        [1.0, 1.0, 1.0, 3.0, "mid", 0.010] + [0.0] * 4,
+    ]
+
+    def test_distance_is_nearest_first(self):
+        out = aimfast._sort_source_rows(self.ROWS, "distance")
+        assert [r[4] for r in out] == ["near_bright", "mid", "far_faint"]
+
+    def test_flux_is_brightest_first(self):
+        out = aimfast._sort_source_rows(self.ROWS, "flux")
+        assert [r[4] for r in out] == ["near_bright", "mid", "far_faint"]
+
+    def test_none_preserves_catalogue_order(self):
+        out = aimfast._sort_source_rows(self.ROWS, "none")
+        assert [r[4] for r in out] == [r[4] for r in self.ROWS]
+
+    def test_short_rows_fall_back(self):
+        """_random_residual_results rows have no flux column."""
+        short = [[1.0, 1.0, 1.0, 5.0, "a"], [1.0, 1.0, 1.0, 1.0, "b"]]
+        assert aimfast._sort_source_rows(short, "flux") == short
+        # distance is within range, so it still sorts
+        assert [r[4] for r in aimfast._sort_source_rows(short, "distance")] == ["b", "a"]
+
+    def test_does_not_mutate_input(self):
+        rows = [list(r) for r in self.ROWS]
+        aimfast._sort_source_rows(rows, "distance")
+        assert [r[4] for r in rows] == [r[4] for r in self.ROWS]
+
+
+class TestTableStats(object):
+    def _stats(self, **kw):
+        kw.setdefault("res1_std", [2.0, 2.0])
+        kw.setdefault("res2_std", [1.0, 1.0])
+        kw.setdefault("res1_min", [])
+        kw.setdefault("res2_min", [])
+        kw.setdefault("model_flux", [])
+        return aimfast._residual_table_stats("a", "b", units="jansky", **kw)
+
+    def test_ratio_is_res1_over_res2(self):
+        """Regression: the table computed mean(res2)/mean(res1) under this label,
+        the inverse of the per-source column and of the plotted green line."""
+        stats = self._stats()
+        row = dict(zip(stats["Stats"], stats["Value"]))
+        assert row["Res1-to-Res2"] == pytest.approx(2.0)
+
+    def test_signed_rows_absent_without_mins(self):
+        assert len(self._stats()["Stats"]) == 3
+
+    def test_signed_rows_present_with_mins(self):
+        stats = self._stats(res1_min=[-0.1, -0.1], res2_min=[-0.5, -0.5])
+        row = dict(zip(stats["Stats"], stats["Value"]))
+        assert row["Mean deepest negative res1 (Jy)"] == pytest.approx(-0.1)
+        assert row["Mean deepest negative res2 (Jy)"] == pytest.approx(-0.5)
+
+    def test_deep_hole_counts(self):
+        """One source of 1 Jy; res2 digs a 0.5 Jy hole, res1 only 0.01 Jy."""
+        stats = self._stats(
+            res1_min=[-0.01, -0.01], res2_min=[-0.5, -0.5], model_flux=[1.0, 1.0]
+        )
+        row = dict(zip(stats["Stats"], stats["Value"]))
+        assert row["Sources with res1 hole > 10% of flux (of 2)"] == 0
+        assert row["Sources with res2 hole > 10% of flux (of 2)"] == 2
+
+
+class TestSortAxisValues(object):
+    """x must carry the quantity, not the rank, or spacing means nothing."""
+
+    DIST = [0.1, 0.5, 1.5]
+    FLUX = [0.10, 0.01, 0.001]
+
+    def test_distance_axis_is_degrees(self):
+        assert aimfast._sort_axis_values("distance", self.DIST, self.FLUX) == self.DIST
+
+    def test_flux_axis_is_jansky(self):
+        assert aimfast._sort_axis_values("flux", self.DIST, self.FLUX) == self.FLUX
+
+    def test_none_axis_is_the_index(self):
+        assert aimfast._sort_axis_values("none", self.DIST, self.FLUX) == [0, 1, 2]
+
+    def test_flux_falls_back_when_there_is_no_flux(self):
+        """The random-positions path has no flux column."""
+        assert aimfast._sort_axis_values("flux", self.DIST, []) == [0, 1, 2]
+
+
+
+class TestRatioTailCounts(object):
+    """A mean ratio barely moves when a few sources are wrecked; a count does."""
+
+    def test_counts_each_direction(self):
+        # ratios are res1/res2: 20, 0.05, 1.0
+        names, values = aimfast._ratio_tail_counts([20.0, 0.05, 1.0], [1.0, 1.0, 1.0])
+        row = dict(zip(names, values))
+        assert row["Sources with ratio > 5 (res2 better, of 3)"] == 1
+        assert row["Sources with ratio < 1/5 (res1 better, of 3)"] == 1
+        assert row["Sources with ratio > 10 (res2 better, of 3)"] == 1
+        assert row["Sources with ratio < 1/10 (res1 better, of 3)"] == 1
+
+    def test_thresholds_are_symmetric_on_a_log_axis(self):
+        """5 and 1/5 are equally far from no-change, so equal data must count equally."""
+        names, values = aimfast._ratio_tail_counts([6.0, 1 / 6.0], [1.0, 1.0])
+        row = dict(zip(names, values))
+        assert row["Sources with ratio > 5 (res2 better, of 2)"] == 1
+        assert row["Sources with ratio < 1/5 (res1 better, of 2)"] == 1
+
+    def test_non_finite_ratios_are_dropped(self):
+        names, values = aimfast._ratio_tail_counts([1.0, 1.0], [0.0, 1.0])
+        assert "of 1)" in names[0]
+
+
+class TestValueFormatting(object):
+    def test_small_values_use_scientific_notation(self):
+        out = aimfast._format_table_stats({"Stats": ["a"], "Value": [0.00018758542137220502]})
+        assert out["Value"] == ["1.876e-04"]
+
+    def test_ratios_keep_a_few_decimals(self):
+        out = aimfast._format_table_stats({"Stats": ["a"], "Value": [2.96288943290710]})
+        assert out["Value"] == ["2.9629"]
+
+    def test_counts_have_no_decimal_point(self):
+        out = aimfast._format_table_stats({"Stats": ["a"], "Value": [649.0]})
+        assert out["Value"] == ["649"]
+
+    def test_zero_is_plain(self):
+        out = aimfast._format_table_stats({"Stats": ["a"], "Value": [0.0]})
+        assert out["Value"] == ["0"]
+
+    def test_negatives_survive(self):
+        out = aimfast._format_table_stats({"Stats": ["a"], "Value": [-0.000365303]})
+        assert out["Value"] == ["-3.653e-04"]
