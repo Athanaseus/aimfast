@@ -154,3 +154,31 @@ class TestDec2Deg(object):
         assert dec2deg("-00:00:30") == pytest.approx(-0.008333, abs=1e-6)
         assert dec2deg("-30:30:00") == pytest.approx(-30.5, abs=1e-6)
         assert dec2deg("30:30:00") == pytest.approx(30.5, abs=1e-6)
+
+
+class TestNoOptionAmbiguity(object):
+    """--reference-position must not shadow the source-finder subcommand's -r.
+
+    argparse classifies every token against the main parser before dispatching to a
+    subcommand, and "-r" is not an exact option there, so it is resolved by prefix.
+    Adding any second single-dash "-r*" option to the main parser therefore makes the
+    subcommand's "-r" ambiguous with "-reg" and breaks it. Hence no "-refpos" alias.
+    """
+
+    def test_subcommand_dash_r_is_not_ambiguous(self):
+        """Must invoke the console script: aimfast.py has no __main__ guard, so
+        `python -m aimfast.aimfast` parses nothing and would pass vacuously."""
+        import shutil
+        import subprocess
+
+        exe = shutil.which("aimfast")
+        if exe is None:
+            pytest.skip("aimfast console script not on PATH")
+        # --help is enough: argparse classifies every token, and so raises, before
+        # any action runs - so this never invokes a source finder.
+        proc = subprocess.run(
+            [exe, "source-finder", "-r", "foo.fits", "--help"],
+            capture_output=True, text=True,
+        )
+        assert "ambiguous option" not in proc.stderr, proc.stderr
+        assert proc.returncode == 0, proc.stderr

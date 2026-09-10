@@ -5163,7 +5163,9 @@ def get_argparser():
         " less than this value",
     )
     argument(
-        "-refpos",
+        # No single-dash "-refpos" alias: argparse resolves abbreviations against the
+        # main parser before dispatching to a subcommand, so any second "-r*" option
+        # makes the source-finder subcommand's "-r" ambiguous with "-reg".
         "--reference-position",
         dest="ref_position",
         default=None,
