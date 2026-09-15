@@ -7,6 +7,7 @@ import string
 import sys
 import tempfile
 import time
+import warnings
 from collections import OrderedDict
 from functools import partial
 from pathlib import Path
@@ -43,6 +44,7 @@ from bokeh.models import (
 )
 from bokeh.models.widgets import DataTable, Div, PreText, TableColumn
 from bokeh.plotting import figure, output_file, save, show
+from bokeh.palettes import Greys256, RdBu11
 from bokeh.transform import transform
 from regions import Regions
 from scipy import stats
@@ -890,6 +892,30 @@ def _warn_on_mismatched_dr_positions(output_dict, tolerance_arcsec=1.0):
             )
 
 
+def _sky_to_pixel(wcs, position, data, name, label="ref_position"):
+    """Pixel (x, y) of a sky position in an image, or raise.
+
+    Never substitutes another position: callers use this where measuring or showing
+    somewhere other than the position asked for would silently mislead.
+    """
+    ra, dec = position
+    x, y = wcs.wcs_world2pix(ra, dec, 0)
+    ny, nx = data.shape[-2], data.shape[-1]
+    if not (np.isfinite(x) and np.isfinite(y)):
+        raise ValueError(
+            f"{label} ({ra}, {dec}) falls outside {name}: the projection cannot "
+            "represent that position"
+        )
+    x, y = int(round(float(x))), int(round(float(y)))
+    if not (0 <= x < nx and 0 <= y < ny):
+        raise ValueError(
+            f"{label} ({ra}, {dec}) falls outside {name} (pixel {x},{y} vs image {nx}x{ny})"
+        )
+    if not np.all(np.isfinite(data[..., y, x])):
+        raise ValueError(f"{label} ({ra}, {dec}) lands on blanked pixels in {name}")
+    return x, y
+
+
 def image_dynamic_range(fitsname, residual, area_factor=6, ref_position=None):
     """Gets the dynamic range in a restored image.
 
@@ -931,29 +957,12 @@ def image_dynamic_range(fitsname, residual, area_factor=6, ref_position=None):
         pix_coord = np.argwhere(restored_data == peak_value)[0]
         peak_flux = abs(float(peak_value))
     else:
-        ref_ra, ref_dec = ref_position
         wcs = fits_info["wcs"].celestial if hasattr(fits_info["wcs"], "celestial") else fits_info["wcs"]
-        x, y = wcs.wcs_world2pix(ref_ra, ref_dec, 0)
-        ny, nx = restored_data.shape[-2], restored_data.shape[-1]
-        if not (np.isfinite(x) and np.isfinite(y)):
-            raise ValueError(
-                f"ref_position ({ref_ra}, {ref_dec}) falls outside {fitsname}: the "
-                "projection cannot represent that position"
-            )
-        x, y = int(round(float(x))), int(round(float(y)))
-        if not (0 <= x < nx and 0 <= y < ny):
-            raise ValueError(
-                f"ref_position ({ref_ra}, {ref_dec}) falls outside {fitsname} "
-                f"(pixel {x},{y} vs image {nx}x{ny})"
-            )
+        # Raises rather than falling back to this image's own peak: silently measuring
+        # somewhere other than the position asked for is exactly the failure this
+        # argument exists to prevent.
+        x, y = _sky_to_pixel(wcs, ref_position, restored_data, fitsname)
         peak_flux = abs(float(restored_data[..., y, x].max()))
-        if not np.isfinite(peak_flux):
-            # Do not fall back to this image's own peak: silently measuring somewhere
-            # other than the position asked for is exactly the failure this argument
-            # exists to prevent.
-            raise ValueError(
-                f"ref_position ({ref_ra}, {ref_dec}) lands on blanked pixels in {fitsname}"
-            )
         # np.argwhere returns [stokes, chan, y, x]; match that layout
         pix_coord = np.array([0, 0, y, x])
     nchan = restored_data.shape[1] if restored_data.shape[0] == 1 else restored_data.shape[0]
@@ -2346,12 +2355,22 @@ def compare_residuals(
     x_label_size="12pt",
     y_label_size="12pt",
     svg=False,
+    ref_position=None,
+    combined_report=False,
 ):
+    # Check the reference position before any work, so a typo fails immediately
+    # rather than after the plots have been computed.
+    if ref_position is not None:
+        for pair in residuals:
+            for image in pair:
+                with fitsio.open(image["path"]) as hdul:
+                    header_wcs = WCS(hdul[0].header).celestial
+                    _sky_to_pixel(header_wcs, ref_position, hdul[0].data, image["path"])
     if skymodel:
         res = _source_residual_results(residuals, skymodel, area_factor)
     else:
         res = _random_residual_results(residuals, points, fov_factor, area_factor)
-    _residual_plotter(
+    ratio_layout = _residual_plotter(
         residuals,
         results=res,
         points=points,
@@ -2366,8 +2385,86 @@ def compare_residuals(
         x_label_size=x_label_size,
         y_label_size=y_label_size,
         svg=svg,
+        return_layout=combined_report,
     )
+    kind = "Source" if skymodel else "Random"
+    cutouts_layout = _residual_cutouts(
+        residuals,
+        results=res if skymodel else None,
+        outfile=f"{prefix}-{kind}ResidualCutouts.html" if prefix else f"{kind}ResidualCutouts.html",
+        svg=svg,
+        ref_position=ref_position,
+        save_html=not combined_report,
+    )
+    if combined_report:
+        tabs = []
+        if ratio_layout is not None:
+            tabs.append(TabPanel(child=ratio_layout, title="Noise ratio"))
+        if cutouts_layout is not None:
+            tabs.append(TabPanel(child=cutouts_layout, title="Cutouts"))
+        if tabs:
+            report = f"{prefix}-ResidualReport.html" if prefix else "ResidualReport.html"
+            output_file(report)
+            save(Tabs(tabs=tabs), title=report)
+            LOGGER.info(f"Saving combined residual report in {report}")
     return res
+
+
+def _residual_cutouts(residuals, results=None, outfile="ResidualCutouts.html", svg=False,
+                      ref_position=None, save_html=True):
+    """Side-by-side map and stamp grid for each residual pair.
+
+    With a catalogue (results given) the stamps are the sources whose deepest negative
+    changed most; without one, the biggest pixel changes anywhere. Either way both
+    images must share a pixel grid, since everything here compares them pixel by pixel.
+    """
+    sections = []
+    for i, pair in enumerate(residuals):
+        path1, path2 = pair[0]["path"], pair[1]["path"]
+        plane1, wcs1 = _image_plane(path1)
+        plane2, wcs2 = _image_plane(path2)
+        if not _same_pixel_grid(plane1.shape, wcs1, plane2.shape, wcs2):
+            LOGGER.warning(
+                f"Skipping cutouts for {path1} vs {path2}: the images are not on the same "
+                "pixel grid (size, projection, reference pixel and pixel scale must all "
+                "match). Regrid one onto the other to compare them pixel by pixel."
+            )
+            continue
+        if results is not None:
+            spots = _pick_source_spots(results[pair[0]["label"]], plane1.shape, wcs1)
+        else:
+            spots = _pick_pixel_changes(plane1, plane2, wcs1)
+        reference = None
+        if ref_position is not None:
+            x, y = _sky_to_pixel(wcs1, ref_position, plane1, path1)
+            _sky_to_pixel(wcs2, ref_position, plane2, path2)
+            v1, v2 = float(plane1[y, x]), float(plane2[y, x])
+            where = SkyCoord(*ref_position, unit="deg").to_string("hmsdms", sep=":", precision=0)
+            reference = dict(x=x, y=y, tag="REF", name=where, v1=v1, v2=v2,
+                             worse=_which_worse(v1, v2),
+                             title=f"{where}   {v1 * 1e3:.2f} \u2192 {v2 * 1e3:.2f} mJy")
+        label1 = os.path.basename(path1).split(".fits")[0]
+        label2 = os.path.basename(path2).split(".fits")[0]
+        heading = Div(text=f"<h2>{label1} vs {label2}</h2>")
+        sections += [heading, _cutouts_layout(plane1, plane2, spots, "1: " + label1,
+                                              "2: " + label2, reference=reference)]
+        if svg:
+            stem = outfile.replace(".html", f"_{i}" if len(residuals) > 1 else "")
+            floor = -_map_threshold(plane1, plane2)
+            if _save_map_svg(plane1, plane2, spots, "1: " + label1, "2: " + label2,
+                             f"{stem}_map.svg", reference=reference):
+                LOGGER.info(f"Saving side-by-side SVG {stem}_map.svg")
+            if _save_cutouts_svg(plane1, plane2, spots, floor, f"{stem}.svg",
+                                 reference=reference):
+                LOGGER.info(f"Saving cutout grid SVG {stem}.svg")
+    if not sections:
+        return None
+    layout = column(*sections)
+    if save_html:
+        output_file(outfile)
+        save(layout, title=outfile)
+        LOGGER.info(f"Saving residual cutouts {outfile}")
+    return layout
 
 
 def targets_not_matching(sources1, sources2, matched_names, flux_units="milli"):
@@ -3700,6 +3797,7 @@ def _residual_plotter(
     units="micro",
     svg=False,
     sort_by="distance",
+    return_layout=False,
 ):
     """Plot ratios of random residuals and noise
 
@@ -3901,16 +3999,26 @@ def _residual_plotter(
             if svg:
                 plot_residual.output_backend = "svg"
                 prefix = ".".join(outfile.split(".")[:-1])
-                export_svgs(plot_residual, filename=f"{prefix}.svg")
+                try:
+                    export_svgs(plot_residual, filename=f"{prefix}.svg")
+                except (RuntimeError, ImportError) as err:
+                    # bokeh's exporter drives a real browser (selenium plus firefox or
+                    # chromium). Without one, skip this SVG rather than abort the run -
+                    # the cutout SVGs are drawn with matplotlib and need no browser.
+                    LOGGER.warning(f"Skipping SVG of the noise-ratio plot: {err}")
         else:
             LOGGER.warn("No plot created. Found 0 or 1 data point in {}".format(res_image))
 
     if residual_plot_list:
         # Make the plots in a column layout
         residual_plots = column(residual_plot_list)
+        if return_layout:
+            # the caller combines this into a tabbed report instead
+            return residual_plots
         # Save the plot (html)
         save(residual_plots, title=outfile)
         LOGGER.info("Saving residual comparision plots {}".format(outfile))
+    return None
 
 
 def _random_residual_results(res_noise_images, data_points=None, fov_factor=None, area_factor=None):
@@ -4049,6 +4157,8 @@ SOURCE_RESIDUAL_FIELDS = [
     "res2_min",
     "res1_sum_neg",
     "res2_sum_neg",
+    "ra_deg",
+    "dec_deg",
 ]
 
 
@@ -4168,6 +4278,353 @@ def _format_table_stats(stats):
         else:
             out.append(f"{value:.4f}")
     return {"Stats": list(stats["Stats"]), "Value": out}
+
+
+#: Cutout grid shape. Fixed on purpose: 18 is enough to show a pattern, more stamps
+#: make the page heavier without showing more, and a settable grid invites separate
+#: row and column knobs.
+CUTOUT_COUNT = 18
+CUTOUT_COLUMNS = 3
+#: Half-width of each stamp in pixels (64x64 stamps). Stamps are never downsampled:
+#: a negative bowl is only a few beams across, so downsampling would erase it.
+CUTOUT_HALF_WIDTH = 32
+#: The side-by-side map marks negatives below this many times the noise.
+MAP_NOISE_FACTOR = 5.0
+#: Target size of the downsampled side-by-side map, in pixels per side.
+MAP_DISPLAY_PIXELS = 800
+
+
+def _image_plane(path):
+    """First Stokes/channel plane of a FITS image as float32, and its celestial WCS.
+
+    Cubes contribute their first channel, matching the box statistics in
+    _source_residual_results.
+    """
+    with fitsio.open(path) as hdul:
+        data = np.array(hdul[0].data, dtype=np.float32)
+        wcs = WCS(hdul[0].header).celestial
+    while data.ndim < 4:
+        data = data[np.newaxis]
+    return data[0, 0], wcs
+
+
+def _same_pixel_grid(shape1, wcs1, shape2, wcs2):
+    """True when two images share size, projection, reference pixel and pixel scale.
+
+    Everything on the cutouts page compares the two images pixel for pixel, which
+    only means something on a common grid.
+    """
+    return (
+        tuple(shape1) == tuple(shape2)
+        and list(wcs1.wcs.ctype) == list(wcs2.wcs.ctype)
+        and np.allclose(wcs1.wcs.crpix, wcs2.wcs.crpix)
+        and np.allclose(wcs1.wcs.crval, wcs2.wcs.crval)
+        and np.allclose(wcs1.pixel_scale_matrix, wcs2.pixel_scale_matrix)
+    )
+
+
+def _robust_noise(plane):
+    """MAD-based noise estimate, from every 4th pixel for speed."""
+    sample = plane[::4, ::4]
+    sample = sample[np.isfinite(sample)]
+    if not sample.size:
+        return 0.0
+    return float(1.4826 * np.median(np.abs(sample - np.median(sample))))
+
+
+def _map_threshold(plane1, plane2, factor=MAP_NOISE_FACTOR):
+    """One negative threshold for both panels of the side-by-side map.
+
+    Set by the noisier image, so the cleaner image cannot choose a threshold that
+    flatters it, and the same for both so their counts are comparable.
+    """
+    return -factor * max(_robust_noise(plane1), _robust_noise(plane2))
+
+
+def _block_reduce(plane, factor, reducer):
+    """Downsample by an integer factor, dropping any ragged edge."""
+    ny = (plane.shape[0] // factor) * factor
+    nx = (plane.shape[1] // factor) * factor
+    view = plane[:ny, :nx].reshape(ny // factor, factor, nx // factor, factor)
+    with np.errstate(invalid="ignore"), warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)   # all-blank blocks
+        return reducer(view, axis=(1, 3))
+
+
+def _worse_marks(plane1, plane2, threshold, factor):
+    """Blocks to mark on each panel: below threshold there AND deeper than the other image.
+
+    Marking every block below threshold puts the same clumps on both panels, because
+    negatives cluster around the same bright sources in both, so the panels look alike
+    whichever image is worse. Block minima rather than means, so downsampling cannot
+    erase a hole. Blanked blocks compare False and are never marked.
+    """
+    min1 = _block_reduce(plane1, factor, np.nanmin)
+    min2 = _block_reduce(plane2, factor, np.nanmin)
+    with np.errstate(invalid="ignore"):
+        return (min1 < threshold) & (min1 < min2), (min2 < threshold) & (min2 < min1)
+
+
+def _overlaps(x, y, spots, half):
+    """Whether a stamp at (x, y) would overlap one already chosen."""
+    return any(abs(x - s["x"]) < 2 * half and abs(y - s["y"]) < 2 * half for s in spots)
+
+
+def _which_worse(v1, v2):
+    return "2" if v2 < v1 else ("1" if v1 < v2 else "neither")
+
+
+def _pick_source_spots(rows, shape, wcs, count=CUTOUT_COUNT, half=CUTOUT_HALF_WIDTH):
+    """The sources whose deepest negative changed most between the images.
+
+    Ranked by the size of the change in either direction, so swapping the two images
+    picks the same sources and only flips which one is reported worse. Sources whose
+    stamps would overlap one already chosen are skipped, so a close pair does not show
+    the same bowl twice.
+    """
+    col = {f: SOURCE_RESIDUAL_FIELDS.index(f) for f in
+           ("name", "res1_min", "res2_min", "ra_deg", "dec_deg")}
+    ranked = sorted(rows, key=lambda r: -abs(r[col["res2_min"]] - r[col["res1_min"]]))
+    ny, nx = shape
+    spots = []
+    for r in ranked:
+        x, y = wcs.wcs_world2pix(r[col["ra_deg"]], r[col["dec_deg"]], 0)
+        if not (np.isfinite(x) and np.isfinite(y)):
+            continue
+        x, y = int(round(float(x))), int(round(float(y)))
+        if not (0 <= x < nx and 0 <= y < ny) or _overlaps(x, y, spots, half):
+            continue
+        v1, v2 = float(r[col["res1_min"]]), float(r[col["res2_min"]])
+        name = str(r[col["name"]])
+        worse = _which_worse(v1, v2)
+        spots.append(dict(
+            x=x, y=y, tag=name, name=name, v1=v1, v2=v2, worse=worse,
+            title=f"{name}   {v1 * 1e3:.2f} \u2192 {v2 * 1e3:.2f} mJy   (worse in {worse})",
+        ))
+        if len(spots) == count:
+            break
+    return spots
+
+
+def _pick_pixel_changes(plane1, plane2, wcs, count=CUTOUT_COUNT, half=CUTOUT_HALF_WIDTH):
+    """The biggest pixel changes (image 2 minus image 1) anywhere, in either direction.
+
+    Needs no catalogue. This answers "where did the sky change most" - sources removed
+    or changed in brightness - rather than "where did new negative artefacts appear",
+    since a few mJy of flux change outranks a sub-mJy ripple.
+    """
+    diff = plane2 - plane1
+    work = np.abs(diff)
+    work[~np.isfinite(work)] = 0.0
+    spots = []
+    for k in range(count):
+        flat = int(np.argmax(work))
+        if work.flat[flat] <= 0.0:
+            break
+        y, x = (int(v) for v in np.unravel_index(flat, work.shape))
+        change = float(diff[y, x])
+        ra, dec = (float(v) for v in wcs.wcs_pix2world(x, y, 0))
+        where = SkyCoord(ra, dec, unit="deg").to_string("hmsdms", sep=":", precision=0)
+        lower = "2" if change < 0 else "1"
+        spots.append(dict(
+            x=x, y=y, tag=str(k + 1), name=where,
+            v1=float(plane1[y, x]), v2=float(plane2[y, x]), worse=lower,
+            title=f"#{k + 1}  {where}   {lower} lower by {abs(change) * 1e3:.2f} mJy",
+        ))
+        work[max(0, y - 2 * half):y + 2 * half, max(0, x - 2 * half):x + 2 * half] = 0.0
+    return spots
+
+
+def _stamp(plane, x, y, half=CUTOUT_HALF_WIDTH):
+    """Square stamp centred on (x, y), padded with NaN where it runs off the image."""
+    out = np.full((2 * half, 2 * half), np.nan, dtype=np.float32)
+    y0, x0 = y - half, x - half
+    sy0, sx0 = max(0, y0), max(0, x0)
+    sy1, sx1 = min(plane.shape[0], y + half), min(plane.shape[1], x + half)
+    if sy1 > sy0 and sx1 > sx0:
+        out[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0] = plane[sy0:sy1, sx0:sx1]
+    return out
+
+
+def _stamp_limit(a, b, floor):
+    """Symmetric colour limit for a stamp pair, set by the deeper negative of the two.
+
+    Shared by both stamps so they are directly comparable. Set from the negatives, so
+    holes stay vivid and bright positives saturate; never below the floor, so a clean
+    pair is not stretched until its noise looks like structure.
+    """
+    finite = np.concatenate([a[np.isfinite(a)], b[np.isfinite(b)]])
+    deepest = float(finite.min()) if finite.size else 0.0
+    return max(abs(min(deepest, 0.0)) * 1.5, floor)
+
+
+def _stamp_pair_layout(plane1, plane2, spot, floor, size=150, half=CUTOUT_HALF_WIDTH):
+    """Two touching stamps (image 1, image 2) with a shared scale and linked zoom."""
+    a = _stamp(plane1, spot["x"], spot["y"], half) * 1e3
+    b = _stamp(plane2, spot["x"], spot["y"], half) * 1e3
+    limit = _stamp_limit(a, b, floor * 1e3)
+    # RdBu11 runs dark blue -> dark red, so negatives are blue and positives red
+    mapper = LinearColorMapper(palette=RdBu11, low=-limit, high=limit)
+    stamps = []
+    for data, number in ((a, "1"), (b, "2")):
+        fig = figure(width=size, height=size, x_range=(0, 2 * half), y_range=(0, 2 * half),
+                     tools="pan,wheel_zoom,reset", toolbar_location=None, min_border=0)
+        fig.image(image=[data], x=0, y=0, dw=2 * half, dh=2 * half, color_mapper=mapper)
+        fig.text([2], [2], text=[number], text_font_size="10pt", text_font_style="bold")
+        fig.axis.visible = False
+        fig.grid.visible = False
+        stamps.append(fig)
+    # zoom or pan one stamp and its partner follows
+    stamps[1].x_range = stamps[0].x_range
+    stamps[1].y_range = stamps[0].y_range
+    return column(Div(text=f"<b>{spot['title']}</b>", styles={"font-size": "11px"}),
+                  row(*stamps, spacing=0))
+
+
+def _cutouts_layout(plane1, plane2, spots, label1, label2, reference=None):
+    """Side-by-side map, optional reference pair, then the grid of stamp pairs."""
+    threshold = _map_threshold(plane1, plane2)
+    noise = -threshold / MAP_NOISE_FACTOR
+    factor = max(1, int(np.ceil(max(plane1.shape) / MAP_DISPLAY_PIXELS)))
+    worse1, worse2 = _worse_marks(plane1, plane2, threshold, factor)
+    ny, nx = plane1.shape
+    grey = LinearColorMapper(palette=Greys256, low=-max(MAP_NOISE_FACTOR * noise, 1e-12),
+                             high=max(MAP_NOISE_FACTOR * noise, 1e-12))
+    spot_source = ColumnDataSource(dict(
+        x=[sp["x"] for sp in spots], y=[sp["y"] for sp in spots],
+        tag=[sp["tag"] for sp in spots], name=[sp["name"] for sp in spots],
+        v1=[f"{sp['v1'] * 1e3:.3f}" for sp in spots], v2=[f"{sp['v2'] * 1e3:.3f}" for sp in spots],
+        worse=[sp["worse"] for sp in spots],
+    ))
+    panels = []
+    for plane, worse, label in ((plane1, worse1, label1), (plane2, worse2, label2)):
+        with np.errstate(invalid="ignore"):
+            count = int(np.sum(plane < threshold))
+        panel = figure(
+            title=f"{label}: {count:,} px below {threshold * 1e3:.3f} mJy "
+                  "(red = deeper here than in the other image)",
+            width=560, height=560, x_range=(0, nx), y_range=(0, ny), match_aspect=True,
+            tools="pan,wheel_zoom,box_zoom,reset",
+        )
+        display = _block_reduce(plane, factor, np.nanmean)
+        panel.image(image=[display], x=0, y=0, dw=display.shape[1] * factor,
+                    dh=display.shape[0] * factor, color_mapper=grey)
+        yy, xx = np.nonzero(worse)
+        panel.scatter(xx * factor + factor / 2, yy * factor + factor / 2,
+                      size=2, color="red", alpha=0.6)
+        circles = panel.scatter("x", "y", source=spot_source, size=14, fill_alpha=0,
+                                line_color="cyan", line_width=2)
+        panel.text("x", "y", text="tag", source=spot_source, x_offset=9, y_offset=-4,
+                   text_color="cyan", text_font_size="9pt")
+        panel.add_tools(HoverTool(renderers=[circles], tooltips=[
+            ("where", "@name"), ("1 / 2 (mJy)", "@v1 / @v2"), ("worse in", "@worse")]))
+        if reference is not None:
+            panel.scatter([reference["x"]], [reference["y"]], marker="star", size=18,
+                          fill_alpha=0, line_color="yellow", line_width=2)
+        panel.axis.visible = False
+        panels.append(panel)
+    panels[1].x_range = panels[0].x_range
+    panels[1].y_range = panels[0].y_range
+
+    parts = [Div(text="<h3>Side-by-side</h3>"), row(*panels)]
+    if reference is not None:
+        parts += [Div(text="<h3>Reference position</h3>"),
+                  _stamp_pair_layout(plane1, plane2, reference, noise * MAP_NOISE_FACTOR)]
+    parts.append(Div(text=f"<h3>{len(spots)} biggest changes</h3>"))
+    cells = [_stamp_pair_layout(plane1, plane2, sp, noise * MAP_NOISE_FACTOR) for sp in spots]
+    for i in range(0, len(cells), CUTOUT_COLUMNS):
+        parts.append(row(*cells[i:i + CUTOUT_COLUMNS], spacing=25))
+    return column(*parts)
+
+
+def _save_map_svg(plane1, plane2, spots, label1, label2, outname, reference=None):
+    """The side-by-side map as a publication SVG, via matplotlib (optional dependency).
+
+    Same content as the HTML panels: downsampled images, red where that image is worse,
+    the chosen spots circled and labelled, and each image's count in its title.
+    """
+    try:
+        from matplotlib.figure import Figure
+    except ImportError:
+        LOGGER.warning("SVGs are requested but matplotlib is not installed")
+        return None
+    threshold = _map_threshold(plane1, plane2)
+    noise = -threshold / MAP_NOISE_FACTOR
+    factor = max(1, int(np.ceil(max(plane1.shape) / MAP_DISPLAY_PIXELS)))
+    worse1, worse2 = _worse_marks(plane1, plane2, threshold, factor)
+    limit = max(MAP_NOISE_FACTOR * noise, 1e-12)
+    fig = Figure(figsize=(12, 6.4))
+    for k, (plane, worse, label) in enumerate(((plane1, worse1, label1), (plane2, worse2, label2))):
+        ax = fig.add_subplot(1, 2, k + 1)
+        display = _block_reduce(plane, factor, np.nanmean)
+        extent = (0, display.shape[1] * factor, 0, display.shape[0] * factor)
+        ax.imshow(display, origin="lower", cmap="gray", vmin=-limit, vmax=limit, extent=extent)
+        yy, xx = np.nonzero(worse)
+        ax.scatter(xx * factor + factor / 2, yy * factor + factor / 2, s=1, c="red", alpha=0.6,
+                   linewidths=0)
+        for spot in spots:
+            ax.scatter([spot["x"]], [spot["y"]], s=90, facecolors="none", edgecolors="cyan",
+                       linewidths=1.2)
+            ax.annotate(spot["tag"], (spot["x"], spot["y"]), xytext=(5, -3),
+                        textcoords="offset points", color="cyan", fontsize=6)
+        if reference is not None:
+            ax.scatter([reference["x"]], [reference["y"]], marker="*", s=160,
+                       facecolors="none", edgecolors="yellow", linewidths=1.2)
+        with np.errstate(invalid="ignore"):
+            count = int(np.sum(plane < threshold))
+        ax.set_title(f"{label}\n{count:,} px below {threshold * 1e3:.3f} mJy "
+                     "(red = deeper here than in the other)", fontsize=8)
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.tight_layout()
+    fig.savefig(outname)
+    return outname
+
+
+def _save_cutouts_svg(plane1, plane2, spots, floor, outname, reference=None,
+                      half=CUTOUT_HALF_WIDTH):
+    """The stamp grid as one publication SVG, via matplotlib (optional dependency).
+
+    matplotlib keeps text and labels as vectors and embeds each small stamp as a
+    compact raster, so an SVG of 64x64 stamps stays light.
+    """
+    try:
+        from matplotlib.colors import TwoSlopeNorm
+        from matplotlib.figure import Figure
+    except ImportError:
+        LOGGER.warning("SVGs are requested but matplotlib is not installed")
+        return None
+    # The reference gets a row of its own above the grid, so the grid keeps its shape.
+    offset = 1 if reference is not None else 0
+    cells = [(0, 0, reference)] if reference is not None else []
+    cells += [(offset + k // CUTOUT_COLUMNS, k % CUTOUT_COLUMNS, spot)
+              for k, spot in enumerate(spots)]
+    nrow = max(1, offset + int(np.ceil(len(spots) / CUTOUT_COLUMNS)))
+    stamp_in, gap_in, title_in = 1.9, 0.25, 0.32
+    widths = []
+    for c in range(CUTOUT_COLUMNS):
+        widths += [stamp_in, stamp_in] + ([gap_in] if c < CUTOUT_COLUMNS - 1 else [])
+    height = nrow * (stamp_in + title_in)
+    fig = Figure(figsize=(sum(widths), height))
+    grid_spec = fig.add_gridspec(nrow, len(widths), width_ratios=widths, left=0, right=1,
+                                 bottom=0, top=1 - title_in / height, wspace=0.0,
+                                 hspace=title_in / stamp_in)
+    for r, c, spot in cells:
+        a = _stamp(plane1, spot["x"], spot["y"], half) * 1e3
+        b = _stamp(plane2, spot["x"], spot["y"], half) * 1e3
+        limit = _stamp_limit(a, b, floor * 1e3)
+        norm = TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit)
+        for j, data in enumerate((a, b)):
+            ax = fig.add_subplot(grid_spec[r, c * 3 + j])
+            ax.imshow(data, origin="lower", cmap="RdBu_r", norm=norm, aspect="auto")
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.text(0.03, 0.04, str(j + 1), transform=ax.transAxes, fontsize=8, weight="bold")
+            if j == 0:
+                title = ("REFERENCE  " if spot is reference else "") + spot["title"]
+                ax.set_title(title, fontsize=7, loc="left")
+    fig.savefig(outname)
+    return outname
 
 
 def _source_residual_results(res_noise_images, skymodel, area_factor=None):
@@ -4303,6 +4760,10 @@ def _source_residual_results(res_noise_images, skymodel, area_factor=None):
                     res2_min,
                     res1_sum_neg,
                     res2_sum_neg,
+                    # position, so a source can be located again without re-reading the
+                    # catalogue by name - names are not guaranteed unique
+                    float(RA),
+                    float(DEC),
                 ]
             )
     return results
@@ -5355,9 +5816,9 @@ def get_argparser():
         "--combined-report",
         dest="combined_report",
         action="store_true",
-        help="Combine the flux and position comparison plots into a single "
-        "html report (tabbed), instead of two separate FluxOffset.html/"
-        "PositionOffset.html files.",
+        help="Combine plots into a single tabbed html report instead of separate files: "
+        "flux and position for catalogue comparisons (CrossMatchReport.html), noise "
+        "ratio and cutouts for --compare-residuals (ResidualReport.html).",
     )
     argument(
         "-hlfe",
@@ -5401,11 +5862,12 @@ def get_argparser():
         "--reference-position",
         dest="ref_position",
         default=None,
-        help="Sky position 'RA,DEC' in degrees at which to measure the dynamic range, "
-        "instead of this image's own peak. Pin this to the same value across images so "
-        "their DR values are measured at the same place and are therefore comparable "
-        "(a peeled or subtracted source otherwise moves the peak, silently relocating "
-        "the measurement).",
+        help="Sky position 'RA,DEC', in decimal degrees or sexagesimal. For dynamic range: "
+        "measure there instead of at this image's own peak. Pin this to the same value "
+        "across images so their DR values are measured at the same place and are "
+        "therefore comparable (a peeled or subtracted source otherwise moves the peak, "
+        "silently relocating the measurement). For --compare-residuals: add a cutout "
+        "pair at that position, marked on the side-by-side map.",
     )
     argument(
         "-af",
@@ -5937,6 +6399,9 @@ def main():
                     area_factor=args.factor,
                     prefix=args.htmlprefix,
                     sort_by=args.sort_sources,
+                    svg=args.svg,
+                    ref_position=_parse_sky_position(args.ref_position),
+                    combined_report=args.combined_report,
                 )
             else:
                 output_dict = compare_residuals(
@@ -5953,6 +6418,9 @@ def main():
                     prefix=args.htmlprefix,
                     points=int(args.points) if args.points else 100,
                     sort_by=args.sort_sources,
+                    svg=args.svg,
+                    ref_position=_parse_sky_position(args.ref_position),
+                    combined_report=args.combined_report,
                 )
 
     if args.images:
