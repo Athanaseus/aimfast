@@ -6122,6 +6122,30 @@ def get_argparser():
     return parser
 
 
+def parse_args(argv=None):
+    """Parse the command line, giving a subcommand's arguments only to its own parser.
+
+    argparse classifies every token against the main parser before dispatching, and
+    single-dash options match by prefix there regardless of allow_abbrev. So
+    source-finder's -t matched -thresh, -tol, -title and -title-size and failed as
+    ambiguous, and its -r broke as soon as a second "-r*" option existed. Parsing the
+    subcommand's tokens with its own parser avoids the whole class. The result is laid
+    over the main parser's defaults, which the rest of main() still reads.
+    """
+    argv = list(sys.argv[1:] if argv is None else argv)
+    parser = get_argparser()
+    subparsers = next(
+        (a.choices for a in parser._actions if isinstance(a, argparse._SubParsersAction)), {}
+    )
+    position = next((i for i, token in enumerate(argv) if token in subparsers), None)
+    if position is None:
+        return parser.parse_args(argv)
+    args = parser.parse_args(argv[:position])
+    subparsers[argv[position]].parse_args(argv[position + 1:], namespace=args)
+    args.subcommand = argv[position]
+    return args
+
+
 def main():
     """Main function."""
     LOGGER.info("Welcome to AIMfast")
@@ -6129,8 +6153,7 @@ def main():
     _command = " ".join(sys.argv)
     LOGGER.info(f"Command: {_command}")
     output_dict = dict()
-    parser = get_argparser()
-    args = parser.parse_args()
+    args = parse_args()
     # Print default args
     LOGGER.info(" ".join(f"{k}={v}" for k, v in vars(args).items()))
     DECIMALS = args.deci
