@@ -8,7 +8,7 @@ pybdsf:
   frequency:                   # Frequency in Hz of input image.
   freq0:                       # Start frequency (unit => Hz)
   thresh_isl: 3.0              # Threshold for the island boundary in number of sigma above the mean. Determines extent of island used for fitting
-  thresh_pix: 5.0              # Source detection threshold: threshold for the island peak in number of sigma above the mean
+  thresh_pix: 5.0              # DETECTION threshold: island peak in sigma above the mean. Set by -t/--threshold
   catalog_type: srl           # Type of catalog to write:  'gaul' - Gaussian list, 'srl' - source list (formed by grouping Gaussians), 'shap' - shapelet list (FITS format only)
   group_tol: 1.0               # Tolerance for grouping of Gaussians into sources: larger values will result in larger sources
   group_by_isl: true          # Group all Gaussians in each island into a single source
@@ -80,8 +80,9 @@ aegean:
   forcerms:                   # Assume a single image noise of rms
   forcebkg:                   # Assume a single image background
   maxsummits:                 # If more than *maxsummits* summits are detected in an island, no fitting is done, only estimation. [default: no limit]
-  seedclip: 5                 # The clipping value (in sigmas) for seeding islands
-  floodclip: 4                # The clipping value (in sigmas) for growing islands
+  cores: 4                    # Number of cores to execute
+  seedclip: 5                 # DETECTION threshold: clipping value (in sigmas) for seeding islands. Set by -t/--threshold
+  floodclip: 4                # The clipping value (in sigmas) for growing islands around a seed
 breizorro:
   enable: false
   filename:                   # Input image file name
@@ -95,7 +96,7 @@ breizorro:
   ncpu: 4                     # Number of processors to use for cataloging
   beam_size:                  # Average beam size in arcsec if missing in header
   source_fitting:             # Source fitting method for catalog generation
-  threshold: 6                # Flux detection threshold
+  threshold: 5                # DETECTION threshold: flux detection threshold. Set by -t/--threshold. Matched to pybdsf thresh_pix / aegean seedclip
   boxsize: 50                 # Box size over which to compute stats
   gui: false                  # Open mask in bokeh html gui
   outfile:                    # Output mask image
