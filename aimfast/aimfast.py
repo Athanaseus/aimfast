@@ -34,7 +34,10 @@ from bokeh.models import (
     LinearColorMapper,
     LogColorMapper,
     LogTicker,
+    LogAxis,
+    LogScale,
     Range1d,
+    Span,
     TabPanel,
     Tabs,
 )
@@ -2334,10 +2337,11 @@ def compare_residuals(
     area_factor=None,
     prefix=None,
     fov_factor=None,
+    sort_by="distance",
     units="micro",
     title_size="14pt",
-    xmajor_size="6pt",
-    ymajor_size="6pt",
+    xmajor_size="12pt",
+    ymajor_size="12pt",
     legend_size="10pt",
     x_label_size="12pt",
     y_label_size="12pt",
@@ -2354,6 +2358,7 @@ def compare_residuals(
         inline=inline,
         prefix=prefix,
         units=units,
+        sort_by=sort_by,
         title_size=title_size,
         legend_size=legend_size,
         xmajor_size=xmajor_size,
@@ -3175,8 +3180,8 @@ def _source_astrometry_plotter(
     x_label_size="12pt",
     y_label_size="12pt",
     legend_size="10pt",
-    xmajor_size="6pt",
-    ymajor_size="6pt",
+    xmajor_size="12pt",
+    ymajor_size="12pt",
     bar_size="8pt",
     bar_major_size="8pt",
     restored_image=None,
@@ -3690,10 +3695,11 @@ def _residual_plotter(
     x_label_size="12pt",
     y_label_size="12pt",
     legend_size="10pt",
-    xmajor_size="6pt",
-    ymajor_size="6pt",
+    xmajor_size="12pt",
+    ymajor_size="12pt",
     units="micro",
     svg=False,
+    sort_by="distance",
 ):
     """Plot ratios of random residuals and noise
 
@@ -3732,80 +3738,147 @@ def _residual_plotter(
         phase_centre_dist = []
         res_noise_ratio = []
         res_image = residual_pair[0]["label"]
-        for res_src in results[res_image]:
+        res1_mins = []
+        res2_mins = []
+        model_fluxes = []
+        for res_src in _sort_source_rows(results[res_image], sort_by):
             residuals1.append(res_src[0])
             residuals2.append(res_src[1])
             res_noise_ratio.append(res_src[2])
             phase_centre_dist.append(res_src[3])
             name_labels.append(res_src[4])
+            # only the skymodel path carries flux and the signed statistics
+            if len(res_src) >= len(SOURCE_RESIDUAL_FIELDS):
+                model_fluxes.append(res_src[5])
+                res1_mins.append(res_src[6])
+                res2_mins.append(res_src[7])
         if len(name_labels) > 1:
             # Get sigma value of residuals
             res1 = np.array(residuals1) * FLUX_UNIT_SCALER[units][0]
             res2 = np.array(residuals2) * FLUX_UNIT_SCALER[units][0]
             # Get ratio data
             y1 = np.array(res_noise_ratio)
-            x1 = np.array(range(len(res_noise_ratio)))
+            # Plot the quantity the rows were ordered by, not its rank: with rank on
+            # the x axis neighbouring points can be 0.001 deg or 0.5 deg apart, so the
+            # spacing carries no information and a turnover cannot be located.
+            x1 = np.array(_sort_axis_values(sort_by, phase_centre_dist, model_fluxes))
             # Create additional feature on the plot such as hover, display text
             TOOLS = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,save"
-            source = ColumnDataSource(
-                data=dict(x=x1, y=y1, res1=res1, res2=res2, label=name_labels)
+            hover_data = dict(
+                x=x1, y=y1, res1=res1, res2=res2, label=name_labels,
+                dist=list(phase_centre_dist),
             )
+            if len(model_fluxes) == len(name_labels):
+                hover_data["flux"] = list(model_fluxes)
+            source = ColumnDataSource(data=hover_data)
             text1 = residual_pair[0]["path"].split("/")[-1].split(".fits")[0]
             text2 = residual_pair[1]["path"].split("/")[-1].split(".fits")[0]
             # Get y2 label and range
             y2_label = "Flux density ({})".format(FLUX_UNIT_SCALER[units][1])
-            y_max = max(res1) if max(res1) > max(res2) else max(res2)
-            y_min = min(res1) if min(res1) < min(res2) else min(res2)
+            # Residuals span several decades, and the figure's y scale is
+            # logarithmic - an extra range inherits that scale, so a linear range
+            # starting at or below zero maps to nothing and its ticks disappear.
+            both = np.concatenate([np.asarray(res1, dtype=float), np.asarray(res2, dtype=float)])
+            both = both[both > 0]
+            y_max = float(both.max()) if both.size else 1.0
+            y_min = float(both.min()) if both.size else 1e-6
             # Create a plot objects and set axis limits
             plot_residual = figure(
+                # Log scale for the ratio: on a linear axis "twice as bad" (2.0) sits
+                # twice as far from 1.0 as "twice as good" (0.5), so equal-sized
+                # changes look unequal. Ratios of standard deviations are positive,
+                # so a log axis is always defined here.
+                y_axis_type="log",
                 title=title,
-                x_axis_label="Sources",
+                x_axis_label=(
+                    _SORT_AXIS_LABEL.get(sort_by, "Sources")
+                    if (sort_by == "distance" or (sort_by == "flux" and model_fluxes))
+                    else "Sources"
+                ),
                 y_axis_label="Res1-to-Res2",
                 width=1200,
                 height=800,
                 tools=TOOLS,
             )
-            plot_residual.y_range = Range1d(start=min(y1) - 0.01, end=max(y1) + 0.01)
-            plot_residual.extra_y_ranges = {
-                y2_label: Range1d(start=y_min - 0.01 * abs(y_min), end=y_max + 0.01 * abs(y_max))
-            }
+            positive = y1[y1 > 0]
+            plot_residual.y_range = Range1d(
+                start=(positive.min() * 0.9 if positive.size else 0.1),
+                end=(positive.max() * 1.1 if positive.size else 10.0),
+            )
+            # mark no-change, the reference the eye needs on a ratio axis
             plot_residual.add_layout(
-                LinearAxis(y_range_name=y2_label, axis_label=y2_label), "right"
+                Span(location=1.0, dimension="width", line_color="grey",
+                     line_dash="dashed", line_width=1)
+            )
+            plot_residual.extra_y_ranges = {y2_label: Range1d(start=y_min * 0.9, end=y_max * 1.1)}
+            plot_residual.extra_y_scales = {y2_label: LogScale()}
+            plot_residual.add_layout(
+                LogAxis(y_range_name=y2_label, axis_label=y2_label), "right"
             )
             plot_residual.axis.axis_label_text_font_style = "bold"
-            res1_object = plot_residual.line(
-                x1, res1, color="red", legend_label=f"res1: {text1}", y_range_name=y2_label
+            # Scatter, not line: these are independent measurements at scattered sky
+            # positions, so a line between neighbouring sources implies a continuity
+            # that does not exist - it only reflects the chosen ordering. The other
+            # plots already reserve line() for reference lines.
+            res1_object = plot_residual.scatter(
+                "x",
+                "res1",
+                source=source,
+                size=4,
+                alpha=0.5,
+                marker="circle",
+                color="red",
+                legend_label=f"res1: {text1}",
+                y_range_name=y2_label,
             )
-            res2_object = plot_residual.line(
-                x1, res2, color="blue", legend_label=f"res2: {text2}", y_range_name=y2_label
+            res2_object = plot_residual.scatter(
+                "x",
+                "res2",
+                source=source,
+                size=4,
+                alpha=0.5,
+                marker="square",
+                color="blue",
+                legend_label=f"res2: {text2}",
+                y_range_name=y2_label,
             )
-            res_ratio_object = plot_residual.line(
-                "x", "y", name="ratios", source=source, color="green", legend_label="res1-to-res2"
+            res_ratio_object = plot_residual.scatter(
+                "x",
+                "y",
+                name="ratios",
+                source=source,
+                size=4,
+                alpha=0.5,
+                marker="triangle",
+                color="green",
+                legend_label="res1-to-res2",
             )
             plot_residual.title.text_font_size = title_size
             plot_residual.xaxis.axis_label_text_font_size = x_label_size
             plot_residual.yaxis.axis_label_text_font_size = y_label_size
             plot_residual.legend.label_text_font_size = legend_size
+            plot_residual.legend.click_policy = "hide"
             plot_residual.xaxis.major_label_text_font_size = xmajor_size
             plot_residual.yaxis.major_label_text_font_size = ymajor_size
             # Table with stats data
             cols = ["Stats", "Value"]
-            stats = {
-                "Stats": [
-                    f"{text1} ({FLUX_UNIT_SCALER[units][1]})",
-                    f"{text2} ({FLUX_UNIT_SCALER[units][1]})",
-                    "Res1-to-Res2",
-                ],
-                "Value": [
-                    np.mean(residuals1) * FLUX_UNIT_SCALER[units][0],
-                    np.mean(residuals2) * FLUX_UNIT_SCALER[units][0],
-                    np.mean(residuals2) / np.mean(residuals1),
-                ],
-            }
-            source = ColumnDataSource(data=stats)
+            stats = _residual_table_stats(
+                text1,
+                text2,
+                residuals1,
+                residuals2,
+                res1_mins,
+                res2_mins,
+                model_fluxes,
+                units,
+            )
+            tail_names, tail_values = _ratio_tail_counts(residuals1, residuals2)
+            stats["Stats"] += tail_names
+            stats["Value"] += tail_values
+            source = ColumnDataSource(data=_format_table_stats(stats))
             columns = [TableColumn(field=x, title=x.capitalize()) for x in cols]
             dtab = DataTable(
-                source=source, columns=columns, width=550, max_width=800, height=100, max_height=150
+                source=source, columns=columns, width=550, max_width=800, height=300, max_height=400
             )
             table_title = Div(text="Cross Match Stats")
             table_title.align = "center"
@@ -3813,7 +3886,12 @@ def _residual_plotter(
             # Attaching the hover object with labels
             hover = plot_residual.select(dict(type=HoverTool))
             hover.tooltips = OrderedDict(
-                [("ratio", "@y"), ("(Res1,Res2)", "(@res1,@res2)"), ("source", "@label")]
+                [
+                    ("source", "@label"),
+                    ("ratio", "@y"),
+                    ("(Res1,Res2)", "(@res1,@res2)"),
+                    ("distance (deg)", "@dist"),
+                ]
             )
             # Position of legend and title align
             plot_residual.legend.location = "top_left"
@@ -3972,6 +4050,124 @@ SOURCE_RESIDUAL_FIELDS = [
     "res1_sum_neg",
     "res2_sum_neg",
 ]
+
+
+#: x-axis label for each ordering, so the plot says what it is sorted by.
+_SORT_AXIS_LABEL = {
+    "flux": "Model flux (Jy)",
+    "distance": "Distance from phase centre (deg)",
+    "none": "Sources",
+}
+
+
+def _sort_axis_values(sort_by, phase_centre_dist, model_flux):
+    """x values matching the chosen ordering.
+
+    Falls back to the source index when the rows cannot support the request - the
+    random-positions path has no flux column - so the axis label and the values
+    always agree.
+    """
+    if sort_by == "distance" and len(phase_centre_dist):
+        return list(phase_centre_dist)
+    if sort_by == "flux" and len(model_flux):
+        return list(model_flux)
+    return list(range(len(phase_centre_dist)))
+
+#: How the per-source rows may be ordered along the plot's x axis.
+SOURCE_SORT_CHOICES = ("flux", "distance", "none")
+
+
+def _sort_source_rows(rows, sort_by="distance"):
+    """Order per-source rows for plotting.
+
+    Unsorted, the x axis is catalogue order, which is arbitrary - so a real trend
+    with brightness or off-axis distance is scattered across the plot and reads as
+    noise. Both quantities are already stored per row.
+
+    _random_residual_results rows stop at the name and carry no flux, so anything
+    they cannot support falls back to the original order.
+    """
+    if sort_by in (None, "none") or not rows:
+        return list(rows)
+    field = "model_flux" if sort_by == "flux" else "phase_centre_dist"
+    index = SOURCE_RESIDUAL_FIELDS.index(field)
+    if len(rows[0]) <= index:
+        return list(rows)
+    # brightest first, but nearest first - the interesting end in each case
+    return sorted(rows, key=lambda row: row[index], reverse=(sort_by == "flux"))
+
+
+def _residual_table_stats(
+    label1, label2, res1_std, res2_std, res1_min, res2_min, model_flux, units,
+    hole_fraction=0.1,
+):
+    """Build the rows of the plot's "Cross Match Stats" table.
+
+    Res1-to-Res2 is mean(res1)/mean(res2), which matches both the per-source
+    rms_ratio column and the green line on the plot. It previously computed
+    mean(res2)/mean(res1) under that same label, so the table reported the
+    inverse of what the plot drew.
+    """
+    scale, unit = FLUX_UNIT_SCALER[units][0], FLUX_UNIT_SCALER[units][1]
+    names = [f"{label1} ({unit})", f"{label2} ({unit})", "Res1-to-Res2"]
+    values = [
+        float(np.mean(res1_std)) * scale,
+        float(np.mean(res2_std)) * scale,
+        float(np.mean(res1_std) / np.mean(res2_std)),
+    ]
+    if not (len(res1_min) and len(res2_min)):
+        return {"Stats": names, "Value": values}
+    # std is sign-blind, so report the signed statistics alongside it
+    names += [f"Mean deepest negative res1 ({unit})", f"Mean deepest negative res2 ({unit})"]
+    values += [float(np.mean(res1_min)) * scale, float(np.mean(res2_min)) * scale]
+    if len(model_flux):
+        flux = np.asarray(model_flux, dtype=float)
+        pct = int(hole_fraction * 100)
+        for tag, mins in (("res1", res1_min), ("res2", res2_min)):
+            deep = int(np.sum(np.asarray(mins, dtype=float) < -hole_fraction * flux))
+            names.append(f"Sources with {tag} hole > {pct}% of flux (of {flux.size})")
+            values.append(float(deep))
+    return {"Stats": names, "Value": values}
+
+
+def _ratio_tail_counts(res1_std, res2_std, thresholds=(5.0, 10.0)):
+    """How many sources sit far from no-change, in each direction.
+
+    The mean ratio hides this: a handful of badly damaged sources moves it very
+    little, so a count of the tail is what distinguishes "a bit noisier overall"
+    from "some sources were wrecked". Reported both ways round, since a threshold
+    of 5 and one of 1/5 are the same distance from 1.0 on the log axis.
+    """
+    ratio = np.asarray(res1_std, dtype=float) / np.asarray(res2_std, dtype=float)
+    ratio = ratio[np.isfinite(ratio)]
+    names, values = [], []
+    for limit in thresholds:
+        names.append(f"Sources with ratio > {limit:g} (res2 better, of {ratio.size})")
+        values.append(float(np.sum(ratio > limit)))
+        names.append(f"Sources with ratio < 1/{limit:g} (res1 better, of {ratio.size})")
+        values.append(float(np.sum(ratio < 1.0 / limit)))
+    return names, values
+
+
+def _format_table_stats(stats):
+    """Render the stats table values for display.
+
+    Raw floats show as 0.00018758542137220502; fluxes want scientific notation,
+    ratios a few decimals, and counts no decimals at all.
+    """
+    out = []
+    for value in stats["Value"]:
+        if not isinstance(value, float):
+            out.append(str(value))
+        elif value == 0:
+            out.append("0")
+        elif abs(value) < 0.01:
+            out.append(f"{value:.3e}")
+        elif float(value).is_integer():
+            out.append(f"{int(value)}")
+        else:
+            out.append(f"{value:.4f}")
+    return {"Stats": list(stats["Stats"]), "Value": out}
 
 
 def _source_residual_results(res_noise_images, skymodel, area_factor=None):
@@ -4613,8 +4809,8 @@ def plot_model_columns(
     x_label_size="12pt",
     y_label_size="12pt",
     legend_size="10pt",
-    xmajor_size="6pt",
-    ymajor_size="6pt",
+    xmajor_size="12pt",
+    ymajor_size="12pt",
     units="micro",
 ):
     """Plot catalog columns including their uncertainties"""
@@ -5007,6 +5203,14 @@ def get_argparser():
         "e.g. --compare-residuals residual1.fits residual2.fits",
     )
     argument(
+        "--sort-sources",
+        dest="sort_sources",
+        choices=SOURCE_SORT_CHOICES,
+        default="distance",
+        help="Order sources along the x axis of the residual comparison plot "
+        "(default: distance from the phase centre)",
+    )
+    argument(
         "-catalog",
         "--tigger-model",
         dest="model",
@@ -5390,7 +5594,7 @@ def get_argparser():
         "-bar-major-size",
         "--colorbar-major-labels-size",
         dest="bar_major_size",
-        default="6pt",
+        default="12pt",
         help="x-axis label size for plots",
     )
     argument(
@@ -5418,14 +5622,14 @@ def get_argparser():
         "-x-maj-size",
         "--x-major-labels-size",
         dest="xmaj_size",
-        default="6pt",
+        default="12pt",
         help="x-axis major label size for plots",
     )
     argument(
         "-y-maj-size",
         "--y-mojar-labels-size",
         dest="ymaj_size",
-        default="6pt",
+        default="12pt",
         help="y-axis major label size for plots",
     )
     argument(
@@ -5732,6 +5936,7 @@ def main():
                     y_label_size=args.ysize,
                     area_factor=args.factor,
                     prefix=args.htmlprefix,
+                    sort_by=args.sort_sources,
                 )
             else:
                 output_dict = compare_residuals(
@@ -5747,6 +5952,7 @@ def main():
                     y_label_size=args.ysize,
                     prefix=args.htmlprefix,
                     points=int(args.points) if args.points else 100,
+                    sort_by=args.sort_sources,
                 )
 
     if args.images:
