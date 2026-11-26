@@ -146,14 +146,15 @@ def dec2deg(dec_dms):
         dec_dms = dec_dms.split(".")
         dec_dms = ":".join(dec_dms[:3])
         dec_dms += f".{dec_dms[-1]}"
+    # Take the sign from the string, not from the degrees value: float("-00") is
+    # -0.0, and -0.0 >= 0 is True in Python, so declinations between -1 and 0 degrees
+    # (e.g. "-00:55:47") previously came out positive.
+    negative = dec_dms.lstrip().startswith("-")
     dec = dec_dms.split(":")
     dd = abs(float(dec[0]))
     mm = float(dec[1]) / 60
     ss = float(dec[2]) / 3600
-    if float(dec[0]) >= 0:
-        return dd + mm + ss
-    else:
-        return -(dd + mm + ss)
+    return -(dd + mm + ss) if negative else (dd + mm + ss)
 
 
 def deg2dec(dec_deg, deci=2):
